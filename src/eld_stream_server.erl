@@ -86,7 +86,8 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(_Reason, #{conn := ShotgunPid} = _State) ->
+terminate(Reason, #{conn := ShotgunPid} = _State) ->
+    io:format("~nTerminating, reason: ~p; Pid ~p", [Reason, ShotgunPid]),
     ok = shotgun:close(ShotgunPid).
 
 code_change(_OldVsn, State, _Extra) ->

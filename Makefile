@@ -5,7 +5,7 @@ PROJECT_VERSION = 0.0.1
 # Whitespace to be used when creating files from templates.
 SP = 4
 
-LOCAL_DEPS = inets
+LOCAL_DEPS = inets crypto asn1 public_key ssl
 
 DEPS = shotgun jsx
 dep_shotgun = git https://github.com/inaka/shotgun master
