@@ -33,8 +33,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    % Pre-create flags bucket
+    % Pre-create flags and segments buckets
     ok = create_bucket(flags),
+    ok = create_bucket(segments),
     {ok, #{}}.
 
 %%====================================================================
@@ -217,14 +218,39 @@ put_item(Key, Value, Bucket) when is_binary(Key), is_atom(Bucket) ->
 %% @private
 %%
 %% @end
--spec process_put_events(data :: [term()]) -> ok.
+-spec process_put_events(Data :: [term()]) -> ok.
 process_put_events([]) ->
     ok;
-process_put_events([event|rest]) ->
-    ok = process_put_event(event),
-    ok = process_put_events(rest).
+process_put_events([Event|Rest]) ->
+    ok = process_put_event(Event),
+    process_put_events(Rest).
 
 -spec process_put_event(Event :: term()) -> ok.
-process_put_event(Event) ->
-    ok = io:format("~nProcessing event ~p", [Event]).
+process_put_event(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
+    io:format("~nPath is: ~p", [<<"/">>]),
+    io:format("~nSegments are: ~p", [Segments]),
+    io:format("~nFlags are: ~p", [Flags]),
+    process_put_segments(maps:to_list(Segments)),
+    process_put_flags(maps:to_list(Flags)).
 
+-spec process_put_segments(Segments :: [proplists:proplist()]) -> ok.
+process_put_segments([]) ->
+    ok;
+process_put_segments([{SegmentKey, SegmentMap}|Rest]) ->
+    ok = process_put_segment(SegmentKey, SegmentMap),
+    process_put_segments(Rest).
+
+-spec process_put_segment(SegmentKey :: binary(), SegmentMap :: map()) -> ok.
+process_put_segment(SegmentKey, SegmentMap) ->
+    ok = put_item(SegmentKey, SegmentMap, segments).
+
+-spec process_put_flags(Flags :: [proplists:proplist()]) -> ok.
+process_put_flags([]) ->
+    ok;
+process_put_flags([{FlagKey, FlagMap}|Rest]) ->
+    ok = process_put_flag(FlagKey, FlagMap),
+    process_put_flags(Rest).
+
+-spec process_put_flag(FlagKey :: binary(), FlagMap :: map()) -> ok.
+process_put_flag(FlagKey, FlagMap) ->
+    ok = put_item(FlagKey, FlagMap, flags).

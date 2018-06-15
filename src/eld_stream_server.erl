@@ -63,7 +63,9 @@ handle_call({listen, Host, Port, Path}, _From, #{sdkkey := SdkKey} = State) ->
             {stop, normal, {error, gun_open_timeout, "Connection timeout"}, State};
         {ok, ShotgunPid} ->
             F = fun(nofin, _Ref, Bin) ->
-                process_event(shotgun:parse_event(Bin))
+                    process_event(shotgun:parse_event(Bin));
+                (fin, _Ref, Bin) ->
+                    io:format("~nGot a fin message with data ~p", [Bin])
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
             case shotgun:get(ShotgunPid, Path, #{"Authorization" => SdkKey}, Options) of
@@ -97,4 +99,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @end
 -spec process_event(shotgun:event()) -> ok.
 process_event(#{event := Event, data := Data}) ->
-    io:format("~nReceived event ~p with data ~p", [Event, Data]).
+    % TODO optimization: we return maps, later we convert to proplists, should just return proplists then?
+    DecodedData = jsx:decode(Data, [return_maps]),
+    io:format("~nReceived event ~p with data ~p", [Event, DecodedData]),
+    ok = eld_storage_server:process_events(Event, [DecodedData]).
