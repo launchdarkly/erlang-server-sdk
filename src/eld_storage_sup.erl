@@ -34,5 +34,5 @@ init([]) ->
 
 -spec children() -> [supervisor:child_spec()].
 children() ->
-    FlagStorageServer = ?CHILD(eld_storage_worker_flags, eld_storage_worker_flags, [], worker),
+    FlagStorageServer = ?CHILD(eld_storage_server, eld_storage_server, [], worker),
     [FlagStorageServer].
