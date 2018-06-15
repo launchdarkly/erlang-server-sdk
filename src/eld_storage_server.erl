@@ -86,8 +86,8 @@ put(Bucket, Key, Value) when is_atom(Bucket), is_binary(Key) ->
 %%
 %% @end
 -spec process_events(Event :: binary(), Data :: [{binary(), binary(), number()}]) -> ok.
-process_events(<<"flag">>, Data) ->
-    ok = gen_server:call(?MODULE, {process_events, Data}).
+process_events(<<"put">>, Data) ->
+    ok = gen_server:call(?MODULE, {process_put_events, Data}).
 
 %%====================================================================
 %% Behavior callbacks
@@ -105,8 +105,8 @@ handle_call({list, Bucket}, _From, State) ->
     {reply, list_items(Bucket), State};
 handle_call({put, Bucket, Key, Value}, _From, State) ->
     {reply, put_item(Key, Value, Bucket), State};
-handle_call({process_events, Data}, _From, State) ->
-    {reply, process_events(Data), State}.
+handle_call({process_put_events, Data}, _From, State) ->
+    {reply, process_put_events(Data), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -213,18 +213,18 @@ put_item(Key, Value, Bucket) when is_binary(Key), is_atom(Bucket) ->
             ok
     end.
 
-%% @doc Process a list of events
+%% @doc process a list of events
 %% @private
 %%
 %% @end
--spec process_events(Data :: [term()]) -> ok.
-process_events([]) ->
+-spec process_put_events(data :: [term()]) -> ok.
+process_put_events([]) ->
     ok;
-process_events([Event|Rest]) ->
-    ok = process_event(Event),
-    ok = process_events(Rest).
+process_put_events([event|rest]) ->
+    ok = process_put_event(event),
+    ok = process_put_events(rest).
 
--spec process_event(Event :: term()) -> ok.
-process_event(Event) ->
+-spec process_put_event(Event :: term()) -> ok.
+process_put_event(Event) ->
     ok = io:format("~nProcessing event ~p", [Event]).
 

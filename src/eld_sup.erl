@@ -35,4 +35,5 @@ init([]) ->
 -spec children() -> [supervisor:child_spec()].
 children() ->
     StorageSup = ?CHILD(eld_storage_sup, eld_storage_sup, [], supervisor),
-   [StorageSup].
+    StreamSup = ?CHILD(eld_stream_sup, eld_stream_sup, [], supervisor),
+   [StorageSup, StreamSup].

@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% Supervision
--export([start_link/0, init/1]).
+-export([start_link/1, init/1]).
 
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
@@ -17,7 +17,7 @@
 %% API
 -export([listen/4]).
 
--type state() :: #{conn => pid() | undefined}.
+-type state() :: #{conn => pid() | undefined, sdkkey => string()}.
 
 %%%===================================================================
 %%% API
@@ -34,18 +34,18 @@ listen(Pid, Host, Port, Path) when is_pid(Pid), is_integer(Port), Port > 0 ->
 %% @doc Starts the server
 %%
 %% @end
--spec start_link() ->
+-spec start_link(SdkKey :: string()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(SdkKey) ->
+    gen_server:start_link(?MODULE, [SdkKey], []).
 
 -spec init(Args :: term()) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
-init([]) ->
+init([SdkKey]) ->
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
-    {ok, #{conn => undefined}}.
+    {ok, #{conn => undefined, sdkkey => SdkKey}}.
 
 %%%===================================================================
 %%% Behavior callbacks
@@ -55,7 +55,7 @@ init([]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen, Host, Port, Path}, _From, State) ->
+handle_call({listen, Host, Port, Path}, _From, #{sdkkey := SdkKey} = State) ->
     case shotgun:open(Host, Port) of
         {error, gun_open_failed} ->
             {stop, normal, {error, gun_open_failed, "Could not open connection to host"}, State};
@@ -66,7 +66,7 @@ handle_call({listen, Host, Port, Path}, _From, State) ->
                 process_event(shotgun:parse_event(Bin))
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
-            case shotgun:get(ShotgunPid, Path, #{}, Options) of
+            case shotgun:get(ShotgunPid, Path, #{"Authorization" => SdkKey}, Options) of
                 {error, Reason} ->
                     {stop, normal, {error, get_req_failed, Reason}};
                 {ok, _Ref} ->
