@@ -102,7 +102,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @end
 -spec process_event(shotgun:event()) -> ok.
 process_event(#{event := Event, data := Data}) ->
-    % TODO optimization: we return maps, later we convert to proplists, should just return proplists then?
+    % Return data as maps because it's a preferred storage method for flags and segments
     DecodedData = jsx:decode(Data, [return_maps]),
     EventOperation = get_event_operation(Event),
     io:format("~nReceived event ~p with data ~p", [EventOperation, DecodedData]),
