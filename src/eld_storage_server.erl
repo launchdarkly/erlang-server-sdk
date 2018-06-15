@@ -23,7 +23,10 @@
 -export([put/3]).
 -export([process_events/2]).
 
+%% Types
 -type state() :: map().
+-type event_operation() :: put | patch.
+-export_type([event_operation/0]).
 
 %%===================================================================
 %% Supervision
@@ -86,9 +89,11 @@ put(Bucket, Key, Value) when is_atom(Bucket), is_binary(Key) ->
 %% @doc Process a list of events
 %%
 %% @end
--spec process_events(Event :: binary(), Data :: [{binary(), binary(), number()}]) -> ok.
-process_events(<<"put">>, Data) ->
-    ok = gen_server:call(?MODULE, {process_put_events, Data}).
+-spec process_events(EventOperation :: event_operation(), Data :: [map()]) -> ok.
+process_events(put, Data) ->
+    ok = gen_server:call(?MODULE, {process_put_events, Data});
+process_events(patch, Data) ->
+    ok = gen_server:call(?MODULE, {process_patch_events, Data}).
 
 %%====================================================================
 %% Behavior callbacks
@@ -107,7 +112,9 @@ handle_call({list, Bucket}, _From, State) ->
 handle_call({put, Bucket, Key, Value}, _From, State) ->
     {reply, put_item(Key, Value, Bucket), State};
 handle_call({process_put_events, Data}, _From, State) ->
-    {reply, process_put_events(Data), State}.
+    {reply, process_put_events(Data), State};
+handle_call({process_patch_events, Data}, _From, State) ->
+    {reply, process_patch_events(Data), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -214,18 +221,18 @@ put_item(Key, Value, Bucket) when is_binary(Key), is_atom(Bucket) ->
             ok
     end.
 
-%% @doc process a list of events
+%% @doc process a list of events to put
 %% @private
 %%
 %% @end
--spec process_put_events(Data :: [term()]) -> ok.
+-spec process_put_events(Data :: [map()]) -> ok.
 process_put_events([]) ->
     ok;
 process_put_events([Event|Rest]) ->
     ok = process_put_event(Event),
     process_put_events(Rest).
 
--spec process_put_event(Event :: term()) -> ok.
+-spec process_put_event(Event :: map()) -> ok.
 process_put_event(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     io:format("~nPath is: ~p", [<<"/">>]),
     io:format("~nSegments are: ~p", [Segments]),
@@ -254,3 +261,24 @@ process_put_flags([{FlagKey, FlagMap}|Rest]) ->
 -spec process_put_flag(FlagKey :: binary(), FlagMap :: map()) -> ok.
 process_put_flag(FlagKey, FlagMap) ->
     ok = put_item(FlagKey, FlagMap, flags).
+
+%% @doc process a list of events to patch
+%% @private
+%%
+%% @end
+-spec process_patch_events(Data :: [map()]) -> ok.
+process_patch_events([]) ->
+    ok;
+process_patch_events([Event|Rest]) ->
+    ok = process_patch_event(Event),
+    process_patch_events(Rest).
+
+-spec process_patch_event(Event :: map()) -> ok.
+process_patch_event(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
+    io:format("~nPatching flag: ~p", [FlagKey]),
+    io:format("~nFlag data: ~p", [FlagMap]),
+    process_put_flag(FlagKey, FlagMap);
+process_patch_event(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
+    io:format("~nPatching segment: ~p", [SegmentKey]),
+    io:format("~nSegment data: ~p", [SegmentMap]),
+    process_put_segment(SegmentKey, SegmentMap).

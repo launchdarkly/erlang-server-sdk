@@ -65,6 +65,7 @@ handle_call({listen, Host, Port, Path}, _From, #{sdkkey := SdkKey} = State) ->
             F = fun(nofin, _Ref, Bin) ->
                     process_event(shotgun:parse_event(Bin));
                 (fin, _Ref, Bin) ->
+                    % TODO need to do something here
                     io:format("~nGot a fin message with data ~p", [Bin])
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
@@ -101,5 +102,10 @@ code_change(_OldVsn, State, _Extra) ->
 process_event(#{event := Event, data := Data}) ->
     % TODO optimization: we return maps, later we convert to proplists, should just return proplists then?
     DecodedData = jsx:decode(Data, [return_maps]),
-    io:format("~nReceived event ~p with data ~p", [Event, DecodedData]),
-    ok = eld_storage_server:process_events(Event, [DecodedData]).
+    EventOperation = get_event_operation(Event),
+    io:format("~nReceived event ~p with data ~p", [EventOperation, DecodedData]),
+    ok = eld_storage_server:process_events(EventOperation, [DecodedData]).
+
+-spec get_event_operation(Event :: binary()) -> eld_storage_server:event_operation().
+get_event_operation(<<"put">>) -> put;
+get_event_operation(<<"patch">>) -> patch.
