@@ -15,7 +15,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 %% API
--export([listen/4]).
+-export([listen/2]).
 
 -type state() :: #{conn => pid() | undefined, sdkkey => string()}.
 
@@ -26,10 +26,9 @@
 %% @doc Start listening to streaming events
 %%
 %% @end
--spec listen(Pid :: pid(), Host :: string(), Port :: pos_integer(), Path :: string()) ->
-    ok | {error, atom(), term()}.
-listen(Pid, Host, Port, Path) when is_pid(Pid), is_integer(Port), Port > 0 ->
-    gen_server:call(Pid, {listen, Host, Port, Path}).
+-spec listen(Pid :: pid(), Uri :: http_uri:uri()) -> ok | {error, atom(), term()}.
+listen(Pid, Uri) ->
+    gen_server:call(Pid, {listen, Uri}).
 
 %% @doc Starts the server
 %%
@@ -55,8 +54,10 @@ init([SdkKey]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen, Host, Port, Path}, _From, #{sdkkey := SdkKey} = State) ->
-    case shotgun:open(Host, Port) of
+handle_call({listen, Uri}, _From, #{sdkkey := SdkKey} = State) ->
+    io:format("~nStarting: ~p", [Uri]),
+    {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
+    case shotgun:open(Host, Port, Scheme) of
         {error, gun_open_failed} ->
             {stop, normal, {error, gun_open_failed, "Could not open connection to host"}, State};
         {error, gun_open_timeout} ->
@@ -69,7 +70,7 @@ handle_call({listen, Host, Port, Path}, _From, #{sdkkey := SdkKey} = State) ->
                     io:format("~nGot a fin message with data ~p", [Bin])
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
-            case shotgun:get(ShotgunPid, Path, #{"Authorization" => SdkKey}, Options) of
+            case shotgun:get(ShotgunPid, Path ++ Query, #{"Authorization" => SdkKey}, Options) of
                 {error, Reason} ->
                     {stop, normal, {error, get_req_failed, Reason}};
                 {ok, _Ref} ->
