@@ -6,8 +6,10 @@
 
 -module(eld_flag).
 
+%% API
 -export([new/1, get_variation/2]).
 
+%% Types
 -type flag() :: #{
     debug_events_until_date => null | pos_integer(),
     deleted                 => boolean(),
@@ -25,6 +27,10 @@
     version                 => pos_integer()
 }.
 -export_type([flag/0]).
+
+%%%===================================================================
+%%% API
+%%%===================================================================
 
 -spec new(map()) -> flag().
 new(#{

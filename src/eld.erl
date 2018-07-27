@@ -6,12 +6,12 @@
 
 -module(eld).
 
-% API
+%% API
 -export([start_stream/1]).
 -export([start_stream/2]).
 -export([stop_all_streams/0]).
 
-% Constants
+%% Constants
 -define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://events.launchdarkly.com").
@@ -42,7 +42,6 @@ start_stream(SdkKey, Uri) ->
 -spec stop_all_streams() -> ok.
 stop_all_streams() ->
     ok = terminate_all_children(eld_stream_sup).
-
 
 %%%===================================================================
 %%% Internal functions

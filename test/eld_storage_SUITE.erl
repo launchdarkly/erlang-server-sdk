@@ -54,7 +54,7 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 
 server_init(_) ->
-    % Verify flags bucket is pre-created
+    % Verify flags and segments buckets are pre-created
     {error, already_exists, _} = eld_storage_server:create(flags),
     {error, already_exists, _} = eld_storage_server:create(segments).
 
