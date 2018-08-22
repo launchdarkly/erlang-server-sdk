@@ -11,21 +11,75 @@
 
 %% Types
 -type flag() :: #{
-    debug_events_until_date => null | pos_integer(),
+    debug_events_until_date => pos_integer() | undefined,
     deleted                 => boolean(),
-    fallthrough             => tuple(),
-    key                     => binary(),
-    off_variation           => pos_integer(),
+    fallthrough             => variation_or_rollout(),
+    key                     => key(),
+    off_variation           => variation(),
     on                      => boolean(),
-    prerequisites           => list(),
-    rules                   => list(),
+    prerequisites           => [prerequisite()],
+    rules                   => [rule()],
     salt                    => binary(),
     sel                     => binary(),
-    targets                 => list(),
+    targets                 => [target()],
     track_events            => boolean(),
-    variations              => list(),
+    variations              => list(), % TODO does this need to be a tuple with type?
     version                 => pos_integer()
 }.
+
+-type key() :: binary().
+%% Flag key
+
+-type variation() :: pos_integer().
+%% Variation number
+
+-type rule() :: #{
+    clauses              => [clause()],
+    variation_or_rollout => variation_or_rollout()
+}.
+%% Expresses a set of AND-ed matching conditions for a user, along with either
+%% a fixed variation or a set of rollout percentages
+
+-type clause() :: #{
+    attribute => binary(),
+    op        => operator(),
+    values    => list(), % TODO does this need to be a tuple with type?
+    negate    => boolean()
+}.
+%% Describes an individual clause within a targeting rule
+
+-type operator() :: in | ends_with | starts_with | matches | contains
+    | less_than | less_than_or_equal | greater_than | greater_than_or_equal
+    | before | 'after' | segment_match | semver_equal | semver_less_than
+    | semver_greater_than.
+%% List of available operators
+
+-type variation_or_rollout() :: variation() | rollout().
+%% Contains either the fixed variation or percent rollout to serve.
+
+-type rollout() :: #{
+    variations => [weighted_variation()],
+    bucket_by  => binary() | undefined
+}.
+%% Describes how users will be bucketed into variations during a percentage rollout
+
+-type weighted_variation() :: #{
+    variation => variation(),
+    weight    => non_neg_integer() % 0 to 100000
+}.
+%% Describes a fraction of users who will receive a specific variation
+
+-type prerequisite() :: #{
+    key       => key(),
+    variation => variation()
+}.
+%% Describes a requirement that another feature flag return a specific variation
+
+-type target() :: #{
+    values    => [binary()], % TODO change to the list of user key types
+    variation => variation()
+}.
+
 -export_type([flag/0]).
 
 %%%===================================================================
