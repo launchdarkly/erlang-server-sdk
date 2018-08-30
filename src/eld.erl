@@ -52,7 +52,7 @@ stop_all_streams() ->
 %% @end
 -spec terminate_all_children(Sup :: atom()) -> ok.
 terminate_all_children(Sup) ->
-    Pids = [Pid || {_, Pid, worker, _} <- supervisor:which_children(eld_stream_sup)],
+    Pids = [Pid || {_, Pid, worker, _} <- supervisor:which_children(Sup)],
     terminate_all_children(Sup, Pids).
 
 %% @doc Recursively terminates processes of given children Pids
