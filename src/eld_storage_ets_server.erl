@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%% @doc `eld_storage_server' module
+%% @doc `eld_storage_ets_server' module
 %%
-%% This is a simple in-memory implementation of an storage server.
+%% This is a simple in-memory implementation of an storage server using ETS.
 %% @end
 %%%-------------------------------------------------------------------
 
--module(eld_storage_server).
+-module(eld_storage_ets_server).
 
 -behaviour(gen_server).
 
@@ -20,13 +20,10 @@
 -export([empty/1]).
 -export([get/2]).
 -export([list/1]).
--export([put/3]).
--export([process_events/2]).
+-export([put/2]).
 
 %% Types
 -type state() :: map().
--type event_operation() :: put | patch.
--export_type([event_operation/0]).
 
 %%===================================================================
 %% Supervision
@@ -36,9 +33,6 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    % Pre-create flags and segments buckets
-    ok = create_bucket(flags),
-    ok = create_bucket(segments),
     {ok, #{}}.
 
 %%====================================================================
@@ -67,7 +61,7 @@ empty(Bucket) when is_atom(Bucket) ->
 %%
 %% @end
 -spec get(Bucket :: atom(), Key :: binary()) ->
-    [tuple()] |
+    [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
 get(Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
     gen_server:call(?MODULE, {get, Bucket, Key}).
@@ -75,25 +69,20 @@ get(Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
 %% @doc List all items in a bucket
 %%
 %% @end
--spec list(Bucket :: atom()) -> [tuple()].
+-spec list(Bucket :: atom()) ->
+    [{Key :: binary(), Value :: any()}] |
+    {error, bucket_not_found, string()}.
 list(Bucket) when is_atom(Bucket) ->
     gen_server:call(?MODULE, {list, Bucket}).
 
 %% @doc Put an item key value pair in an existing bucket
 %%
 %% @end
--spec put(Bucket :: atom(), Key :: binary(), Value :: any()) -> ok.
-put(Bucket, Key, Value) when is_atom(Bucket), is_binary(Key) ->
-    ok = gen_server:call(?MODULE, {put, Bucket, Key, Value}).
-
-%% @doc Process a list of events
-%%
-%% @end
--spec process_events(EventOperation :: event_operation(), Data :: [map()]) -> ok.
-process_events(put, Data) ->
-    ok = gen_server:call(?MODULE, {process_put_events, Data});
-process_events(patch, Data) ->
-    ok = gen_server:call(?MODULE, {process_patch_events, Data}).
+-spec put(Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+    ok |
+    {error, bucket_not_found, string()}.
+put(Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    ok = gen_server:call(?MODULE, {put, Bucket, Items}).
 
 %%====================================================================
 %% Behavior callbacks
@@ -109,12 +98,8 @@ handle_call({get, Bucket, Key}, _From, State) ->
     {reply, lookup_key(Key, Bucket), State};
 handle_call({list, Bucket}, _From, State) ->
     {reply, list_items(Bucket), State};
-handle_call({put, Bucket, Key, Value}, _From, State) ->
-    {reply, put_item(Key, Value, Bucket), State};
-handle_call({process_put_events, Data}, _From, State) ->
-    {reply, process_put_events(Data), State};
-handle_call({process_patch_events, Data}, _From, State) ->
-    {reply, process_patch_events(Data), State}.
+handle_call({put, Bucket, Item}, _From, State) ->
+    {reply, put_items(Item, Bucket), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -209,76 +194,14 @@ lookup_key(Key, Bucket) when is_atom(Bucket), is_binary(Key) ->
 %% @private
 %%
 %% @end
--spec put_item(Key :: binary(), Value :: any(), Bucket :: atom()) ->
+-spec put_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom()) ->
     ok |
     {error, bucket_not_found, string()}.
-put_item(Key, Value, Bucket) when is_binary(Key), is_atom(Bucket) ->
+put_items(Items, Bucket) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket) of
         false ->
             {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
-            true = ets:insert(Bucket, {Key, Value}),
+            true = ets:insert(Bucket, maps:to_list(Items)),
             ok
     end.
-
-%% @doc process a list of events to put
-%% @private
-%%
-%% @end
--spec process_put_events(Data :: [map()]) -> ok.
-process_put_events([]) ->
-    ok;
-process_put_events([Event|Rest]) ->
-    ok = process_put_event(Event),
-    process_put_events(Rest).
-
--spec process_put_event(Event :: map()) -> ok.
-process_put_event(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
-    io:format("~nPath is: ~p", [<<"/">>]),
-    io:format("~nSegments are: ~p", [Segments]),
-    io:format("~nFlags are: ~p", [Flags]),
-    process_put_segments(maps:to_list(Segments)),
-    process_put_flags(maps:to_list(Flags)).
-
--spec process_put_segments(Segments :: [proplists:proplist()]) -> ok.
-process_put_segments([]) ->
-    ok;
-process_put_segments([{SegmentKey, SegmentMap}|Rest]) ->
-    ok = process_put_segment(SegmentKey, SegmentMap),
-    process_put_segments(Rest).
-
--spec process_put_segment(SegmentKey :: binary(), SegmentMap :: map()) -> ok.
-process_put_segment(SegmentKey, SegmentMap) ->
-    ok = put_item(SegmentKey, SegmentMap, segments).
-
--spec process_put_flags(Flags :: [proplists:proplist()]) -> ok.
-process_put_flags([]) ->
-    ok;
-process_put_flags([{FlagKey, FlagMap}|Rest]) ->
-    ok = process_put_flag(FlagKey, FlagMap),
-    process_put_flags(Rest).
-
--spec process_put_flag(FlagKey :: binary(), FlagMap :: map()) -> ok.
-process_put_flag(FlagKey, FlagMap) ->
-    ok = put_item(FlagKey, FlagMap, flags).
-
-%% @doc process a list of events to patch
-%% @private
-%%
-%% @end
--spec process_patch_events(Data :: [map()]) -> ok.
-process_patch_events([]) ->
-    ok;
-process_patch_events([Event|Rest]) ->
-    ok = process_patch_event(Event),
-    process_patch_events(Rest).
-
--spec process_patch_event(Event :: map()) -> ok.
-process_patch_event(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
-    io:format("~nPatching flag: ~p", [FlagKey]),
-    io:format("~nFlag data: ~p", [FlagMap]),
-    process_put_flag(FlagKey, FlagMap);
-process_patch_event(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    io:format("~nPatching segment: ~p", [SegmentKey]),
-    io:format("~nSegment data: ~p", [SegmentMap]),
-    process_put_segment(SegmentKey, SegmentMap).

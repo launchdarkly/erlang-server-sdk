@@ -1,15 +1,16 @@
 %%%-------------------------------------------------------------------
-%%% @doc Top level application supervisor
+%%% @doc `eld_storage_map_sup' module
 %%%
+%%% This is a supervisor for map storage worker.
 %%% @end
 %%%-------------------------------------------------------------------
 
--module(eld_sup).
+-module(eld_storage_map_sup).
 
 -behaviour(supervisor).
 
--export([start_link/0]).
--export([init/1]).
+%% Supervision
+-export([start_link/0, init/1]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(Id, Module, Args, Type), {Id, {Module, start_link, Args}, permanent, 5000, Type, [Module]}).
@@ -26,7 +27,7 @@ start_link() ->
 -spec init(Args :: term()) ->
     {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
 init([]) ->
-    {ok, {{one_for_one, 1, 5}, children()}}.
+    {ok, {{one_for_one, 0, 1}, children()}}.
 
 %%%===================================================================
 %%% Internal functions
@@ -34,5 +35,5 @@ init([]) ->
 
 -spec children() -> [supervisor:child_spec()].
 children() ->
-    StreamSup = ?CHILD(eld_stream_sup, eld_stream_sup, [], supervisor),
-   [StreamSup].
+    FlagStorageServer = ?CHILD(eld_storage_map_server, eld_storage_map_server, [], worker),
+    [FlagStorageServer].

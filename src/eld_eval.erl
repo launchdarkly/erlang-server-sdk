@@ -36,7 +36,8 @@
 
 -spec flag_key_for_user(FlagKey :: binary(), eld_user:user()) -> result().
 flag_key_for_user(FlagKey, User) ->
-    FlagRecs = eld_storage_server:get(flags, FlagKey),
+    {ok, StorageBackend} = application:get_env(storage_backend),
+    FlagRecs = StorageBackend:get(flags, FlagKey),
     flag_recs_for_user(FlagKey, FlagRecs, User).
 
 %%%===================================================================

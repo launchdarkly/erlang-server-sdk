@@ -1,10 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% @doc Storage supervisor
+%%% @doc `eld_storage_ets_sup' module
 %%%
+%%% This is a supervisor for ETS storage worker.
 %%% @end
 %%%-------------------------------------------------------------------
 
--module(eld_storage_sup).
+-module(eld_storage_ets_sup).
 
 -behaviour(supervisor).
 
@@ -34,5 +35,5 @@ init([]) ->
 
 -spec children() -> [supervisor:child_spec()].
 children() ->
-    FlagStorageServer = ?CHILD(eld_storage_server, eld_storage_server, [], worker),
+    FlagStorageServer = ?CHILD(eld_storage_ets_server, eld_storage_ets_server, [], worker),
     [FlagStorageServer].
