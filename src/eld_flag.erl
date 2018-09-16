@@ -7,7 +7,8 @@
 -module(eld_flag).
 
 %% API
--export([new/1, get_variation/2]).
+-export([new/2]).
+-export([get_variation/2]).
 
 %% Types
 -type flag() :: #{
@@ -96,8 +97,8 @@
 %%% API
 %%%===================================================================
 
--spec new(map()) -> flag().
-new(#{
+-spec new(Key :: eld_flag:key(), Properties :: map()) -> flag().
+new(Key, #{
     <<"debugEventsUntilDate">> := DebugEventsUntilDate,
     <<"deleted">>              := Deleted,
     <<"fallthrough">>          := Fallthrough,

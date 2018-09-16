@@ -52,16 +52,16 @@ new(index, User, Timestamp, #{}) ->
         user      => User
     };
 new(feature_request, User, Timestamp, #{
-    key                    := Key,                  % eld_flag:key()
-    variation              := Variation,            % undefined | eld_flag:variation()
-    value                  := Value,                % undefined | eld_flag:variation_value()
-    default                := Default,              % undefined | eld_flag:variation_value()
-    version                := Version,              % undefined | eld_flag:version()
-    prereq_of              := PrereqOf,             % undefined | eld_flag:key()
-    track_events           := TrackEvents,          % undefined | boolean()
-    debug_events_util_date := DebugEventsUntilDate, % undefined | boolean()
-    eval_reason            := EvalReason,           % undefined | eld_eval:reason()
-    debug                  := Debug                 % undefined | boolean()
+    key                     := Key,                  % eld_flag:key()
+    variation               := Variation,            % undefined | eld_flag:variation()
+    value                   := Value,                % undefined | eld_flag:variation_value()
+    default                 := Default,              % undefined | eld_flag:variation_value()
+    version                 := Version,              % undefined | eld_flag:version()
+    prereq_of               := PrereqOf,             % undefined | eld_flag:key()
+    track_events            := TrackEvents,          % undefined | boolean()
+    debug_events_until_date := DebugEventsUntilDate, % undefined | boolean()
+    eval_reason             := EvalReason,           % undefined | eld_eval:reason()
+    debug                   := Debug                 % undefined | boolean()
 }) ->
     #{
         type      => feature_request,

@@ -36,7 +36,7 @@
 
 -spec flag_key_for_user(FlagKey :: binary(), eld_user:user()) -> detail().
 flag_key_for_user(FlagKey, User) ->
-    {ok, StorageBackend} = application:get_env(storage_backend),
+    {ok, StorageBackend} = application:get_env(eld, storage_backend),
     FlagRecs = StorageBackend:get(flags, FlagKey),
     flag_recs_for_user(FlagKey, FlagRecs, User).
 
@@ -65,11 +65,12 @@ flag_recs_for_user(FlagKey, [], User) ->
     % TODO return proper reason here
     Reason = {flag_not_found, FlagKey},
     {undefined, undefined, Reason, Events};
-flag_recs_for_user(_FlagKey, [FlagRec|_], User) ->
+flag_recs_for_user(_FlagKey, [{FlagKey, FlagProperties}|_], User) ->
     % Flag found
-    Flag = eld_flag:new(FlagRec),
+    Flag = eld_flag:new(FlagKey, FlagProperties),
     flag_for_user(Flag, User).
 
 -spec flag_for_user(eld_flag:flag(), eld_user:user()) -> detail().
 flag_for_user(#{on := false, off_variation := OffVariation} = Flag, _User) ->
+    % TODO return detail
     eld_flag:get_variation(Flag, OffVariation).
