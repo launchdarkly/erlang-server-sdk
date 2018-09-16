@@ -89,6 +89,7 @@
     | {json, binary()}.
 
 -export_type([flag/0]).
+-export_type([key/0]).
 -export_type([variation_value/0]).
 
 %%%===================================================================
