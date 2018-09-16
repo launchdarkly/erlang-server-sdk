@@ -55,9 +55,9 @@ start_link() ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([]) ->
-    {ok, SdkKey} = application:get_env(eld, sdk_key),
-    {ok, StorageBackend} = application:get_env(eld, storage_backend),
-    {ok, StreamUri} = application:get_env(eld, stream_uri),
+    {ok, SdkKey} = eld_app:get_env(sdk_key),
+    {ok, StorageBackend} = eld_app:get_env(storage_backend),
+    {ok, StreamUri} = eld_app:get_env(stream_uri),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{

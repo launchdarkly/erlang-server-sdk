@@ -83,7 +83,7 @@ start_storage(StorageBackend) ->
 -spec stop() -> ok.
 stop() ->
     ok = stop_all_streams(),
-    {ok, StorageBackend} = application:get_env(eld, storage_backend),
+    {ok, StorageBackend} = eld_app:get_env(storage_backend),
     StorageBackend:terminate().
 
 %%%===================================================================
