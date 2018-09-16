@@ -23,7 +23,7 @@
     sel                     => binary(),
     targets                 => [target()],
     track_events            => boolean(),
-    variations              => list(), % TODO does this need to be a tuple with type?
+    variations              => [variation_value()],
     version                 => pos_integer()
 }.
 
@@ -43,7 +43,7 @@
 -type clause() :: #{
     attribute => binary(),
     op        => operator(),
-    values    => list(), % TODO does this need to be a tuple with type?
+    values    => [variation_value()],
     negate    => boolean()
 }.
 %% Describes an individual clause within a targeting rule
@@ -55,7 +55,7 @@
 %% List of available operators
 
 -type variation_or_rollout() :: variation() | rollout().
-%% Contains either the fixed variation or percent rollout to serve.
+%% Contains either the fixed variation or percent rollout to serve
 
 -type rollout() :: #{
     variations => [weighted_variation()],
@@ -76,11 +76,20 @@
 %% Describes a requirement that another feature flag return a specific variation
 
 -type target() :: #{
-    values    => [binary()], % TODO change to the list of user key types
+    values    => [user:key()],
     variation => variation()
 }.
+%% Describes a set of users who will receive a specific variation
+
+-type variation_value() ::
+    boolean()
+    | integer()
+    | float()
+    | binary()
+    | {json, binary()}.
 
 -export_type([flag/0]).
+-export_type([variation_value/0]).
 
 %%%===================================================================
 %%% API

@@ -17,8 +17,8 @@
     Events :: [event()]
     % TODO(1) return error(s) here, or log errors individually inline?
 }.
--type value() :: undefined | boolean() | float() | integer() | binary().
--type variation_index() :: undefined | non_neg_integer(). % TODO 0-based?
+-type value() :: undefined | eld_flag:variation_value().
+-type variation_index() :: undefined | non_neg_integer().
 -type detail() :: {
     target_match |
     {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()} |
