@@ -76,7 +76,7 @@
 %% Describes a requirement that another feature flag return a specific variation
 
 -type target() :: #{
-    values    => [user:key()],
+    values    => [eld_user:key()],
     variation => variation()
 }.
 %% Describes a set of users who will receive a specific variation
