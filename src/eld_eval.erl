@@ -13,8 +13,8 @@
 -type detail() :: {
     Value :: value(),
     VariationIndex :: variation_index(),
-    Detail :: reason(),
-    Events :: [event()]
+    Reason :: reason(),
+    Events :: [eld_event:event()]
     % TODO(1) return error(s) here, or log errors individually inline?
 }.
 -type value() :: undefined | eld_flag:variation_value().
@@ -27,8 +27,8 @@
     fallthrough |
     off
 }.
--type error_type() :: client_not_ready | flag_not_found | user_not_specified | exception.
--type event() :: tuple(). % TODO define event type
+-type error_type() :: client_not_ready | flag_not_found | malformed_flag
+    | user_not_specified | wrong_type | exception.
 
 %%%===================================================================
 %%% API
