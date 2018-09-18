@@ -19,14 +19,14 @@
 }.
 -type value() :: undefined | eld_flag:variation_value().
 -type variation_index() :: undefined | non_neg_integer().
--type reason() :: {
-    target_match |
-    {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()} |
-    {prerequisite_failed, FlagKeys :: [binary()]} |
-    {error, error_type()} |
-    fallthrough |
-    off
-}.
+-type reason() ::
+    target_match
+    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
+    | {prerequisite_failed, FlagKeys :: [binary()]}
+    | {error, error_type()}
+    | fallthrough
+    | off.
+
 -type error_type() :: client_not_ready | flag_not_found | malformed_flag
     | user_not_specified | wrong_type | exception.
 
