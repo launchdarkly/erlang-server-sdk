@@ -62,8 +62,7 @@ flag_recs_for_user(FlagKey, [], User) ->
         debug                   => undefined
     },
     Events = [eld_event:new(feature_request, User, erlang:system_time(), EventData)],
-    % TODO return proper reason here
-    Reason = {flag_not_found, FlagKey},
+    Reason = {error, flag_not_found},
     {undefined, undefined, Reason, Events};
 flag_recs_for_user(_FlagKey, [{FlagKey, FlagProperties}|_], User) ->
     % Flag found
