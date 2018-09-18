@@ -11,7 +11,7 @@
 
 %% Tests
 -export([
-    server_process_event_put/1
+    server_process_event_put_patch/1
 ]).
 
 %%====================================================================
@@ -20,7 +20,7 @@
 
 all() ->
     [
-        server_process_event_put
+        server_process_event_put_patch
     ].
 
 init_per_suite(Config) ->
@@ -81,13 +81,51 @@ get_simple_flag() ->
         }
     }.
 
+get_simple_flag_patch() ->
+    {
+        <<"abc">>,
+        <<"\"data\":{",
+            "\"clientSide\":false,",
+            "\"debugEventsUntilDate\":null,",
+            "\"deleted\":false,",
+            "\"fallthrough\":{\"variation\":1},",
+            "\"key\":\"abc\",",
+            "\"offVariation\":1,",
+            "\"on\":true,",
+            "\"prerequisites\":[],",
+            "\"rules\":[],",
+            "\"salt\":\"d0888ec5921e45c7af5bc10b47b033ba\",",
+            "\"sel\":\"8b4d79c59adb4df492ebea0bf65dfd4c\",",
+            "\"targets\":[],",
+            "\"trackEvents\":true,",
+            "\"variations\":[true,false],",
+            "\"version\":6",
+        "}">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => false,
+            <<"fallthrough">> => #{<<"variation">> => 1},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => true,
+            <<"variations">> => [true,false],
+            <<"version">> => 6
+        }
+    }.
 %%====================================================================
 %% Tests
 %%====================================================================
 
-server_process_event_put(_) ->
+server_process_event_put_patch(_) ->
     {FlagSimpleKey, FlagSimpleBin, FlagSimpleMap} = get_simple_flag(),
-    Data = <<"{\"path\":\"/\",",
+    PutData = <<"{\"path\":\"/\",",
         "\"data\":{",
             "\"flags\":{",
                 FlagSimpleBin/binary,
@@ -95,7 +133,11 @@ server_process_event_put(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => Data}, eld_storage_ets),
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets),
     [] = eld_storage_ets:list(segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(flags),
+    {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = get_simple_flag_patch(),
+    PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
+    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets),
+    [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(flags),
     ok.
