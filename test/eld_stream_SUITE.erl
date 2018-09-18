@@ -25,7 +25,6 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    application:set_env(eld, storage_backend, eld_storage_ets),
     eld:start_storage(eld_storage_ets),
     Config.
 
