@@ -8,6 +8,8 @@
 
 %% API
 -export([new/4]).
+-export([new_for_unknown_flag/4]).
+-export([new_flag_eval/6]).
 
 %% Types
 -type event() :: #{
@@ -87,3 +89,52 @@ new(custom, User, Timestamp, Data) when is_map(Data) ->
         user      => User,
         data      => Data
     }.
+
+-spec new_for_unknown_flag(
+    FlagKey :: eld_flag:key(),
+    User :: eld_user:user(),
+    DefaultValue :: eld_flag:variation_value(),
+    Reason :: eld_eval:reason()
+) -> event().
+new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
+    EventData = #{
+        key                     => FlagKey,
+        variation               => undefined,
+        value                   => undefined,
+        default                 => DefaultValue,
+        version                 => undefined,
+        prereq_of               => undefined,
+        track_events            => undefined,
+        debug_events_until_date => undefined,
+        eval_reason             => Reason,
+        debug                   => false
+    },
+    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+
+-spec new_flag_eval(
+    VariationIndex :: eld_flag:variation(),
+    VariationValue :: eld_flag:variation_value(),
+    DefaultValue :: eld_flag:variation_value(),
+    User :: eld_user:user(),
+    Reason :: eld_eval:reason(),
+    Flag :: eld_flag:flag()
+) -> event().
+new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
+    key                     := Key,
+    version                 := Version,
+    track_events            := TrackEvents,
+    debug_events_until_date := DebugEventsUntilDate
+}) ->
+    EventData = #{
+        key                     => Key,
+        variation               => VariationIndex,
+        value                   => VariationValue,
+        default                 => DefaultValue,
+        version                 => Version,
+        prereq_of               => undefined,
+        track_events            => TrackEvents,
+        debug_events_until_date => DebugEventsUntilDate,
+        eval_reason             => Reason,
+        debug                   => false
+    },
+    eld_event:new(feature_request, User, erlang:system_time(), EventData).

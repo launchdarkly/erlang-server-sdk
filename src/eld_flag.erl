@@ -91,6 +91,7 @@
 
 -export_type([flag/0]).
 -export_type([key/0]).
+-export_type([variation/0]).
 -export_type([variation_value/0]).
 
 %%%===================================================================
@@ -131,6 +132,6 @@ new(Key, #{
         version                 => Version
     }.
 
--spec get_variation(Flag :: flag(), VariationNumber :: pos_integer()) -> term().
-get_variation(#{variations := Variations}, VariationNumber) ->
-    lists:nth(VariationNumber, Variations).
+-spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
+get_variation(#{variations := Variations}, VariationIndex) ->
+    lists:nth(VariationIndex + 1, Variations).
