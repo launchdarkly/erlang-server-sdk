@@ -1,0 +1,187 @@
+{
+    "path": "/",
+    "data": {
+        "flags": {
+            "keep-it-off": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off",
+                "offVariation": 1,
+                "on": false,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "prereqs-fail-off": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-off",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-off",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 245
+            },
+            "prereqs-fail-variation": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-variation",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 245
+            },
+            "keep-it-on": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on-two",
+                        "variation": 0
+                    }
+                ],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-on-two": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on-two",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-on-another": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on-another",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "prereqs-success": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 1
+                },
+                "key": "prereqs-success",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on",
+                        "variation": 0
+                    },
+                    {
+                        "key": "keep-it-on-another",
+                        "variation": 0
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 24
+            }
+        },
+        "segments": {}
+    }
+}
+

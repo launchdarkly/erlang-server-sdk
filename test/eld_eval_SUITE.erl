@@ -12,7 +12,10 @@
 %% Tests
 -export([
     unknown_flag/1,
-    off_flag/1
+    off_flag/1,
+    prerequisite_fail_off/1,
+    prerequisite_fail_variation/1,
+    prerequisite_success/1
 ]).
 
 %%====================================================================
@@ -22,7 +25,10 @@
 all() ->
     [
         unknown_flag,
-        off_flag
+        off_flag,
+        prerequisite_fail_off,
+        prerequisite_fail_variation,
+        prerequisite_success
     ].
 
 init_per_suite(Config) ->
@@ -45,36 +51,26 @@ end_per_testcase(_, Config) ->
 %% Helpers
 %%====================================================================
 
-get_flags() ->
-    <<"\"abc\":{",
-        "\"clientSide\":false,",
-        "\"debugEventsUntilDate\":null,",
-        "\"deleted\":false,",
-        "\"fallthrough\":{\"variation\":0},",
-        "\"key\":\"abc\",",
-        "\"offVariation\":1,",
-        "\"on\":false,",
-        "\"prerequisites\":[],",
-        "\"rules\":[],",
-        "\"salt\":\"d0888ec5921e45c7af5bc10b47b033ba\",",
-        "\"sel\":\"8b4d79c59adb4df492ebea0bf65dfd4c\",",
-        "\"targets\":[],",
-        "\"trackEvents\":true,",
-        "\"variations\":[true,false],",
-        "\"version\":5",
-    "}">>.
-
 create_flags() ->
-    FlagsBin = get_flags(),
-    PutData = <<"{\"path\":\"/\",",
-        "\"data\":{",
-        "\"flags\":{",
-            FlagsBin/binary,
-        "},",
-        "\"segments\":{}",
-        "}",
-        "}">>,
+    DataFilename = code:priv_dir(eld) ++ "/flags-segments-put-data.json",
+    {ok, PutData} = file:read_file(DataFilename),
     ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets).
+
+extract_events(Events) ->
+    [
+        {Key, Type, Variation, VariationValue, DefaultValue, Reason, PrereqOf} ||
+        #{
+            type := Type,
+            data := #{
+                key := Key,
+                variation := Variation,
+                value := VariationValue,
+                default := DefaultValue,
+                eval_reason := Reason,
+                prereq_of := PrereqOf
+            }
+        } <- Events
+    ].
 
 %%====================================================================
 %% Tests
@@ -82,7 +78,48 @@ create_flags() ->
 
 unknown_flag(_) ->
     FlagKey = <<"flag-that-does-not-exist">>,
-    {{undefined, "foo", {error, flag_not_found}}, _} = eld_eval:flag_key_for_user(FlagKey, "some-user", "foo").
+    {{undefined, "foo", {error, flag_not_found}}, Events} = eld_eval:flag_key_for_user(FlagKey, "some-user", "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"flag-that-does-not-exist">>, feature_request, undefined, undefined, "foo", {error, flag_not_found}, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
 
 off_flag(_) ->
-    {{1, false, off}, _} = eld_eval:flag_key_for_user(<<"abc">>, "some-user", "foo").
+    {{1, false, off}, Events} = eld_eval:flag_key_for_user(<<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, undefined}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+prerequisite_fail_off(_) ->
+    {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
+        eld_eval:flag_key_for_user(<<"prereqs-fail-off">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-fail-off">>},
+        {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+prerequisite_fail_variation(_) ->
+    {{1, false, {prerequisite_failed, [<<"keep-it-on">>]}}, Events} =
+        eld_eval:flag_key_for_user(<<"prereqs-fail-variation">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-fail-variation">>},
+        {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>},
+        {<<"prereqs-fail-variation">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-on">>]}, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+prerequisite_success(_) ->
+    {{0, true, fallthrough}, Events} =
+        eld_eval:flag_key_for_user(<<"prereqs-success">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"prereqs-success">>, feature_request, 0, true, "foo", fallthrough, undefined},
+        {<<"keep-it-on-another">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
+        {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
+        {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.

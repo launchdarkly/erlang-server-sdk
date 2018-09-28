@@ -19,7 +19,7 @@
     off_variation           => variation(),
     on                      => boolean(),
     prerequisites           => [prerequisite()],
-    rules                   => [rule()],
+    rules                   => [eld_rule:rule()],
     salt                    => binary(),
     sel                     => binary(),
     targets                 => [target()],
@@ -31,29 +31,8 @@
 -type key() :: binary().
 %% Flag key
 
--type variation() :: pos_integer().
-%% Variation number
-
--type rule() :: #{
-    clauses              => [clause()],
-    variation_or_rollout => variation_or_rollout()
-}.
-%% Expresses a set of AND-ed matching conditions for a user, along with either
-%% a fixed variation or a set of rollout percentages
-
--type clause() :: #{
-    attribute => binary(),
-    op        => operator(),
-    values    => [variation_value()],
-    negate    => boolean()
-}.
-%% Describes an individual clause within a targeting rule
-
--type operator() :: in | ends_with | starts_with | matches | contains
-    | less_than | less_than_or_equal | greater_than | greater_than_or_equal
-    | before | 'after' | segment_match | semver_equal | semver_less_than
-    | semver_greater_than.
-%% List of available operators
+-type variation() :: non_neg_integer().
+%% Variation index
 
 -type variation_or_rollout() :: variation() | rollout().
 %% Contains either the fixed variation or percent rollout to serve
@@ -87,11 +66,15 @@
     | integer()
     | float()
     | binary()
-    | {json, binary()}.
+    | list()
+    | map().
 
 -export_type([flag/0]).
 -export_type([key/0]).
+-export_type([prerequisite/0]).
+-export_type([target/0]).
 -export_type([variation/0]).
+-export_type([variation_or_rollout/0]).
 -export_type([variation_value/0]).
 
 %%%===================================================================
@@ -122,7 +105,7 @@ new(Key, #{
         key                     => Key,
         off_variation           => OffVariation,
         on                      => On,
-        prerequisites           => Prerequisites,
+        prerequisites           => parse_prerequisites(Prerequisites),
         rules                   => Rules,
         salt                    => Salt,
         sel                     => Sel,
@@ -135,3 +118,14 @@ new(Key, #{
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
 get_variation(#{variations := Variations}, VariationIndex) ->
     lists:nth(VariationIndex + 1, Variations).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+-spec parse_prerequisites([map()]) -> [prerequisite()].
+parse_prerequisites(Prerequisites) ->
+    F = fun(#{<<"key">> := Key, <<"variation">> := Variation}) ->
+            #{key => Key, variation => Variation}
+        end,
+    lists:map(F, Prerequisites).
