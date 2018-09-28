@@ -1,7 +1,9 @@
 language: erlang
 otp_release:
   - 20.0
+sudo: false
 install:
-  make
+  - make
 script:
-  make tests
+  - make tests
+  - make dialyze
