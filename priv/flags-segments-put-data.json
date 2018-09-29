@@ -179,6 +179,42 @@
                     false
                 ],
                 "version": 24
+            },
+            "target-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "target-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [
+                    {
+                        "values": [
+                            "user-33333",
+                            "user-12345"
+                        ],
+                        "variation": 0
+                    },
+                    {
+                        "values": [
+                            "user-77777"
+                        ],
+                        "variation": 1
+                    }
+                ],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
             }
         },
         "segments": {}

@@ -15,7 +15,8 @@
     off_flag/1,
     prerequisite_fail_off/1,
     prerequisite_fail_variation/1,
-    prerequisite_success/1
+    prerequisite_success/1,
+    target_user/1
 ]).
 
 %%====================================================================
@@ -28,7 +29,8 @@ all() ->
         off_flag,
         prerequisite_fail_off,
         prerequisite_fail_variation,
-        prerequisite_success
+        prerequisite_success,
+        target_user
     ].
 
 init_per_suite(Config) ->
@@ -77,8 +79,8 @@ extract_events(Events) ->
 %%====================================================================
 
 unknown_flag(_) ->
-    FlagKey = <<"flag-that-does-not-exist">>,
-    {{undefined, "foo", {error, flag_not_found}}, Events} = eld_eval:flag_key_for_user(FlagKey, "some-user", "foo"),
+    {{undefined, "foo", {error, flag_not_found}}, Events} =
+        eld_eval:flag_key_for_user(<<"flag-that-does-not-exist">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"flag-that-does-not-exist">>, feature_request, undefined, undefined, "foo", {error, flag_not_found}, undefined}
     ]),
@@ -120,6 +122,15 @@ prerequisite_success(_) ->
         {<<"keep-it-on-another">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
         {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
         {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+target_user(_) ->
+    {{0, true, target_match}, Events} =
+        eld_eval:flag_key_for_user(<<"target-me">>, #{key => <<"user-33333">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"target-me">>, feature_request, 0, true, "foo", target_match, undefined}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
