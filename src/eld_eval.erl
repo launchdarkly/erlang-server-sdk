@@ -137,7 +137,7 @@ flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, Storage
 
 check_targets([], Flag, User, StorageBackend, Events) ->
     flag_for_user_targets(no_match, Flag, User, StorageBackend, Events);
-check_targets([#{<<"values">> := Values, <<"variation">> := Variation}|Rest], Flag, #{key := UserKey} = User, StorageBackend, Events) ->
+check_targets([#{values := Values, variation := Variation}|Rest], Flag, #{key := UserKey} = User, StorageBackend, Events) ->
     Result = {lists:member(UserKey, Values), Variation},
     check_target_result(Result, Rest, Flag, User, StorageBackend, Events).
 

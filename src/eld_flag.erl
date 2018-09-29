@@ -109,7 +109,7 @@ new(Key, #{
         rules                   => Rules,
         salt                    => Salt,
         sel                     => Sel,
-        targets                 => Targets,
+        targets                 => parse_targets(Targets),
         track_events            => TrackEvents,
         variations              => Variations,
         version                 => Version
@@ -129,3 +129,10 @@ parse_prerequisites(Prerequisites) ->
             #{key => Key, variation => Variation}
         end,
     lists:map(F, Prerequisites).
+
+-spec parse_targets([binary()]) -> [target()].
+parse_targets(Targets) ->
+    F = fun(#{<<"values">> := Values, <<"variation">> := Variation}) ->
+        #{values => Values, variation => Variation}
+        end,
+    lists:map(F, Targets).
