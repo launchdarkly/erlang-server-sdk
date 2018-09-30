@@ -56,9 +56,26 @@ match_user(#{clauses := Clauses}, User, StorageBackend) ->
 -spec parse_clauses([map()]) -> [clause()].
 parse_clauses(Clauses) ->
     F = fun(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"values">> := Values}) ->
-        #{attribute => Attribute, negate => Negate, op => Op, values => Values}
+            #{attribute => Attribute, negate => Negate, op => parse_operator(Op), values => Values}
         end,
     lists:map(F, Clauses).
+
+-spec parse_operator(binary()) -> operator().
+parse_operator(<<"in">>) -> in;
+parse_operator(<<"endsWith">>) -> ends_with;
+parse_operator(<<"startsWith">>) -> starts_with;
+parse_operator(<<"matches">>) -> matches;
+parse_operator(<<"contains">>) -> contains;
+parse_operator(<<"lessThan">>) -> less_than;
+parse_operator(<<"lessThanOrEqual">>) -> less_than_or_equal;
+parse_operator(<<"greaterThan">>) -> greater_than;
+parse_operator(<<"greaterThanOrEqual">>) -> greater_than_or_equal;
+parse_operator(<<"before">>) -> before;
+parse_operator(<<"after">>) -> 'after';
+parse_operator(<<"segmentMatch">>) -> segment_match;
+parse_operator(<<"semVerEqual">>) -> semver_equal;
+parse_operator(<<"semVerLessThan">>) -> semver_less_than;
+parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than.
 
 -spec check_clauses([clause()], eld_user:user(), atom()) -> match | no_match.
 check_clauses([], _User, _StorageBackend) -> match;
@@ -67,7 +84,7 @@ check_clauses([Clause|Rest], User, StorageBackend) ->
     check_clause_result(Result, Rest, User, StorageBackend).
 
 -spec check_clause(clause(), eld_user:user(), atom()) -> match | no_match.
-check_clause(_Clause, _User, _StorageBackend) ->
+check_clause(#{op := segment_match}, _User, _StorageBackend) ->
     % TODO implement
     no_match.
 

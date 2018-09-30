@@ -133,6 +133,6 @@ parse_prerequisites(Prerequisites) ->
 -spec parse_targets([map()]) -> [target()].
 parse_targets(Targets) ->
     F = fun(#{<<"values">> := Values, <<"variation">> := Variation}) ->
-        #{values => Values, variation => Variation}
+            #{values => Values, variation => Variation}
         end,
     lists:map(F, Targets).
