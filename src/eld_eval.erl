@@ -157,8 +157,7 @@ flag_for_user_targets(no_match, #{rules := Rules} = Flag, User, StorageBackend, 
 check_rules([], Flag, User, _StorageBackend, Events, _) ->
     flag_for_user_rules(no_match, Flag, User, Events);
 check_rules([Rule|Rest], Flag, User, StorageBackend, Events, Index) ->
-    R = eld_rule:new(Rule),
-    Result = eld_rule:match_user(R, User, StorageBackend),
+    Result = eld_rule:match_user(Rule, User, StorageBackend),
     check_rule_result({Result, Rule, Index}, Rest, Flag, User, StorageBackend, Events).
 
 check_rule_result({no_match, _Rule, Index}, Rest, Flag, User, StorageBackend, Events) ->

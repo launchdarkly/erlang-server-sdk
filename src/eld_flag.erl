@@ -106,7 +106,7 @@ new(Key, #{
         off_variation           => OffVariation,
         on                      => On,
         prerequisites           => parse_prerequisites(Prerequisites),
-        rules                   => Rules,
+        rules                   => parse_rules(Rules),
         salt                    => Salt,
         sel                     => Sel,
         targets                 => parse_targets(Targets),
@@ -129,6 +129,11 @@ parse_prerequisites(Prerequisites) ->
             #{key => Key, variation => Variation}
         end,
     lists:map(F, Prerequisites).
+
+-spec parse_rules([map()]) -> [eld_rule:rule()].
+parse_rules(Rules) ->
+    F = fun(Rule) -> eld_rule:new(Rule) end,
+    lists:map(F, Rules).
 
 -spec parse_targets([map()]) -> [target()].
 parse_targets(Targets) ->
