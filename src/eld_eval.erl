@@ -95,7 +95,7 @@ flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBacke
     check_prerequisites(Prerequisites, Flag, User, StorageBackend).
 
 -spec check_prerequisites([eld_flag:prerequisite()], eld_flag:flag(), eld_user:user(), atom()) ->
-    success|{fail, reason()}.
+    result().
 check_prerequisites(Prerequisites, Flag, User, StorageBackend) ->
     check_prerequisites(Prerequisites, Flag, User, StorageBackend, []).
 
