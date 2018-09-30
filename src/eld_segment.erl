@@ -7,7 +7,7 @@
 -module(eld_segment).
 
 %% API
--export([new/1]).
+-export([new/2]).
 -export([match_user/2]).
 
 %% Types
@@ -23,8 +23,8 @@
 
 -type rule() :: #{
     clauses   => [eld_clause:clause()],
-    weight    => non_neg_integer(),
-    bucket_by => binary()
+    weight    => undefined | non_neg_integer(),
+    bucket_by => undefined | binary()
 }.
 
 -export_type([segment/0]).
@@ -33,8 +33,8 @@
 %%% API
 %%%===================================================================
 
--spec new(map()) -> segment().
-new(#{
+-spec new(binary(), map()) -> segment().
+new(Key, #{
     <<"key">>      := Key,
     <<"deleted">>  := Deleted,
     <<"excluded">> := Excluded,
@@ -63,10 +63,16 @@ match_user(Segment, User) ->
 
 -spec parse_rules([map()]) -> [rule()].
 parse_rules(Rules) ->
-    F = fun(#{<<"clauses">> := Clauses, <<"weight">> := Weight, <<"bucketBy">> := BucketBy}) ->
-            #{clauses => parse_clauses(Clauses), weight => Weight, bucket_by => BucketBy}
+    F = fun(#{<<"clauses">> := Clauses} = RuleRaw) ->
+            parse_rule_optional_attributes(#{clauses => parse_clauses(Clauses)}, RuleRaw)
         end,
     lists:map(F, Rules).
+
+-spec parse_rule_optional_attributes(map(), map()) -> rule().
+parse_rule_optional_attributes(Rule, RuleRaw) ->
+    Weight = maps:get(<<"weight">>, RuleRaw, undefined),
+    BucketBy = maps:get(<<"bucketBy">>, RuleRaw, undefined),
+    Rule#{weight := Weight, bucket_by := BucketBy}.
 
 -spec parse_clauses([map()]) -> [eld_clause:clause()].
 parse_clauses(Clauses) ->
@@ -94,7 +100,6 @@ check_user_excluded_result(false, #{rules := Rules}, User) ->
 
 check_rules([], _User) -> no_match;
 check_rules([Rule|Rest], User) ->
-    % Non-segment match
     Result = check_rule(Rule, User),
     check_rule_result({Result, Rule}, Rest, User).
 
@@ -109,6 +114,7 @@ check_rule(#{clauses := Clauses} = Rule, User) ->
 -spec check_clauses([eld_clause:clause()], eld_user:user()) -> match | no_match.
 check_clauses([], _User) -> match;
 check_clauses([Clause|Rest], User) ->
+    % Non-segment match
     Result = eld_clause:match_user(Clause, User),
     check_clause_result(Result, Rest, User).
 

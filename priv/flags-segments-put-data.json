@@ -215,9 +215,75 @@
                     false
                 ],
                 "version": 5
+            },
+            "segment-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "segment-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": false,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "test-included"
+                                ]
+                            }
+                        ],
+                        "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                        "variation": 1
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": true,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "test-included"
+                                ]
+                            }
+                        ],
+                        "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                        "variation": 1
+                    }
+                ],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
             }
         },
-        "segments": {}
+        "segments": {
+            "test-included": {
+                "deleted": false,
+                "excluded": [
+                    "user-33333"
+                ],
+                "included": [
+                    "user-12345",
+                    "user-456"
+                ],
+                "key": "test-included",
+                "rules": [],
+                "salt": "b2ba88c74ad34c288ec10ba78e150afd",
+                "version": 8
+            }
+        }
     }
 }
 

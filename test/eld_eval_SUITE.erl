@@ -16,7 +16,9 @@
     prerequisite_fail_off/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
-    target_user/1
+    target_user/1,
+    segment_included/1,
+    segment_excluded_negated/1
 ]).
 
 %%====================================================================
@@ -30,7 +32,9 @@ all() ->
         prerequisite_fail_off,
         prerequisite_fail_variation,
         prerequisite_success,
-        target_user
+        target_user,
+        segment_included,
+        segment_excluded_negated
     ].
 
 init_per_suite(Config) ->
@@ -131,6 +135,26 @@ target_user(_) ->
         eld_eval:flag_key_for_user(<<"target-me">>, #{key => <<"user-33333">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"target-me">>, feature_request, 0, true, "foo", target_match, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+segment_included(_) ->
+    ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
+    {{1, false, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(<<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+segment_excluded_negated(_) ->
+    ExpectedReason = {rule_match, 1, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
+    {{1, false, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(<<"segment-me">>, #{key => <<"user-33333">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

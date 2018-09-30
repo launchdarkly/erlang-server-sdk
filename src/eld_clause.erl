@@ -40,14 +40,14 @@ new(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"v
 %% @end
 -spec match_user(clause(), eld_user:user()) -> match | no_match.
 match_user(Clause, User) ->
-    check_clause(Clause, User).
+    maybe_negate_match(Clause, check_clause(Clause, User)).
 
 %% @doc Match all clauses to user, includes possible segment_match
 %%
 %% @end
 -spec match_user(clause(), eld_user:user(), atom()) -> match | no_match.
 match_user(Clause, User, StorageBackend) ->
-    check_clause(Clause, User, StorageBackend).
+    maybe_negate_match(Clause, check_clause(Clause, User, StorageBackend)).
 
 %%====================================================================
 %% Internal functions
@@ -95,5 +95,11 @@ check_segment_key_match(SegmentKey, User, StorageBackend) ->
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;
-check_segments_match([Segment|_], User) ->
+check_segments_match([{SegmentKey, SegmentProperties}|_], User) ->
+    Segment = eld_segment:new(SegmentKey, SegmentProperties),
     eld_segment:match_user(Segment, User).
+
+-spec maybe_negate_match(clause(), match | no_match) -> match | no_match.
+maybe_negate_match(#{negate := false}, Match) -> Match;
+maybe_negate_match(#{negate := true}, match) -> no_match;
+maybe_negate_match(#{negate := true}, no_match) -> match.
