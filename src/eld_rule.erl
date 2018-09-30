@@ -41,9 +41,9 @@
 
 -spec new(map()) -> eld_rule:rule().
 new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"variation">> := Variation}) ->
-    #{id => Id, clauses => Clauses, variation_or_rollout => Variation};
+    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => Variation};
 new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"rollout">> := Rollout}) ->
-    #{id => Id, clauses => Clauses, variation_or_rollout => Rollout}.
+    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => Rollout}.
 
 -spec match_user(rule(), eld_user:user(), atom()) -> match | no_match.
 match_user(#{clauses := Clauses}, User, StorageBackend) ->
@@ -53,8 +53,15 @@ match_user(#{clauses := Clauses}, User, StorageBackend) ->
 %% Internal functions
 %%====================================================================
 
+-spec parse_clauses([map()]) -> [clause()].
+parse_clauses(Clauses) ->
+    F = fun(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"values">> := Values}) ->
+        #{attribute => Attribute, negate => Negate, op => Op, values => Values}
+        end,
+    lists:map(F, Clauses).
+
 -spec check_clauses([clause()], eld_user:user(), atom()) -> match | no_match.
-check_clauses([], _User, _StorageBackend) -> no_match;
+check_clauses([], _User, _StorageBackend) -> match;
 check_clauses([Clause|Rest], User, StorageBackend) ->
     Result = check_clause(Clause, User, StorageBackend),
     check_clause_result(Result, Rest, User, StorageBackend).
@@ -64,7 +71,7 @@ check_clause(_Clause, _User, _StorageBackend) ->
     % TODO implement
     no_match.
 
-check_clause_result(match, _Rest, _User, _StorageBackend) -> match;
-check_clause_result(no_match, Rest, User, StorageBackend) ->
+check_clause_result(no_match, _Rest, _User, _StorageBackend) -> no_match;
+check_clause_result(match, Rest, User, StorageBackend) ->
     check_clauses(Rest, User, StorageBackend).
 
