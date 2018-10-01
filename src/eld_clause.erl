@@ -76,9 +76,62 @@ check_clause(#{op := segment_match, values := SegmentKeys}, User, StorageBackend
 check_clause(Clause, User, _StorageBackend) ->
     check_clause(Clause, User).
 
-check_clause(_Clause, _User) ->
+check_clause(#{attribute := Attribute} = Clause, User) ->
+    UserValue = eld_user:get_attribute(Attribute, User),
     % TODO implement
     no_match.
+
+check_attribute([] = UserValues, _Clause) when is_list(UserValues) -> no_match;
+check_attribute([UserValue|Rest] = UserValues, Clause) when is_list(UserValues) ->
+    Result = check_attribute(UserValue, Clause),
+    check_attribute_result(Result, Rest, Clause);
+check_attribute(UserValue, #{values := ClauseValues, op := Operator}) ->
+    check_attribute_against_clause_values(UserValue, Operator, ClauseValues).
+
+check_attribute_against_clause_values(_UserValue, _Operator, []) -> no_match;
+check_attribute_against_clause_values(UserValue, Operator, [ClauseValue|Rest]) ->
+    Result = check_attribute_against_clause_value(UserValue, Operator, ClauseValue),
+    check_attribute_against_clause_value_result(Result, UserValue, Operator, Rest).
+
+check_attribute_against_clause_value_result(true, _UserValue, _Operator, _Rest) -> match;
+check_attribute_against_clause_value_result(false, UserValue, Operator, Rest) ->
+    check_attribute_against_clause_values(UserValue, Operator, Rest).
+
+check_attribute_against_clause_value(undefined, _Operator, _ClauseValue) -> false;
+check_attribute_against_clause_value(_UserValue, _Operator, undefined) -> false;
+check_attribute_against_clause_value(Value, in, Value) -> true;
+check_attribute_against_clause_value(_UserValue, in, _ClauseValue) -> false;
+check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)
+    when is_binary(UserValue); is_binary(ClauseValue) ->
+    binary:longest_common_suffix([UserValue, ClauseValue]) == byte_size(ClauseValue);
+check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)
+    when is_binary(UserValue); is_binary(ClauseValue) ->
+    binary:longest_common_prefix([UserValue, ClauseValue]) == byte_size(ClauseValue);
+check_attribute_against_clause_value(UserValue, matches, ClauseValue)
+    when is_binary(UserValue); is_binary(ClauseValue) ->
+    re:run(UserValue, ClauseValue) =/= nomatch;
+check_attribute_against_clause_value(UserValue, contains, ClauseValue)
+    when is_binary(UserValue); is_binary(ClauseValue) ->
+    binary:match(UserValue, ClauseValue) =/= nomatch;
+check_attribute_against_clause_value(UserValue, less_than, ClauseValue)
+    when is_number(UserValue); is_number(ClauseValue) ->
+    UserValue < ClauseValue;
+check_attribute_against_clause_value(UserValue, less_than_or_equal, ClauseValue)
+    when is_number(UserValue); is_number(ClauseValue) ->
+    UserValue =< ClauseValue;
+check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
+    when is_number(UserValue); is_number(ClauseValue) ->
+    UserValue > ClauseValue;
+check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
+    when is_number(UserValue); is_number(ClauseValue) ->
+    UserValue >= ClauseValue;
+check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
+
+
+check_attribute_result(match, _Rest, _Clause) -> match;
+check_attribute_result(no_match, Rest, Clause) ->
+    check_attribute(Rest, Clause).
+
 
 -spec check_segment_keys_match([binary()], eld_user:user(), atom()) -> match | no_match.
 check_segment_keys_match([], _User, _StorageBackend) -> no_match;

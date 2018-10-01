@@ -127,8 +127,8 @@ check_clause_result(no_match, _Rest, _User) -> no_match;
 check_clause_result(match, Rest, User) ->
     check_clauses(Rest, User).
 
+check_rule_weight(#{weight := undefined}, _User) -> match;
 check_rule_weight(Rule, User) ->
-    % TODO implement
     check_user_bucket(Rule, User).
 
 check_user_bucket(_Rule, _User) ->
