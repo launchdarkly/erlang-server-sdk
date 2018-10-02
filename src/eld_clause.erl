@@ -78,8 +78,7 @@ check_clause(Clause, User, _StorageBackend) ->
 
 check_clause(#{attribute := Attribute} = Clause, User) ->
     UserValue = eld_user:get_attribute(Attribute, User),
-    % TODO implement
-    no_match.
+    check_attribute(UserValue, Clause).
 
 check_attribute([] = UserValues, _Clause) when is_list(UserValues) -> no_match;
 check_attribute([UserValue|Rest] = UserValues, Clause) when is_list(UserValues) ->
