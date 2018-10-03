@@ -124,6 +124,14 @@ check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
 check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
     when is_number(UserValue); is_number(ClauseValue) ->
     UserValue >= ClauseValue;
+check_attribute_against_clause_value(UserValue, before, ClauseValue)
+    when is_integer(UserValue); is_integer(ClauseValue) ->
+    UserValue < ClauseValue;
+check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
+    when is_integer(UserValue); is_integer(ClauseValue) ->
+    UserValue > ClauseValue;
+% TODO implement before and after with date strings
+% TODO implement semver_equal, semver_less_than, semver_greater_than
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
 
 
