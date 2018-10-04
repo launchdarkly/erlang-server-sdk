@@ -72,7 +72,7 @@ parse_rules(Rules) ->
 parse_rule_optional_attributes(Rule, RuleRaw) ->
     Weight = maps:get(<<"weight">>, RuleRaw, undefined),
     BucketBy = maps:get(<<"bucketBy">>, RuleRaw, undefined),
-    Rule#{weight := Weight, bucket_by := BucketBy}.
+    Rule#{weight => Weight, bucket_by => BucketBy}.
 
 -spec parse_clauses([map()]) -> [eld_clause:clause()].
 parse_clauses(Clauses) ->
