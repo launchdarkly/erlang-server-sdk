@@ -7,7 +7,7 @@
 -module(eld_user).
 
 %% API
--export([get_attribute/2]).
+-export([get/2]).
 
 %% Types
 -type user() :: #{
@@ -24,6 +24,12 @@
 %%% API
 %%%===================================================================
 
--spec get_attribute(binary(), user()) -> term().
-get_attribute(Attribute, User) ->
-    maps:get(Attribute, User, undefined).
+-spec get(binary(), user()) -> term().
+get(Attribute, User) ->
+    Attr = get_attribute(Attribute),
+    maps:get(Attr, User, undefined).
+
+-spec get_attribute(binary()|atom()) -> binary()|atom().
+get_attribute(<<"key">>) -> key;
+get_attribute(Attribute) when is_binary(Attribute) -> Attribute;
+get_attribute(Attribute) when is_atom(Attribute) -> Attribute.

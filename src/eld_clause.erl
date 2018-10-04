@@ -77,7 +77,7 @@ check_clause(Clause, User, _StorageBackend) ->
     check_clause(Clause, User).
 
 check_clause(#{attribute := Attribute} = Clause, User) ->
-    UserValue = eld_user:get_attribute(Attribute, User),
+    UserValue = eld_user:get(Attribute, User),
     check_attribute(UserValue, Clause).
 
 check_attribute([] = UserValues, _Clause) when is_list(UserValues) -> no_match;
@@ -101,34 +101,34 @@ check_attribute_against_clause_value(_UserValue, _Operator, undefined) -> false;
 check_attribute_against_clause_value(Value, in, Value) -> true;
 check_attribute_against_clause_value(_UserValue, in, _ClauseValue) -> false;
 check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)
-    when is_binary(UserValue); is_binary(ClauseValue) ->
+    when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:longest_common_suffix([UserValue, ClauseValue]) == byte_size(ClauseValue);
-check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)
-    when is_binary(UserValue); is_binary(ClauseValue) ->
+check_attribute_against_clause_value(UserValue, starts_with, ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:longest_common_prefix([UserValue, ClauseValue]) == byte_size(ClauseValue);
 check_attribute_against_clause_value(UserValue, matches, ClauseValue)
-    when is_binary(UserValue); is_binary(ClauseValue) ->
+    when is_binary(UserValue), is_binary(ClauseValue) ->
     re:run(UserValue, ClauseValue) =/= nomatch;
 check_attribute_against_clause_value(UserValue, contains, ClauseValue)
-    when is_binary(UserValue); is_binary(ClauseValue) ->
+    when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:match(UserValue, ClauseValue) =/= nomatch;
 check_attribute_against_clause_value(UserValue, less_than, ClauseValue)
-    when is_number(UserValue); is_number(ClauseValue) ->
+    when is_number(UserValue), is_number(ClauseValue) ->
     UserValue < ClauseValue;
 check_attribute_against_clause_value(UserValue, less_than_or_equal, ClauseValue)
-    when is_number(UserValue); is_number(ClauseValue) ->
+    when is_number(UserValue), is_number(ClauseValue) ->
     UserValue =< ClauseValue;
 check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
-    when is_number(UserValue); is_number(ClauseValue) ->
+    when is_number(UserValue), is_number(ClauseValue) ->
     UserValue > ClauseValue;
 check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
-    when is_number(UserValue); is_number(ClauseValue) ->
+    when is_number(UserValue), is_number(ClauseValue) ->
     UserValue >= ClauseValue;
 check_attribute_against_clause_value(UserValue, before, ClauseValue)
-    when is_integer(UserValue); is_integer(ClauseValue) ->
+    when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue < ClauseValue;
 check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
-    when is_integer(UserValue); is_integer(ClauseValue) ->
+    when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue > ClauseValue;
 % TODO implement before and after with date strings
 % TODO implement semver_equal, semver_less_than, semver_greater_than
