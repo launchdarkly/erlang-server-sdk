@@ -176,16 +176,6 @@ flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, Events) when 
     VariationValue = eld_flag:get_variation(Flag, Variation),
     {{Variation, VariationValue, Reason}, Events};
 flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, Events) when is_map(Rollout) ->
-    Variation = get_rollout_variation(Rollout, User),
+    Variation = eld_rollout:rollout_user(Rollout, User),
     VariationValue = eld_flag:get_variation(Flag, Variation),
-    {{Variation, VariationValue, Reason}, Events};
-flag_for_user_variation_or_rollout(_, _Reason, #{key := FlagKey}, _User, Events) ->
-    error_logger:warning_msg("Data inconsistency in feature flag ~p: variation/rollout object with no variation or rollout", [FlagKey]),
-    Reason = {error, malformed_flag},
-    Variation = undefined,
-    VariationValue = undefined,
     {{Variation, VariationValue, Reason}, Events}.
-
-get_rollout_variation(_Rollout, _User) ->
-    % TODO implement
-    0.

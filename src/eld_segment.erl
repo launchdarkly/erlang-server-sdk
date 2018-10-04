@@ -24,7 +24,7 @@
 -type rule() :: #{
     clauses   => [eld_clause:clause()],
     weight    => undefined | non_neg_integer(),
-    bucket_by => undefined | binary()
+    bucket_by => eld_user:attribute()
 }.
 
 -export_type([segment/0]).
@@ -71,7 +71,7 @@ parse_rules(Rules) ->
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
 parse_rule_optional_attributes(Rule, RuleRaw) ->
     Weight = maps:get(<<"weight">>, RuleRaw, undefined),
-    BucketBy = maps:get(<<"bucketBy">>, RuleRaw, undefined),
+    BucketBy = maps:get(<<"bucketBy">>, RuleRaw, key),
     Rule#{weight => Weight, bucket_by => BucketBy}.
 
 -spec parse_clauses([map()]) -> [eld_clause:clause()].

@@ -16,9 +16,11 @@
 % TODO define user type
 
 -type key() :: binary().
+-type attribute() :: binary() | atom().
 
 -export_type([user/0]).
 -export_type([key/0]).
+-export_type([attribute/0]).
 
 %%%===================================================================
 %%% API
@@ -33,7 +35,7 @@ get(Attribute, User) ->
 %%% Internal functions
 %%%===================================================================
 
--spec get_attribute(binary()|atom()) -> binary()|atom().
+-spec get_attribute(attribute()) -> attribute().
 get_attribute(<<"key">>) -> key;
 get_attribute(Attribute) when is_binary(Attribute) -> Attribute;
 get_attribute(Attribute) when is_atom(Attribute) -> Attribute.
