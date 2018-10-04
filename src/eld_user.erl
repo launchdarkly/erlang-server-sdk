@@ -29,6 +29,10 @@ get(Attribute, User) ->
     Attr = get_attribute(Attribute),
     maps:get(Attr, User, undefined).
 
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
 -spec get_attribute(binary()|atom()) -> binary()|atom().
 get_attribute(<<"key">>) -> key;
 get_attribute(Attribute) when is_binary(Attribute) -> Attribute;

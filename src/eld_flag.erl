@@ -34,20 +34,8 @@
 -type variation() :: non_neg_integer().
 %% Variation index
 
--type variation_or_rollout() :: variation() | rollout().
+-type variation_or_rollout() :: variation() | eld_rollout:rollout().
 %% Contains either the fixed variation or percent rollout to serve
-
--type rollout() :: #{
-    variations => [weighted_variation()],
-    bucket_by  => binary() | undefined
-}.
-%% Describes how users will be bucketed into variations during a percentage rollout
-
--type weighted_variation() :: #{
-    variation => variation(),
-    weight    => non_neg_integer() % 0 to 100000
-}.
-%% Describes a fraction of users who will receive a specific variation
 
 -type prerequisite() :: #{
     key       => key(),
