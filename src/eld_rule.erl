@@ -57,4 +57,3 @@ check_clauses([Clause|Rest], User, StorageBackend) ->
 check_clause_result(no_match, _Rest, _User, _StorageBackend) -> no_match;
 check_clause_result(match, Rest, User, StorageBackend) ->
     check_clauses(Rest, User, StorageBackend).
-

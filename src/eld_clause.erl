@@ -134,11 +134,9 @@ check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
 % TODO implement semver_equal, semver_less_than, semver_greater_than
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
 
-
 check_attribute_result(match, _Rest, _Clause) -> match;
 check_attribute_result(no_match, Rest, Clause) ->
     check_attribute(Rest, Clause).
-
 
 -spec check_segment_keys_match([binary()], eld_user:user(), atom()) -> match | no_match.
 check_segment_keys_match([], _User, _StorageBackend) -> no_match;
