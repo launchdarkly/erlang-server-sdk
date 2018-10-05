@@ -104,6 +104,9 @@ new(Key, #{
     }.
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
+get_variation(_Flag, Variation) when Variation < 0 -> undefined;
+get_variation(#{variations := Variations}, VariationIndex)
+    when VariationIndex + 1 > length(Variations) -> undefined;
 get_variation(#{variations := Variations}, VariationIndex) ->
     lists:nth(VariationIndex + 1, Variations).
 

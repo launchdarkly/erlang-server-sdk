@@ -89,8 +89,7 @@ flag_for_user(Flag, User, StorageBackend, DefaultValue) ->
 
 -spec flag_for_user_valid(eld_flag:flag(), eld_user:user(), atom()) -> result().
 flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User, _StorageBackend) ->
-    VariationValue = eld_flag:get_variation(Flag, OffVariation),
-    {{OffVariation, VariationValue, off}, []};
+    result_for_variation_index(OffVariation, off, Flag, []);
 flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBackend) ->
     check_prerequisites(Prerequisites, Flag, User, StorageBackend).
 
@@ -130,8 +129,7 @@ check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, Use
     check_prerequisites(Prerequisites, Flag, User, StorageBackend, Events).
 
 flag_for_user_prerequisites({fail, Reason}, #{off_variation := OffVariation} = Flag, _User, _StorageBackend, Events) ->
-    VariationValue = eld_flag:get_variation(Flag, OffVariation),
-    {{OffVariation, VariationValue, Reason}, Events};
+    result_for_variation_index(OffVariation, Reason, Flag, Events);
 flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, StorageBackend, Events) ->
     check_targets(Targets, Flag, User, StorageBackend, Events).
 
@@ -148,9 +146,8 @@ check_target_result({true, Variation}, _Rest, Flag, User, StorageBackend, Events
     flag_for_user_targets({match, Variation}, Flag, User, StorageBackend, Events).
 
 flag_for_user_targets({match, Variation}, Flag, _User, _StorageBackend, Events) ->
-    VariationValue = eld_flag:get_variation(Flag, Variation),
     Reason = target_match,
-    {{Variation, VariationValue, Reason}, Events};
+    result_for_variation_index(Variation, Reason, Flag, Events);
 flag_for_user_targets(no_match, #{rules := Rules} = Flag, User, StorageBackend, Events) ->
     check_rules(Rules, Flag, User, StorageBackend, Events, 0).
 
@@ -173,8 +170,7 @@ flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, Events
     flag_for_user_variation_or_rollout(Fallthrough, fallthrough, Flag, User, Events).
 
 flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, Events) when is_integer(Variation) ->
-    VariationValue = eld_flag:get_variation(Flag, Variation),
-    {{Variation, VariationValue, Reason}, Events};
+    result_for_variation_index(Variation, Reason, Flag, Events);
 flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, Events) when is_map(Rollout) ->
     Result = eld_rollout:rollout_user(Rollout, Flag, User),
     flag_for_user_rollout_result(Result, Reason, Flag, Events).
@@ -184,5 +180,14 @@ flag_for_user_rollout_result(undefined, _Reason, #{key := FlagKey}, Events) ->
     Reason = {error, malformed_flag},
     {{undefined, undefined, Reason}, Events};
 flag_for_user_rollout_result(Variation, Reason, Flag, Events) ->
+    result_for_variation_index(Variation, Reason, Flag, Events).
+
+result_for_variation_index(Variation, Reason, Flag, Events) ->
     VariationValue = eld_flag:get_variation(Flag, Variation),
+    result_for_variation_value(VariationValue, Variation, Reason, Flag, Events).
+
+result_for_variation_value(undefined, _Variation, _Reason, _Flag, Events) ->
+    Reason = {error, malformed_flag},
+    {{undefined, undefined, Reason}, Events};
+result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events) ->
     {{Variation, VariationValue, Reason}, Events}.

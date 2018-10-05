@@ -24,6 +24,28 @@
                 ],
                 "version": 5
             },
+            "bad-variation": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 3
+                },
+                "key": "bad-variation",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
             "prereqs-fail-off": {
                 "clientSide": true,
                 "debugEventsUntilDate": null,

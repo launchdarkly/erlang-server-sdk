@@ -31,7 +31,8 @@
     rule_match_greater_than_or_equal/1,
     rule_match_before_int/1,
     rule_match_after_int/1,
-    fallthrough_rollout/1
+    fallthrough_rollout/1,
+    variation_out_of_range/1
 ]).
 
 %%====================================================================
@@ -60,7 +61,8 @@ all() ->
         rule_match_greater_than_or_equal,
         rule_match_before_int,
         rule_match_after_int,
-        fallthrough_rollout
+        fallthrough_rollout,
+        variation_out_of_range
     ].
 
 init_per_suite(Config) ->
@@ -311,6 +313,15 @@ fallthrough_rollout(_) ->
         eld_eval:flag_key_for_user(<<"roll-me">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+variation_out_of_range(_) ->
+    {{undefined, undefined, {error, malformed_flag}}, Events} =
+        eld_eval:flag_key_for_user(<<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"bad-variation">>, feature_request, undefined, undefined, "foo", {error, malformed_flag}, undefined}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
