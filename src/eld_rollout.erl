@@ -50,9 +50,10 @@ rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key :
     Bucket = bucket_user(FlagKey, FlagSalt, User, BucketBy),
     match_weighted_variations(Bucket, WeightedVariations).
 
-bucket_user(_Key, _Salt, _User, _BucketBy) ->
-    % TODO implement
-    12345.
+bucket_user(Key, Salt, User, BucketBy) ->
+    UserValue = maps:get(BucketBy, User, undefined),
+    UserSecondary = maps:get(secondary, User, undefined),
+    bucket_user_value(Key, Salt, UserValue, UserSecondary).
 
 %%%===================================================================
 %%% Internal functions
@@ -73,4 +74,17 @@ match_weighted_variations(_Bucket, [], _Sum) -> undefined;
 match_weighted_variations(Bucket, [#{variation := Variation}|_], Sum) when Bucket < Sum ->
     Variation;
 match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
-    match_weighted_variations(Bucket, Rest, Sum + Weight).
+    match_weighted_variations(Bucket, Rest, Sum + Weight / 100000).
+
+bucket_user_value(_Key, _Salt, undefined, _Secondary) -> 0;
+bucket_user_value(Key, Salt, UserAttribute, undefined) ->
+    bucket_hash(<<Key/binary, Salt/binary, UserAttribute/binary>>);
+bucket_user_value(Key, Salt, UserAttribute, Secondary) ->
+    bucket_hash(<<Key/binary, Salt/binary, UserAttribute/binary, Secondary/binary>>).
+
+bucket_hash(Hash) ->
+    Sha1 = crypto:hash(sha, Hash),
+    Sha1Hex = lists:flatten([[io_lib:format("~2.16.0B",[X]) || <<X:8>> <= Sha1 ]]),
+    Sha1_15 = string:substr(Sha1Hex, 1, 15),
+    Int = list_to_integer(Sha1_15, 16),
+    Int / 1152921504606846975.

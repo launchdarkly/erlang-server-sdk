@@ -11,7 +11,8 @@
 
 %% Types
 -type user() :: #{
-    key => key()
+    key       => key(),
+    secondary := binary()
 }.
 % TODO define user type
 
