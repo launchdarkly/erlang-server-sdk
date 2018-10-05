@@ -89,7 +89,7 @@ new(Key, #{
     #{
         debug_events_until_date => DebugEventsUntilDate,
         deleted                 => Deleted,
-        fallthrough             => Fallthrough,
+        fallthrough             => parse_variation_or_rollout(Fallthrough),
         key                     => Key,
         off_variation           => OffVariation,
         on                      => On,
@@ -129,3 +129,9 @@ parse_targets(Targets) ->
             #{values => Values, variation => Variation}
         end,
     lists:map(F, Targets).
+
+-spec parse_variation_or_rollout(map()) -> variation_or_rollout().
+parse_variation_or_rollout(#{<<"variation">> := Variation}) when is_integer(Variation) ->
+    Variation;
+parse_variation_or_rollout(#{<<"rollout">> := Rollout}) when is_map(Rollout) ->
+    eld_rollout:new(Rollout).

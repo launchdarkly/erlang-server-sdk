@@ -8,7 +8,8 @@
 
 %% API
 -export([new/1]).
--export([rollout_user/2]).
+-export([bucket_user/4]).
+-export([rollout_user/3]).
 
 %% Types
 -type rollout() :: #{
@@ -44,10 +45,14 @@ new(#{<<"variations">> := Variations}) ->
         bucket_by  => key
     }.
 
--spec rollout_user(rollout(), eld_user:user()) -> eld_flag:variation().
-rollout_user(_Rollout, _User) ->
+-spec rollout_user(rollout(), eld_flag:flag(), eld_user:user()) -> eld_flag:variation() | undefined.
+rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key := FlagKey, salt := FlagSalt}, User) ->
+    Bucket = bucket_user(FlagKey, FlagSalt, User, BucketBy),
+    match_weighted_variations(Bucket, WeightedVariations).
+
+bucket_user(_Key, _Salt, _User, _BucketBy) ->
     % TODO implement
-    0.
+    12345.
 
 %%%===================================================================
 %%% Internal functions
@@ -59,3 +64,13 @@ parse_variations(Variations) ->
             #{variation => Variation, weight => Weight}
         end,
     lists:map(F, Variations).
+
+match_weighted_variations(_, []) -> undefined;
+match_weighted_variations(Bucket, WeightedVariations) ->
+    match_weighted_variations(Bucket, WeightedVariations, 0).
+
+match_weighted_variations(_Bucket, [], _Sum) -> undefined;
+match_weighted_variations(Bucket, [#{variation := Variation}|_], Sum) when Bucket < Sum ->
+    Variation;
+match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
+    match_weighted_variations(Bucket, Rest, Sum + Weight).

@@ -29,7 +29,7 @@
 new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"variation">> := Variation}) ->
     #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => Variation};
 new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"rollout">> := Rollout}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => Rollout}.
+    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => parse_rollout(Rollout)}.
 
 %% @doc Match all clauses to user, includes segment_match
 %%
@@ -46,6 +46,10 @@ match_user(#{clauses := Clauses}, User, StorageBackend) ->
 parse_clauses(Clauses) ->
     F = fun(Clause) -> eld_clause:new(Clause) end,
     lists:map(F, Clauses).
+
+-spec parse_rollout(map()) -> eld_rollout:rollout().
+parse_rollout(RolloutRaw) ->
+    eld_rollout:new(RolloutRaw).
 
 -spec check_clauses([eld_clause:clause()], eld_user:user(), atom()) -> match | no_match.
 check_clauses([], _User, _StorageBackend) -> match;

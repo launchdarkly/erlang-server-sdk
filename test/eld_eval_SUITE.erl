@@ -143,10 +143,10 @@ prerequisite_fail_variation(_) ->
     ExpectedEvents = ActualEvents.
 
 prerequisite_success(_) ->
-    {{0, true, fallthrough}, Events} =
+    {{1, false, fallthrough}, Events} =
         eld_eval:flag_key_for_user(<<"prereqs-success">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"prereqs-success">>, feature_request, 0, true, "foo", fallthrough, undefined},
+        {<<"prereqs-success">>, feature_request, 1, false, "foo", fallthrough, undefined},
         {<<"keep-it-on-another">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
         {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
         {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>}

@@ -22,9 +22,11 @@
 }.
 
 -type rule() :: #{
-    clauses   => [eld_clause:clause()],
-    weight    => undefined | non_neg_integer(),
-    bucket_by => eld_user:attribute()
+    clauses      => [eld_clause:clause()],
+    weight       => undefined | non_neg_integer(),
+    bucket_by    => eld_user:attribute(),
+    segment_key  => binary(),
+    segment_salt => binary()
 }.
 
 -export_type([segment/0]).
@@ -48,7 +50,7 @@ new(Key, #{
         deleted  => Deleted,
         excluded => Excluded,
         included => Included,
-        rules    => parse_rules(Rules),
+        rules    => parse_rules(Key, Salt, Rules),
         salt     => Salt,
         version  => Version
     }.
@@ -61,10 +63,15 @@ match_user(Segment, User) ->
 %%% Internal functions
 %%%===================================================================
 
--spec parse_rules([map()]) -> [rule()].
-parse_rules(Rules) ->
+-spec parse_rules(binary(), binary(), [map()]) -> [rule()].
+parse_rules(SegmentKey, SegmentSalt, Rules) ->
     F = fun(#{<<"clauses">> := Clauses} = RuleRaw) ->
-            parse_rule_optional_attributes(#{clauses => parse_clauses(Clauses)}, RuleRaw)
+            Rule = #{
+                segment_key  => SegmentKey,
+                segment_salt => SegmentSalt,
+                clauses      => parse_clauses(Clauses)
+            },
+            parse_rule_optional_attributes(Rule, RuleRaw)
         end,
     lists:map(F, Rules).
 
@@ -131,6 +138,9 @@ check_rule_weight(#{weight := undefined}, _User) -> match;
 check_rule_weight(Rule, User) ->
     check_user_bucket(Rule, User).
 
-check_user_bucket(_Rule, _User) ->
-    % TODO implement
-    no_match.
+check_user_bucket(#{segment_key := SegmentKey, segment_salt := SegmentSalt, bucket_by := BucketBy, weight := Weight}, User) ->
+    Bucket = eld_rollout:bucket_user(SegmentKey, SegmentSalt, User, BucketBy),
+    check_user_bucket_result(Bucket, Weight).
+
+check_user_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;
+check_user_bucket_result(_, _) -> no_mtch.
