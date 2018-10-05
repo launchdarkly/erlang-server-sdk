@@ -71,7 +71,8 @@ match_weighted_variations(Bucket, WeightedVariations) ->
     match_weighted_variations(Bucket, WeightedVariations, 0).
 
 match_weighted_variations(_Bucket, [], _Sum) -> undefined;
-match_weighted_variations(Bucket, [#{variation := Variation}|_], Sum) when Bucket < Sum ->
+match_weighted_variations(Bucket, [#{variation := Variation, weight := Weight}|_], Sum)
+    when Bucket < Sum + Weight / 100000 ->
     Variation;
 match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
     match_weighted_variations(Bucket, Rest, Sum + Weight / 100000).

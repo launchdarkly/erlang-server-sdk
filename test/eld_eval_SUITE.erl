@@ -30,7 +30,8 @@
     rule_match_greater_than/1,
     rule_match_greater_than_or_equal/1,
     rule_match_before_int/1,
-    rule_match_after_int/1
+    rule_match_after_int/1,
+    fallthrough_rollout/1
 ]).
 
 %%====================================================================
@@ -58,7 +59,8 @@ all() ->
         rule_match_greater_than,
         rule_match_greater_than_or_equal,
         rule_match_before_int,
-        rule_match_after_int
+        rule_match_after_int,
+        fallthrough_rollout
     ].
 
 init_per_suite(Config) ->
@@ -299,6 +301,16 @@ rule_match_after_int(_) ->
         eld_eval:flag_key_for_user(<<"rule-me">>, #{key => <<"user-foo">>, <<"date">> => 1451772246}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 10, <<"k">>, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout(_) ->
+    ExpectedReason = fallthrough,
+    {{4, <<"e">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(<<"roll-me">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

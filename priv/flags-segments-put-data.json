@@ -452,7 +452,55 @@
                     "k"
                 ],
                 "version": 5
-            }
+            },
+            "roll-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "rollout": {
+                        "variations": [
+                            {
+                                "variation": 0,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 1,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 2,
+                                "weight": 10000
+                            },
+                            {
+                                "variation": 3,
+                                "weight": 30000
+                            },
+                            {
+                                "variation": 4,
+                                "weight": 30000
+                            }
+                        ]
+                    }
+                },
+                "key": "roll-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e"
+                ],
+                "version": 5
+            },
         },
         "segments": {
             "test-included": {
