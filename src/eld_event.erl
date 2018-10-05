@@ -10,6 +10,7 @@
 -export([new/4]).
 -export([new_for_unknown_flag/4]).
 -export([new_flag_eval/6]).
+-export([new_prerequisite_eval/6]).
 
 %% Types
 -type event() :: #{
@@ -132,6 +133,34 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         default                 => DefaultValue,
         version                 => Version,
         prereq_of               => undefined,
+        track_events            => TrackEvents,
+        debug_events_until_date => DebugEventsUntilDate,
+        eval_reason             => Reason,
+        debug                   => false
+    },
+    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+
+-spec new_prerequisite_eval(
+    VariationIndex :: eld_flag:variation(),
+    VariationValue :: eld_flag:variation_value(),
+    PrerequisiteOf :: eld_flag:key(),
+    User :: eld_user:user(),
+    Reason :: eld_eval:reason(),
+    Flag :: eld_flag:flag()
+) -> event().
+new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reason, #{
+    key                     := Key,
+    version                 := Version,
+    track_events            := TrackEvents,
+    debug_events_until_date := DebugEventsUntilDate
+}) ->
+    EventData = #{
+        key                     => Key,
+        variation               => VariationIndex,
+        value                   => VariationValue,
+        default                 => undefined,
+        version                 => Version,
+        prereq_of               => PrerequisiteOf,
         track_events            => TrackEvents,
         debug_events_until_date => DebugEventsUntilDate,
         eval_reason             => Reason,

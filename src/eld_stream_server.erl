@@ -127,6 +127,7 @@ process_event(#{event := Event, data := Data}, StorageBackend) ->
     % Return data as maps because it's a preferred storage method for flags and segments
     DecodedData = jsx:decode(Data, [return_maps]),
     EventOperation = get_event_operation(Event),
+    io:format("~nReceived event ~p with data ~p", [EventOperation, Data]),
     io:format("~nReceived event ~p with data ~p", [EventOperation, DecodedData]),
     ok = process_items(EventOperation, DecodedData, StorageBackend).
 

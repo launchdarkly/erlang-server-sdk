@@ -19,7 +19,7 @@
     off_variation           => variation(),
     on                      => boolean(),
     prerequisites           => [prerequisite()],
-    rules                   => [rule()],
+    rules                   => [eld_rule:rule()],
     salt                    => binary(),
     sel                     => binary(),
     targets                 => [target()],
@@ -31,44 +31,11 @@
 -type key() :: binary().
 %% Flag key
 
--type variation() :: pos_integer().
-%% Variation number
+-type variation() :: non_neg_integer().
+%% Variation index
 
--type rule() :: #{
-    clauses              => [clause()],
-    variation_or_rollout => variation_or_rollout()
-}.
-%% Expresses a set of AND-ed matching conditions for a user, along with either
-%% a fixed variation or a set of rollout percentages
-
--type clause() :: #{
-    attribute => binary(),
-    op        => operator(),
-    values    => [variation_value()],
-    negate    => boolean()
-}.
-%% Describes an individual clause within a targeting rule
-
--type operator() :: in | ends_with | starts_with | matches | contains
-    | less_than | less_than_or_equal | greater_than | greater_than_or_equal
-    | before | 'after' | segment_match | semver_equal | semver_less_than
-    | semver_greater_than.
-%% List of available operators
-
--type variation_or_rollout() :: variation() | rollout().
+-type variation_or_rollout() :: variation() | eld_rollout:rollout().
 %% Contains either the fixed variation or percent rollout to serve
-
--type rollout() :: #{
-    variations => [weighted_variation()],
-    bucket_by  => binary() | undefined
-}.
-%% Describes how users will be bucketed into variations during a percentage rollout
-
--type weighted_variation() :: #{
-    variation => variation(),
-    weight    => non_neg_integer() % 0 to 100000
-}.
-%% Describes a fraction of users who will receive a specific variation
 
 -type prerequisite() :: #{
     key       => key(),
@@ -87,11 +54,15 @@
     | integer()
     | float()
     | binary()
-    | {json, binary()}.
+    | list()
+    | map().
 
 -export_type([flag/0]).
 -export_type([key/0]).
+-export_type([prerequisite/0]).
+-export_type([target/0]).
 -export_type([variation/0]).
+-export_type([variation_or_rollout/0]).
 -export_type([variation_value/0]).
 
 %%%===================================================================
@@ -118,20 +89,52 @@ new(Key, #{
     #{
         debug_events_until_date => DebugEventsUntilDate,
         deleted                 => Deleted,
-        fallthrough             => Fallthrough,
+        fallthrough             => parse_variation_or_rollout(Fallthrough),
         key                     => Key,
         off_variation           => OffVariation,
         on                      => On,
-        prerequisites           => Prerequisites,
-        rules                   => Rules,
+        prerequisites           => parse_prerequisites(Prerequisites),
+        rules                   => parse_rules(Rules),
         salt                    => Salt,
         sel                     => Sel,
-        targets                 => Targets,
+        targets                 => parse_targets(Targets),
         track_events            => TrackEvents,
         variations              => Variations,
         version                 => Version
     }.
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
+get_variation(_Flag, Variation) when Variation < 0 -> undefined;
+get_variation(#{variations := Variations}, VariationIndex)
+    when VariationIndex + 1 > length(Variations) -> undefined;
 get_variation(#{variations := Variations}, VariationIndex) ->
     lists:nth(VariationIndex + 1, Variations).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+-spec parse_prerequisites([map()]) -> [prerequisite()].
+parse_prerequisites(Prerequisites) ->
+    F = fun(#{<<"key">> := Key, <<"variation">> := Variation}) ->
+            #{key => Key, variation => Variation}
+        end,
+    lists:map(F, Prerequisites).
+
+-spec parse_rules([map()]) -> [eld_rule:rule()].
+parse_rules(Rules) ->
+    F = fun(Rule) -> eld_rule:new(Rule) end,
+    lists:map(F, Rules).
+
+-spec parse_targets([map()]) -> [target()].
+parse_targets(Targets) ->
+    F = fun(#{<<"values">> := Values, <<"variation">> := Variation}) ->
+            #{values => Values, variation => Variation}
+        end,
+    lists:map(F, Targets).
+
+-spec parse_variation_or_rollout(map()) -> variation_or_rollout().
+parse_variation_or_rollout(#{<<"variation">> := Variation}) when is_integer(Variation) ->
+    Variation;
+parse_variation_or_rollout(#{<<"rollout">> := Rollout}) when is_map(Rollout) ->
+    eld_rollout:new(Rollout).

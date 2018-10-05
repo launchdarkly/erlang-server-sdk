@@ -13,6 +13,7 @@
 -export([stop_all_streams/0]).
 -export([start_storage/1]).
 -export([stop/0]).
+-export([evaluate/3]).
 
 %% Constants
 -define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
@@ -85,6 +86,21 @@ stop() ->
     ok = stop_all_streams(),
     {ok, StorageBackend} = eld_app:get_env(storage_backend),
     StorageBackend:terminate().
+
+%% @doc Evaluate given flag key for given user
+%%
+%% Evaluation iterates through flag's prerequisites, targets, rules, associated
+%% clauses and percentage rollouts. It returns the flag variation index, value
+%% and reason, explaining why the specific result was chosen.
+%% @end
+-spec evaluate(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_flag:variation_value()) ->
+    eld_eval:detail().
+evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
+    % Get evaluation result detail
+    {Detail, _Events} = eld_eval:flag_key_for_user(FlagKey, User, DefaultValue),
+    % TODO Send all events
+    % Return evaluation detail
+    Detail.
 
 %%%===================================================================
 %%% Internal functions
