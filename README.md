@@ -9,7 +9,7 @@ Incomplete
 
 Implemented:
 - Flag and segment storage
-- Evaluations (most)
+- Evaluations (most, see #7)
 
 Not yet implemented:
 - Events
