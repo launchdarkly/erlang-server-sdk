@@ -9,7 +9,7 @@ Incomplete
 
 Implemented:
 - Flag and segment storage
-- Evaluations (most, see #7)
+- Evaluations (most, see [#7](https://github.com/unix1/eld/issues/7))
 
 Not yet implemented:
 - Events
