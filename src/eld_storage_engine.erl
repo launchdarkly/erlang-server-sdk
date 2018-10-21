@@ -1,10 +1,10 @@
-%%%-------------------------------------------------------------------
+%%-------------------------------------------------------------------
 %% @doc `eld_storage_engine' module
 %%
 %% This is a behavior that all storage engines must implement. It works with
 %% the concept of buckets and keys.
 %% @end
-%%%-------------------------------------------------------------------
+%%-------------------------------------------------------------------
 -module(eld_storage_engine).
 
 -type event_operation() :: put | patch.

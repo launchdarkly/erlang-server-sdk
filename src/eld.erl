@@ -1,8 +1,8 @@
-%%%-------------------------------------------------------------------
-%%% @doc `eld' module
-%%%
-%%% @end
-%%%-------------------------------------------------------------------
+%%-------------------------------------------------------------------
+%% @doc `eld' module
+%%
+%% @end
+%%-------------------------------------------------------------------
 
 -module(eld).
 
@@ -21,9 +21,9 @@
 -define(DEFAULT_STREAM_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%%===================================================================
+%% API
+%%===================================================================
 
 %% @doc Starts streamer client and storage servers with default values
 %%
@@ -102,9 +102,9 @@ evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     % Return evaluation detail
     Detail.
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%%===================================================================
+%% Internal functions
+%%===================================================================
 
 %% @doc Parses given map of options
 %% @private
@@ -123,7 +123,7 @@ parse_options(Options) ->
 
 %% @doc Stores startup options in application environment
 %%
-%% This is useful for later retrieval by streamer initalization.
+%% This is useful for later retrieval by streamer initialization.
 %% @end
 -spec store_settings(SdkKey :: string(), StorageBackend :: atom(), Options :: map()) -> ok.
 store_settings(SdkKey, StorageBackend, Options) ->
