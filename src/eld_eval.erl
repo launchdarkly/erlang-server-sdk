@@ -43,7 +43,7 @@
 %%
 %% @end
 -spec flag_key_for_user(
-    FlagKey :: binary(),
+    FlagKey :: eld_flag:key(),
     User :: eld_user:user(),
     DefaultValue :: eld_flag:variation_value()
 ) -> result().
