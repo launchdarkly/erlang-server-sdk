@@ -5,6 +5,7 @@
 %% the concept of buckets and keys.
 %% @end
 %%-------------------------------------------------------------------
+
 -module(eld_storage_engine).
 
 -type event_operation() :: put | patch.

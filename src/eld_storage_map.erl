@@ -4,6 +4,7 @@
 %% Provides implementation of storage backend using Erlang map.
 %% @end
 %%-------------------------------------------------------------------
+
 -module(eld_storage_map).
 
 -behaviour(eld_storage_engine).

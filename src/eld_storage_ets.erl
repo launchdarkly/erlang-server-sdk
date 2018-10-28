@@ -4,6 +4,7 @@
 %% Provides implementation of ETS storage backend behavior.
 %% @end
 %%-------------------------------------------------------------------
+
 -module(eld_storage_ets).
 
 -behaviour(eld_storage_engine).
