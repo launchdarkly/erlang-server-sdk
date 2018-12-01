@@ -9,6 +9,7 @@
 %% API
 -export([start/3]).
 -export([stop/1]).
+-export([stop_all/0]).
 
 -type options() :: #{
     base_uri => string(),
@@ -62,6 +63,14 @@ stop(Tag) when is_atom(Tag) ->
     SupPid = erlang:whereis(SupName),
     ok = supervisor:terminate_child(eld_sup, SupPid),
     eld_settings:unregister(Tag).
+
+%% @doc Stop all client instances
+%%
+%% @end
+-spec stop_all() -> ok.
+stop_all() ->
+    Tags = eld_settings:get_registered_tags(),
+    lists:foreach(fun stop/1, Tags).
 
 %%===================================================================
 %% Internal functions

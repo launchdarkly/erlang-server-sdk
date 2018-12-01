@@ -12,6 +12,7 @@
 -export([start_instance/1]).
 -export([start_instance/2]).
 -export([start_instance/3]).
+-export([stop_all_instances/0]).
 -export([stop_instance/0]).
 -export([stop_instance/1]).
 -export([evaluate/3]).
@@ -53,6 +54,13 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     ok | {error, atom(), term()}.
 start_instance(SdkKey, Tag, Options) when is_list(SdkKey), is_atom(Tag), is_map(Options) ->
     eld_instance:start(Tag, SdkKey, Options).
+
+%% @doc Stop all client instances
+%%
+%% @end
+-spec stop_all_instances() -> ok.
+stop_all_instances() ->
+    eld_instance:stop_all().
 
 %% @doc Stop client instance
 %%

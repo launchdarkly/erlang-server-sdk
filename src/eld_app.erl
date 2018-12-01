@@ -21,4 +21,4 @@ start(_Type, _Args) ->
     eld_sup:start_link().
 
 stop(_State) ->
-    eld:stop_all().
+    eld:stop_all_instances().

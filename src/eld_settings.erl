@@ -10,6 +10,7 @@
 %% API
 -export([init/0]).
 -export([parse_options/2]).
+-export([get_registered_tags/0]).
 -export([get_value/2]).
 -export([register/2]).
 -export([unregister/1]).
@@ -59,6 +60,13 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         stream_uri => StreamUri,
         storage_backend => StorageBackend
     }.
+
+%% @doc Get all registered tags
+%%
+%% @end
+-spec get_registered_tags() -> [atom()].
+get_registered_tags() ->
+    maps:keys(get_all()).
 
 %% @doc Gets application environment variable value
 %%
