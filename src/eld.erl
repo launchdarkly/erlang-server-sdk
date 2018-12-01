@@ -1,91 +1,74 @@
 %%-------------------------------------------------------------------
 %% @doc `eld' module
 %%
+%% Acts as an interface to most common SDK functions: starting and stopping
+%% client instances, and evaluating feature flags for users.
 %% @end
 %%-------------------------------------------------------------------
 
 -module(eld).
 
 %% API
--export([start/1]).
--export([start/2]).
--export([start_stream/0]).
--export([stop_all_streams/0]).
--export([start_storage/1]).
--export([stop/0]).
+-export([start_instance/1]).
+-export([start_instance/2]).
+-export([start_instance/3]).
+-export([stop_instance/0]).
+-export([stop_instance/1]).
 -export([evaluate/3]).
+-export([evaluate/4]).
 
 %% Constants
--define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
--define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
--define(DEFAULT_STREAM_URI, "https://events.launchdarkly.com").
--define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
+-define(DEFAULT_INSTANCE_NAME, default).
 
 %%===================================================================
 %% API
 %%===================================================================
 
-%% @doc Starts streamer client and storage servers with default values
+%% @doc Start client with default options
 %%
-%% Default streamer host and storage service (ETS) will be used.
+%% The SDK key is required to connect. Default streamer URL, storage backend
+%% and instance name `default' will be used.
 %% @end
--spec start(SdkKey :: string()) -> ok | {error, atom(), term()}.
-start(SdkKey) ->
-    start(SdkKey, ?DEFAULT_STORAGE_BACKEND, #{}).
+-spec start_instance(SdkKey :: string()) -> ok | {error, atom(), term()}.
+start_instance(SdkKey) ->
+    start_instance(SdkKey, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Starts streamer client and storage servers with some options
+%% @doc Start client with custom name or options
 %%
-%% Specify either custom storage backend or config options.
+%% When `TagOrOptions' is an atom, the instance is started with that name. When
+%% it's a map, it can be used to start with custom options.
 %% @end
--spec start(SdkKey :: string(), Options :: atom() | map()) -> ok | {error, atom(), term()}.
-start(SdkKey, StorageBackend) when is_atom(StorageBackend) ->
-    start(SdkKey, StorageBackend, #{});
-start(SdkKey, Options) when is_map(Options) ->
-    start(SdkKey, ?DEFAULT_STORAGE_BACKEND, Options).
+-spec start_instance(SdkKey :: string(), TagOrOptions :: atom() | map()) ->
+    ok | {error, atom(), term()}.
+start_instance(SdkKey, Tag) when is_list(SdkKey), is_atom(Tag) ->
+    start_instance(SdkKey, Tag, #{});
+start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
+    start_instance(SdkKey, ?DEFAULT_INSTANCE_NAME, Options).
 
-%% @doc Starts streamer client and storage servers with custom values
+%% @doc Start client with custom name and options
 %%
-%% Stores options in application environment, starts storage backend, starts
-%% streamer client. Valid options are `base_uri', `events_uri', and
-%% `stream_uri'. If an option is not supplied, the default will be used.
+%% Specify both custom client name and options when starting the client.
 %% @end
--spec start(SdkKey :: string(), StorageBackend :: atom(), Options :: map()) -> ok | {error, atom(), term()}.
-start(SdkKey, StorageBackend, Options) ->
-    Opts = parse_options(Options),
-    ok = store_settings(SdkKey, StorageBackend, Opts),
-    ok = start_storage(StorageBackend),
-    start_stream().
+-spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->
+    ok | {error, atom(), term()}.
+start_instance(SdkKey, Tag, Options) when is_list(SdkKey), is_atom(Tag), is_map(Options) ->
+    eld_instance:start(Tag, SdkKey, Options).
 
-%% @doc Starts streamer client process
+%% @doc Stop client instance
 %%
-%% It will retrieve the SDK key and URI from application environment.
+%% Stops the default client instance.
 %% @end
--spec start_stream() -> ok | {error, atom(), term()}.
-start_stream() ->
-    {ok, Pid} = supervisor:start_child(eld_stream_sup, []),
-    eld_stream_server:listen(Pid).
+-spec stop_instance() -> ok | {error, not_found, term()}.
+stop_instance() ->
+    stop_instance(?DEFAULT_INSTANCE_NAME).
 
-%% @doc Terminates all current stream listeners
+%% @doc Stop client with the custom name
 %%
+%% This is useful if a client instance was started with a custom name.
 %% @end
--spec stop_all_streams() -> ok.
-stop_all_streams() ->
-    ok = terminate_all_children(eld_stream_sup).
-
-%% @doc Starts storage server.
-%%
-%% `StorageBackend' must be a module name that implements `eld_storage_engine'
-%% behavior.
-%% @end
--spec start_storage(StorageBackend :: atom()) -> ok.
-start_storage(StorageBackend) ->
-    ok = StorageBackend:init([]).
-
--spec stop() -> ok.
-stop() ->
-    ok = stop_all_streams(),
-    {ok, StorageBackend} = eld_app:get_env(storage_backend),
-    StorageBackend:terminate().
+-spec stop_instance(Tag :: atom()) -> ok | {error, not_found, term()}.
+stop_instance(Tag) when is_atom(Tag) ->
+    eld_instance:stop(Tag).
 
 %% @doc Evaluate given flag key for given user
 %%
@@ -96,59 +79,19 @@ stop() ->
 -spec evaluate(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_flag:variation_value()) ->
     eld_eval:detail().
 evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
+    evaluate(?DEFAULT_INSTANCE_NAME, FlagKey, User, DefaultValue).
+
+%% @doc Evaluate given flag key for given user and given client instance
+%%
+%% Evaluation iterates through flag's prerequisites, targets, rules, associated
+%% clauses and percentage rollouts. It returns the flag variation index, value
+%% and reason, explaining why the specific result was chosen.
+%% @end
+-spec evaluate(Tag :: atom(), FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_flag:variation_value()) ->
+    eld_eval:detail().
+evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     % Get evaluation result detail
-    {Detail, _Events} = eld_eval:flag_key_for_user(FlagKey, User, DefaultValue),
+    {Detail, _Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
     % TODO Send all events
     % Return evaluation detail
     Detail.
-
-%%===================================================================
-%% Internal functions
-%%===================================================================
-
-%% @doc Parses given map of options
-%% @private
-%%
-%% @end
--spec parse_options(Options :: map()) -> map().
-parse_options(Options) ->
-    BaseUri = maps:get(base_uri, Options, ?DEFAULT_BASE_URI),
-    EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
-    StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
-    #{
-        base_uri => BaseUri,
-        events_uri => EventsUri,
-        stream_uri => StreamUri
-    }.
-
-%% @doc Stores startup options in application environment
-%%
-%% This is useful for later retrieval by streamer initialization.
-%% @end
--spec store_settings(SdkKey :: string(), StorageBackend :: atom(), Options :: map()) -> ok.
-store_settings(SdkKey, StorageBackend, Options) ->
-    ok = application:set_env(eld, sdk_key, SdkKey),
-    ok = application:set_env(eld, storage_backend, StorageBackend),
-    ok = application:set_env(eld, base_uri, maps:get(base_uri, Options)),
-    ok = application:set_env(eld, events_uri, maps:get(events_uri, Options)),
-    ok = application:set_env(eld, stream_uri, maps:get(stream_uri, Options)).
-
-%% @doc Terminates all children of a given supervisor
-%% @private
-%%
-%% @end
--spec terminate_all_children(Sup :: atom()) -> ok.
-terminate_all_children(Sup) ->
-    Pids = [Pid || {_, Pid, worker, _} <- supervisor:which_children(Sup)],
-    terminate_all_children(Sup, Pids).
-
-%% @doc Recursively terminates processes of given children Pids
-%% @private
-%%
-%% @end
--spec terminate_all_children(Sup :: atom(), [pid()]) -> ok.
-terminate_all_children(_Sup, []) ->
-    ok;
-terminate_all_children(Sup, [Pid|Rest]) ->
-    ok = supervisor:terminate_child(Sup, Pid),
-    terminate_all_children(Sup, Rest).

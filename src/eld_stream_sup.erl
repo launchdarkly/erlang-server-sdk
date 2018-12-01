@@ -9,21 +9,21 @@
 -behaviour(supervisor).
 
 %% Supervision
--export([start_link/0, init/1]).
+-export([start_link/1, init/1]).
 
 %%===================================================================
 %% Supervision
 %%===================================================================
 
--spec(start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+-spec start_link(StreamSupName :: atom()) ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+start_link(StreamSupName) ->
+    supervisor:start_link({local, StreamSupName}, ?MODULE, []).
 
 -spec init(Args :: term()) ->
     {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
 init([]) ->
-    MaxRestart = 1,
+    MaxRestart = 10,
     MaxTime = 3600,
     ChildSpec = {
         eld_stream_server,
