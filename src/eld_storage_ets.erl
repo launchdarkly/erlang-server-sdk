@@ -25,7 +25,7 @@
 %% Behavior callbacks
 %%===================================================================
 
--spec init(SupRef :: supervisor:sup_ref(), Tag :: atom(), Options :: list()) ->
+-spec init(SupRef :: atom(), Tag :: atom(), Options :: list()) ->
     ok.
 init(SupRef, Tag, _) ->
     StorageSup = ?CHILD(eld_storage_ets_sup, eld_storage_ets_sup, [Tag], supervisor),

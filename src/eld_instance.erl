@@ -30,6 +30,7 @@
 -spec start(Tag :: atom(), SdkKey :: string(), Options :: options()) ->
     ok | {error, already_started, term()}.
 start(Tag, SdkKey, Options) ->
+    % TODO check if Tag already exists and return already_started error
     % Parse options into settings
     Settings = eld_settings:parse_options(SdkKey, Options),
     ok = eld_settings:register(Tag, Settings),
@@ -70,6 +71,7 @@ stop(Tag) when is_atom(Tag) ->
 %% @private
 %%
 %% @end
+-spec get_supref_from_tag(atom(), atom()) -> atom().
 get_supref_from_tag(instance, Tag) when is_atom(Tag) ->
     list_to_atom("eld_instance_" ++ atom_to_list(Tag));
 get_supref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
@@ -79,7 +81,7 @@ get_supref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
 %% @private
 %%
 %% @end
--spec start_stream(StartStream :: boolean, Tag :: atom(), SupName :: atom()) ->
+-spec start_stream(StartStream :: boolean(), Tag :: atom(), SupName :: atom()) ->
     ok.
 start_stream(false, _, _) -> ok;
 start_stream(true, Tag, _SupName) ->

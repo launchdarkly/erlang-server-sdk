@@ -19,7 +19,7 @@
 %% any other initialization resources as needed.
 %% It is expected that `flags' and `segments' buckets will be reachable after
 %% initialization, which should also be accounted for here.
--callback init(SupRef :: supervisor:sup_ref(), Tag :: atom(), Options :: list()) ->
+-callback init(SupRef :: atom(), Tag :: atom(), Options :: list()) ->
     ok.
 
 %% `create' must create a named bucket with a given atom. It must return

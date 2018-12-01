@@ -44,7 +44,7 @@ init([]) ->
 %% @doc Create a bucket
 %%
 %% @end
--spec create(ServerRef :: eld_storage_engine:server_ref(), Bucket :: atom()) ->
+-spec create(ServerRef :: atom(), Bucket :: atom()) ->
     ok |
     {error, already_exists, string()}.
 create(ServerRef, Bucket) when is_atom(Bucket) ->
@@ -53,7 +53,7 @@ create(ServerRef, Bucket) when is_atom(Bucket) ->
 %% @doc Empty a bucket
 %%
 %% @end
--spec empty(ServerRef :: eld_storage_engine:server_ref(), Bucket :: atom()) ->
+-spec empty(ServerRef :: atom(), Bucket :: atom()) ->
     ok |
     {error, bucket_not_found, string()}.
 empty(ServerRef, Bucket) when is_atom(Bucket) ->
@@ -62,7 +62,7 @@ empty(ServerRef, Bucket) when is_atom(Bucket) ->
 %% @doc Get an item from the bucket by its key
 %%
 %% @end
--spec get(ServerRef :: eld_storage_engine:server_ref(), Bucket :: atom(), Key :: binary()) ->
+-spec get(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
 get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
@@ -71,7 +71,7 @@ get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
 %% @doc List all items in a bucket
 %%
 %% @end
--spec list(ServerRef :: eld_storage_engine:server_ref(), Bucket :: atom()) ->
+-spec list(ServerRef :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
 list(ServerRef, Bucket) when is_atom(Bucket) ->
@@ -80,7 +80,7 @@ list(ServerRef, Bucket) when is_atom(Bucket) ->
 %% @doc Put an item key value pair in an existing bucket
 %%
 %% @end
--spec put(ServerRef :: eld_storage_engine:server_ref(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec put(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
 put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->

@@ -18,6 +18,7 @@
 -type instance() :: #{
     sdk_key => string(),
     base_uri => string(),
+    events_uri => string(),
     stream_uri => string(),
     storage_backend => atom()
 }.
@@ -92,7 +93,7 @@ unregister(Tag) when is_atom(Tag) ->
 %% Internal functions
 %%===================================================================
 
--spec get_all() -> #{Tag :: atom() => eld_settings:instance()}.
+-spec get_all() -> #{Tag :: atom() => instance()}.
 get_all() ->
     {ok, Instances} = application:get_env(eld, instances),
     Instances.
