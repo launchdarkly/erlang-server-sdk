@@ -70,6 +70,4 @@ put(Tag, Bucket, Items) ->
     eld_storage_map_server:put(ServerRef, Bucket, Items).
 
 -spec terminate(Tag :: atom()) -> ok.
-terminate(Tag) ->
-    StorageMapServerRef = eld_storage_map_server:get_local_reg_name(Tag),
-    supervisor:terminate_child(eld_storage_map_sup, StorageMapServerRef).
+terminate(_Tag) -> ok.

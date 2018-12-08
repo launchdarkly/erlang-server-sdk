@@ -70,6 +70,4 @@ put(Tag, Bucket, Items) ->
     eld_storage_ets_server:put(ServerRef, Bucket, Items).
 
 -spec terminate(Tag :: atom()) -> ok.
-terminate(Tag) ->
-    StorageEtsServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
-    supervisor:terminate_child(eld_storage_ets_sup, StorageEtsServerRef).
+terminate(_Tag) -> ok.

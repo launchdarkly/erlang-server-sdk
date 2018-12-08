@@ -24,7 +24,9 @@
 -export([get_local_reg_name/1]).
 
 %% Types
--type state() :: map().
+-type state() :: #{
+    tids => map()
+}.
 
 %%===================================================================
 %% Supervision
@@ -35,7 +37,7 @@ start_link(Tag) ->
     gen_server:start_link({local, get_local_reg_name(Tag)}, ?MODULE, [], []).
 
 init([]) ->
-    {ok, #{}}.
+    {ok, #{tids => #{}}}.
 
 %%===================================================================
 %% API
@@ -96,16 +98,18 @@ get_local_reg_name(Tag) ->
 
 -type from() :: {pid(), term()}.
 -spec handle_call(term(), from(), state()) -> {reply, term(), state()}.
-handle_call({create, Bucket}, _From, State) ->
-    {reply, create_bucket(Bucket), State};
-handle_call({empty, Bucket}, _From, State) ->
-    {reply, empty_bucket(Bucket), State};
-handle_call({get, Bucket, Key}, _From, State) ->
-    {reply, lookup_key(Key, Bucket), State};
-handle_call({list, Bucket}, _From, State) ->
-    {reply, list_items(Bucket), State};
-handle_call({put, Bucket, Item}, _From, State) ->
-    {reply, put_items(Item, Bucket), State}.
+handle_call({create, Bucket}, _From, #{tids := Tids} = State) ->
+    {Reply, NewTids} = create_bucket(bucket_exists(Bucket, Tids), Bucket, Tids),
+    NewState = State#{tids := NewTids},
+    {reply, Reply, NewState};
+handle_call({empty, Bucket}, _From, #{tids := Tids} = State) ->
+    {reply, empty_bucket(bucket_exists(Bucket, Tids), Bucket, Tids), State};
+handle_call({get, Bucket, Key}, _From, #{tids := Tids} = State) ->
+    {reply, lookup_key(bucket_exists(Bucket, Tids), Key, Bucket, Tids), State};
+handle_call({list, Bucket}, _From, #{tids := Tids} = State) ->
+    {reply, list_items(bucket_exists(Bucket, Tids), Bucket, Tids), State};
+handle_call({put, Bucket, Item}, _From, #{tids := Tids} = State) ->
+    {reply, put_items(bucket_exists(Bucket, Tids), Item, Bucket, Tids), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -123,91 +127,76 @@ code_change(_OldVersion, State, _Extra) -> {ok, State}.
 %% @private
 %%
 %% @end
--spec bucket_exists(Bucket :: atom()) -> boolean().
-bucket_exists(Bucket) when is_atom(Bucket) ->
-    case ets:info(Bucket) of
-        undefined -> false;
-        _ -> true
-    end.
+-spec bucket_exists(Bucket :: atom(), Tids :: map()) -> boolean().
+bucket_exists(Bucket, Tids) when is_atom(Bucket) ->
+    maps:is_key(Bucket, Tids).
 
 %% @doc Create a bucket
 %% @private
 %%
 %% If bucket with the same name already exists an error will be returned.
 %% @end
--spec create_bucket(Bucket :: atom()) ->
-    ok |
-    {error, already_exists, string()}.
-create_bucket(Bucket) when is_atom(Bucket) ->
-    case bucket_exists(Bucket) of
-        false ->
-            Bucket = ets:new(Bucket, [set, named_table]),
-            ok;
-        _ ->
-            {error, already_exists, "ETS table " ++ atom_to_list(Bucket) ++ " already exists."}
-    end.
+-spec create_bucket(BucketExists :: boolean(), Bucket :: atom(), Tids :: map()) ->
+    {ok|{error, already_exists, string()}, NewTids :: map()}.
+create_bucket(true, Bucket, Tids) ->
+    {{error, already_exists, "Bucket " ++ atom_to_list(Bucket) ++ " already exists."}, Tids};
+create_bucket(false, Bucket, Tids) ->
+    Tid = ets:new(Bucket, [set]),
+    {ok, Tids#{Bucket => Tid}}.
 
 %% @doc Empty a bucket
 %% @private
 %%
 %% If no such bucket exists, error will be returned.
 %% @end
--spec empty_bucket(Bucket :: atom()) ->
+-spec empty_bucket(BucketExists :: boolean(), Bucket :: atom(), Tids :: map()) ->
     ok |
     {error, bucket_not_found, string()}.
-empty_bucket(Bucket) when is_atom(Bucket) ->
-    case bucket_exists(Bucket) of
-        false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
-        _ ->
-            true = ets:delete_all_objects(Bucket),
-            ok
-    end.
+empty_bucket(false, Bucket, _Tids) ->
+    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+empty_bucket(true, Bucket, Tids) ->
+    Tid = maps:get(Bucket, Tids),
+    true = ets:delete_all_objects(Tid),
+    ok.
 
 %% @doc List all items in a bucket
 %% @private
 %%
 %% Returns all items stored in the bucket.
 %% @end
--spec list_items(Bucket :: atom()) ->
+-spec list_items(BucketExists :: boolean(), Bucket :: atom(), Tids :: map()) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
-list_items(Bucket) when is_atom(Bucket) ->
-    case bucket_exists(Bucket) of
-        false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
-        _ ->
-            ets:tab2list(Bucket)
-    end.
+list_items(false, Bucket, _Tids) ->
+    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+list_items(true, Bucket, Tids) ->
+    Tid = maps:get(Bucket, Tids),
+    ets:tab2list(Tid).
 
 %% @doc Look up an item by key
 %% @private
 %%
 %% Search for an item by its key.
 %% @end
--spec lookup_key(Key :: binary(), Bucket :: atom()) ->
+-spec lookup_key(BucketExists :: boolean(), Key :: binary(), Bucket :: atom(), Tids :: map()) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
-lookup_key(Key, Bucket) when is_atom(Bucket), is_binary(Key) ->
-    case bucket_exists(Bucket) of
-        false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
-        _ ->
-            ets:lookup(Bucket, Key)
-    end.
+lookup_key(false, _Key, Bucket, _Tids) ->
+    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+lookup_key(true, Key, Bucket, Tids) ->
+    Tid = maps:get(Bucket, Tids),
+    ets:lookup(Tid, Key).
 
 %% @doc Put a key value pair in bucket
 %% @private
 %%
 %% @end
--spec put_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom()) ->
+-spec put_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Tids :: map()) ->
     ok |
     {error, bucket_not_found, string()}.
-put_items(Items, Bucket) when is_map(Items), is_atom(Bucket) ->
-    case bucket_exists(Bucket) of
-        false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
-        _ ->
-            true = ets:insert(Bucket, maps:to_list(Items)),
-            ok
-    end.
+put_items(false, _Items, Bucket, _Tids) ->
+    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+put_items(true, Items, Bucket, Tids) ->
+    Tid = maps:get(Bucket, Tids),
+    true = ets:insert(Tid, maps:to_list(Items)),
+    ok.
