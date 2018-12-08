@@ -21,7 +21,6 @@
 -export([get/3]).
 -export([list/2]).
 -export([put/3]).
--export([get_local_reg_name/1]).
 
 %% Types
 -type state() :: #{
@@ -32,9 +31,9 @@
 %% Supervision
 %%===================================================================
 
-start_link(Tag) ->
-    io:format("Starting ets server with name: ~p~n", [get_local_reg_name(Tag)]),
-    gen_server:start_link({local, get_local_reg_name(Tag)}, ?MODULE, [], []).
+start_link(WorkerRegName) ->
+    io:format("Starting ets server with name: ~p~n", [WorkerRegName]),
+    gen_server:start_link({local, WorkerRegName}, ?MODULE, [], []).
 
 init([]) ->
     {ok, #{tids => #{}}}.
@@ -87,10 +86,6 @@ list(ServerRef, Bucket) when is_atom(Bucket) ->
     {error, bucket_not_found, string()}.
 put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
     ok = gen_server:call(ServerRef, {put, Bucket, Items}).
-
--spec get_local_reg_name(Tag :: atom()) -> atom().
-get_local_reg_name(Tag) ->
-    list_to_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(Tag)).
 
 %%===================================================================
 %% Behavior callbacks

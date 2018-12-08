@@ -28,7 +28,9 @@
 -spec init(SupRef :: atom(), Tag :: atom(), Options :: list()) ->
     ok.
 init(SupRef, Tag, _) ->
-    StorageSup = ?CHILD(eld_storage_ets_sup, eld_storage_ets_sup, [Tag], supervisor),
+    SupRegName = get_local_reg_name(supervisor, Tag),
+    WorkerRegName = get_local_reg_name(worker, Tag),
+    StorageSup = ?CHILD(eld_storage_ets_sup, eld_storage_ets_sup, [SupRegName, WorkerRegName], supervisor),
     {ok, _} = supervisor:start_child(SupRef, StorageSup),
     % Pre-create flags and segments buckets
     ok = create(Tag, flags),
@@ -38,36 +40,46 @@ init(SupRef, Tag, _) ->
     ok |
     {error, already_exists, string()}.
 create(Tag, Bucket) ->
-    ServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
+    ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_ets_server:create(ServerRef, Bucket).
 
 -spec empty(Tag :: atom(), Bucket :: atom()) ->
     ok |
     {error, bucket_not_found, string()}.
 empty(Tag, Bucket) ->
-    ServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
+    ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_ets_server:empty(ServerRef, Bucket).
 
 -spec get(Tag :: atom(), Bucket :: atom(), Key :: binary()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
 get(Tag, Bucket, Key) ->
-    ServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
+    ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_ets_server:get(ServerRef, Bucket, Key).
 
 -spec list(Tag :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
 list(Tag, Bucket) ->
-    ServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
+    ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_ets_server:list(ServerRef, Bucket).
 
 -spec put(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
 put(Tag, Bucket, Items) ->
-    ServerRef = eld_storage_ets_server:get_local_reg_name(Tag),
+    ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_ets_server:put(ServerRef, Bucket, Items).
 
 -spec terminate(Tag :: atom()) -> ok.
 terminate(_Tag) -> ok.
+
+%%===================================================================
+%% Internal functions
+%%===================================================================
+
+-spec get_local_reg_name(atom(), Tag :: atom()) -> atom().
+get_local_reg_name(supervisor, Tag) ->
+    list_to_atom("eld_storage_ets_sup_" ++ atom_to_list(Tag));
+get_local_reg_name(worker, Tag) ->
+    list_to_atom("eld_storage_ets_server_" ++ atom_to_list(Tag)).

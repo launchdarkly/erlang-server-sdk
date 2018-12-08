@@ -80,7 +80,7 @@ stop_all() ->
 %% @private
 %%
 %% @end
--spec get_supref_from_tag(atom(), atom()) -> atom().
+-spec get_supref_from_tag(atom(), Tag :: atom()) -> atom().
 get_supref_from_tag(instance, Tag) when is_atom(Tag) ->
     list_to_atom("eld_instance_" ++ atom_to_list(Tag));
 get_supref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
