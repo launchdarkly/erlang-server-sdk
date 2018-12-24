@@ -55,7 +55,7 @@ listen(Pid) ->
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    io:format("~nStarting with tag: ~p", [Tag]),
+    io:format("Starting with tag: ~p~n", [Tag]),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -85,7 +85,7 @@ init([Tag]) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
 handle_call({listen}, _From, #{sdk_key := SdkKey, storage_backend := StorageBackend, storage_tag := Tag, stream_uri := Uri} = State) ->
-    io:format("~nStarting: ~p", [Uri]),
+    io:format("Starting: ~p~n", [Uri]),
     {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
     case shotgun:open(Host, Port, Scheme) of
         {error, gun_open_failed} ->
@@ -97,7 +97,7 @@ handle_call({listen}, _From, #{sdk_key := SdkKey, storage_backend := StorageBack
                     process_event(shotgun:parse_event(Bin), StorageBackend, Tag);
                 (fin, _Ref, Bin) ->
                     % TODO need to do something here
-                    io:format("~nGot a fin message with data ~p", [Bin])
+                    io:format("Got a fin message with data ~p~n", [Bin])
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
             case shotgun:get(ShotgunPid, Path ++ Query, #{"Authorization" => SdkKey}, Options) of
@@ -117,10 +117,10 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{conn := undefined} = _State) ->
-    io:format("~nTerminating, reason: ~p; Pid none", [Reason]),
+    io:format("Terminating, reason: ~p; Pid none~n", [Reason]),
     ok;
 terminate(Reason, #{conn := ShotgunPid} = _State) ->
-    io:format("~nTerminating, reason: ~p; Pid ~p", [Reason, ShotgunPid]),
+    io:format("Terminating, reason: ~p; Pid ~p~n", [Reason, ShotgunPid]),
     ok = shotgun:close(ShotgunPid).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -138,8 +138,8 @@ process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
     % Return data as maps because it's a preferred storage method for flags and segments
     DecodedData = jsx:decode(Data, [return_maps]),
     EventOperation = get_event_operation(Event),
-    %io:format("~nReceived event ~p with data ~p", [EventOperation, Data]),
-    %io:format("~nReceived event ~p with data ~p", [EventOperation, DecodedData]),
+    %io:format("Received event ~p with data ~p~n", [EventOperation, Data]),
+    %io:format("Received event ~p with data ~p~n", [EventOperation, DecodedData]),
     ok = process_items(EventOperation, DecodedData, StorageBackend, Tag).
 
 -spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation().
@@ -153,13 +153,13 @@ get_event_operation(<<"patch">>) -> patch.
 process_items(put, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     io:format("Path is: ~p, Tag is: ~p~n", [<<"/">>, Tag]),
-    %io:format("~nSegments are: ~p", [length(Segments)]),
-    %io:format("~nFlags are: ~p", [length(Flags)]),
+    %io:format("Segments are: ~p~n", [length(Segments)]),
+    %io:format("Flags are: ~p~n", [length(Flags)]),
     ok = StorageBackend:put(Tag, flags, Flags),
     ok = StorageBackend:put(Tag, segments, Segments);
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Item} = get_patch_item(Data),
-    io:format("~nPatching ~p: ~p", [Bucket, Item]),
+    io:format("Patching ~p: ~p~n", [Bucket, Item]),
     ok = StorageBackend:put(Tag, Bucket, Item).
 
 -spec get_put_items(Data :: map()) -> [map()].
