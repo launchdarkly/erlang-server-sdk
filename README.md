@@ -31,7 +31,7 @@ make run
 Connect and evaluate
 ```erlang
 eld:start_instance("sdk-key").
-eld:evaluate(<<"my-flag">>, #{key => <<"user-12345">>}).
+eld:evaluate(<<"my-flag">>, #{key => <<"user-12345">>}, "default-value").
 ```
 
 Run tests
