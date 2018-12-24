@@ -12,13 +12,18 @@
 %% Tests
 -export([
     unknown_flag/1,
+    unknown_flag_another/1,
     off_flag/1,
+    off_flag_another/1,
     prerequisite_fail_off/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
     target_user/1,
+    target_user_another/1,
     segment_included/1,
     segment_excluded_negated/1,
+    segment_excluded_negated_nonuser/1,
+    segment_excluded_another/1,
     rule_match_in/1,
     rule_match_ends_with/1,
     rule_match_ends_and_starts_with_order/1,
@@ -42,13 +47,18 @@
 all() ->
     [
         unknown_flag,
+        unknown_flag_another,
         off_flag,
+        off_flag_another,
         prerequisite_fail_off,
         prerequisite_fail_variation,
         prerequisite_success,
         target_user,
+        target_user_another,
         segment_included,
         segment_excluded_negated,
+        segment_excluded_negated_nonuser,
+        segment_excluded_another,
         rule_match_in,
         rule_match_ends_with,
         rule_match_ends_and_starts_with_order,
@@ -68,6 +78,7 @@ all() ->
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
     eld:start_instance("", #{start_stream => false}),
+    eld:start_instance("", another1, #{start_stream => false}),
     ok = create_flags(),
     Config.
 
@@ -86,8 +97,11 @@ end_per_testcase(_, Config) ->
 
 create_flags() ->
     DataFilename = code:priv_dir(eld) ++ "/flags-segments-put-data.json",
+    DataFilename2 = code:priv_dir(eld) ++ "/flags-segments-put-data-another1.json",
     {ok, PutData} = file:read_file(DataFilename),
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default).
+    {ok, PutData2} = file:read_file(DataFilename2),
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData2}, eld_storage_ets, another1).
 
 extract_events(Events) ->
     [
@@ -118,8 +132,24 @@ unknown_flag(_) ->
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
+unknown_flag_another(_) ->
+    % Flag exists in default instance, doesn't exist in another1 instance
+    {{undefined, "foo", {error, flag_not_found}}, Events} =
+        eld_eval:flag_key_for_user(another1, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"bad-variation">>, feature_request, undefined, undefined, "foo", {error, flag_not_found}, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
 off_flag(_) ->
     {{1, false, off}, Events} = eld_eval:flag_key_for_user(default, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, undefined}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+off_flag_another(_) ->
+    {{1, false, off}, Events} = eld_eval:flag_key_for_user(another1, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, undefined}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -166,6 +196,16 @@ target_user(_) ->
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
+target_user_another(_) ->
+    % Same user, different instance, different target result
+    {{1, false, target_match}, Events} =
+        eld_eval:flag_key_for_user(another1, <<"target-me">>, #{key => <<"user-33333">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"target-me">>, feature_request, 1, false, "foo", target_match, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
 segment_included(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
     {{1, false, ExpectedReason}, Events} =
@@ -177,9 +217,31 @@ segment_included(_) ->
     ExpectedEvents = ActualEvents.
 
 segment_excluded_negated(_) ->
-    ExpectedReason = {rule_match, 1, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
+    ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
     {{1, false, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-33333">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+segment_excluded_negated_nonuser(_) ->
+    % This user isn't specified in a segment
+    ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
+    {{1, false, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-99999">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+segment_excluded_another(_) ->
+    % Same user, different instance, different segment result
+    ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
+    {{1, false, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(another1, <<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
     ]),
