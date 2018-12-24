@@ -35,7 +35,8 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    eld:start_storage(eld_storage_ets),
+    eld:start_instance("", #{start_stream => false}),
+    eld:start_instance("", another1, #{start_stream => false}),
     Config.
 
 end_per_suite(_) ->
@@ -45,7 +46,8 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, _Config) ->
-    ok = eld_storage_ets:empty(flags),
+    ok = eld_storage_ets:empty(default, flags),
+    ok = eld_storage_ets:empty(another1, flags),
     ok.
 
 %%====================================================================
@@ -58,27 +60,41 @@ end_per_testcase(_, _Config) ->
 
 server_init(_) ->
     % Verify flags and segments buckets are pre-created
-    {error, already_exists, _} = eld_storage_ets:create(flags),
-    {error, already_exists, _} = eld_storage_ets:create(segments).
+    {error, already_exists, _} = eld_storage_ets:create(default, flags),
+    {error, already_exists, _} = eld_storage_ets:create(default, segments),
+    {error, already_exists, _} = eld_storage_ets:create(another1, flags),
+    {error, already_exists, _} = eld_storage_ets:create(another1, segments).
 
 server_bucket_exists(_) ->
-    {error, bucket_not_found, _} = eld_storage_ets:get(eld_testing, <<"testing">>),
-    ok = eld_storage_ets:create(eld_testing),
-    [] = eld_storage_ets:get(eld_testing, <<"testing">>).
+    {error, bucket_not_found, _} = eld_storage_ets:get(default, eld_testing, <<"testing">>),
+    ok = eld_storage_ets:create(default, eld_testing),
+    [] = eld_storage_ets:get(default, eld_testing, <<"testing">>),
+    {error, bucket_not_found, _} = eld_storage_ets:get(another1, eld_testing, <<"testing">>).
 
 server_get_put(_) ->
-    [] = eld_storage_ets:get(flags, <<"flag1">>),
-    ok = eld_storage_ets:put(flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
-    [{<<"flag1">>, [{<<"value1">>, 0.5}]}] = eld_storage_ets:get(flags, <<"flag1">>).
+    [] = eld_storage_ets:get(default, flags, <<"flag1">>),
+    ok = eld_storage_ets:put(default, flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
+    [{<<"flag1">>, [{<<"value1">>, 0.5}]}] = eld_storage_ets:get(default, flags, <<"flag1">>),
+    [] = eld_storage_ets:get(another1, flags, <<"flag1">>),
+    ok = eld_storage_ets:put(another1, flags, #{<<"flag1">> => [{<<"valueA">>, 0.9}]}),
+    [{<<"flag1">>, [{<<"valueA">>, 0.9}]}] = eld_storage_ets:get(another1, flags, <<"flag1">>),
+    [{<<"flag1">>, [{<<"value1">>, 0.5}]}] = eld_storage_ets:get(default, flags, <<"flag1">>).
 
 server_list(_) ->
-    [] = eld_storage_ets:list(flags),
-    ok = eld_storage_ets:put(flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
-    ok = eld_storage_ets:put(flags, #{<<"flag2">> => [{<<"value2">>, 0.7}]}),
+    [] = eld_storage_ets:list(default, flags),
+    [] = eld_storage_ets:list(another1, flags),
+    ok = eld_storage_ets:put(default, flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
+    ok = eld_storage_ets:put(default, flags, #{<<"flag2">> => [{<<"value2">>, 0.7}]}),
+    ok = eld_storage_ets:put(another1, flags, #{<<"flag1">> => [{<<"value1">>, 0.9}]}),
+    ok = eld_storage_ets:put(another1, flags, #{<<"flag5">> => [{<<"value2">>, 0.77}]}),
     [
         {<<"flag1">>, [{<<"value1">>, 0.5}]},
         {<<"flag2">>, [{<<"value2">>, 0.7}]}
-    ] = lists:sort(eld_storage_ets:list(flags)).
+    ] = lists:sort(eld_storage_ets:list(default, flags)),
+    [
+        {<<"flag1">>, [{<<"value1">>, 0.9}]},
+        {<<"flag5">>, [{<<"value2">>, 0.77}]}
+    ] = lists:sort(eld_storage_ets:list(another1, flags)).
 
 server_process_events_put(_) ->
     Event = #{
@@ -95,16 +111,16 @@ server_process_events_put(_) ->
             }
         }
     },
-    ok = eld_stream_server:process_items(put, Event, eld_storage_ets),
+    ok = eld_stream_server:process_items(put, Event, eld_storage_ets, default),
     [
         {<<"flag-key-1">>, <<"flag-value-1">>},
         {<<"flag-key-2">>, <<"flag-value-2">>},
         {<<"flag-key-3">>, <<"flag-value-3">>}
-    ] = lists:sort(eld_storage_ets:list(flags)),
+    ] = lists:sort(eld_storage_ets:list(default, flags)),
     [
         {<<"segment-key-1">>, <<"segment-value-1">>},
         {<<"segment-key-2">>, <<"segment-value-2">>}
-    ] = lists:sort(eld_storage_ets:list(segments)).
+    ] = lists:sort(eld_storage_ets:list(default, segments)).
 
 server_process_events_patch(_) ->
     PutEvent = #{
@@ -117,13 +133,13 @@ server_process_events_patch(_) ->
             <<"segments">> => #{}
         }
     },
-    ok = eld_stream_server:process_items(put, PutEvent, eld_storage_ets),
+    ok = eld_stream_server:process_items(put, PutEvent, eld_storage_ets, default),
     PatchEvent = #{
         <<"path">> => <<"/flags/flag-key-2">>,
         <<"data">> => <<"flag-value-2-mod">>
     },
-    ok = eld_stream_server:process_items(patch, PatchEvent, eld_storage_ets),
+    ok = eld_stream_server:process_items(patch, PatchEvent, eld_storage_ets, default),
     [
         {<<"flag-key-1">>, <<"flag-value-1">>},
         {<<"flag-key-2">>, <<"flag-value-2-mod">>}
-    ] = lists:sort(eld_storage_ets:list(flags)).
+    ] = lists:sort(eld_storage_ets:list(default, flags)).

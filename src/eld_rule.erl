@@ -8,7 +8,7 @@
 
 %% API
 -export([new/1]).
--export([match_user/3]).
+-export([match_user/4]).
 
 %% Types
 -type rule() :: #{
@@ -34,9 +34,9 @@ new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"rollout">> := Rollout}) ->
 %% @doc Match all clauses to user, includes segment_match
 %%
 %% @end
--spec match_user(rule(), eld_user:user(), atom()) -> match | no_match.
-match_user(#{clauses := Clauses}, User, StorageBackend) ->
-    check_clauses(Clauses, User, StorageBackend).
+-spec match_user(rule(), User :: eld_user:user(), StorageBackend :: atom(), Tag :: atom()) -> match | no_match.
+match_user(#{clauses := Clauses}, User, StorageBackend, Tag) ->
+    check_clauses(Clauses, User, StorageBackend, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -51,13 +51,13 @@ parse_clauses(Clauses) ->
 parse_rollout(RolloutRaw) ->
     eld_rollout:new(RolloutRaw).
 
--spec check_clauses([eld_clause:clause()], eld_user:user(), atom()) -> match | no_match.
-check_clauses([], _User, _StorageBackend) -> match;
-check_clauses([Clause|Rest], User, StorageBackend) ->
-    Result = eld_clause:match_user(Clause, User, StorageBackend),
-    check_clause_result(Result, Rest, User, StorageBackend).
+-spec check_clauses([eld_clause:clause()], eld_user:user(), atom(), atom()) -> match | no_match.
+check_clauses([], _User, _StorageBackend, _Tag) -> match;
+check_clauses([Clause|Rest], User, StorageBackend, Tag) ->
+    Result = eld_clause:match_user(Clause, User, StorageBackend, Tag),
+    check_clause_result(Result, Rest, User, StorageBackend, Tag).
 
--spec check_clause_result(match | no_match, [eld_clause:clause()], eld_user:user(), atom()) -> match | no_match.
-check_clause_result(no_match, _Rest, _User, _StorageBackend) -> no_match;
-check_clause_result(match, Rest, User, StorageBackend) ->
-    check_clauses(Rest, User, StorageBackend).
+-spec check_clause_result(match | no_match, [eld_clause:clause()], eld_user:user(), atom(), atom()) -> match | no_match.
+check_clause_result(no_match, _Rest, _User, _StorageBackend, _Tag) -> no_match;
+check_clause_result(match, Rest, User, StorageBackend, Tag) ->
+    check_clauses(Rest, User, StorageBackend, Tag).

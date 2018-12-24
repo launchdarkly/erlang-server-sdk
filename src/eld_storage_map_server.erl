@@ -11,17 +11,17 @@
 -behaviour(gen_server).
 
 %% Supervision
--export([start_link/0, init/1]).
+-export([start_link/1, init/1]).
 
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 %% API
--export([create/1]).
--export([empty/1]).
--export([get/2]).
--export([list/1]).
--export([put/2]).
+-export([create/2]).
+-export([empty/2]).
+-export([get/3]).
+-export([list/2]).
+-export([put/3]).
 
 %% Types
 -type state() :: #{data => map()}.
@@ -30,8 +30,8 @@
 %% Supervision
 %%===================================================================
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(WorkerRegName) ->
+    gen_server:start_link({local, WorkerRegName}, ?MODULE, [], []).
 
 init([]) ->
     {ok, #{data => #{}}}.
@@ -43,47 +43,47 @@ init([]) ->
 %% @doc Create a bucket
 %%
 %% @end
--spec create(Bucket :: atom()) ->
+-spec create(ServerRef :: atom(), Bucket :: atom()) ->
     ok |
     {error, already_exists, string()}.
-create(Bucket) when is_atom(Bucket) ->
-    gen_server:call(?MODULE, {create, Bucket}).
+create(ServerRef, Bucket) when is_atom(Bucket) ->
+    gen_server:call(ServerRef, {create, Bucket}).
 
 %% @doc Empty a bucket
 %%
 %% @end
--spec empty(Bucket :: atom()) ->
+-spec empty(ServerRef :: atom(), Bucket :: atom()) ->
     ok |
     {error, bucket_not_found, string()}.
-empty(Bucket) when is_atom(Bucket) ->
-    gen_server:call(?MODULE, {empty, Bucket}).
+empty(ServerRef, Bucket) when is_atom(Bucket) ->
+    gen_server:call(ServerRef, {empty, Bucket}).
 
 %% @doc Get an item from the bucket by its key
 %%
 %% @end
--spec get(Bucket :: atom(), Key :: binary()) ->
+-spec get(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
-get(Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
-    gen_server:call(?MODULE, {get, Bucket, Key}).
+get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
+    gen_server:call(ServerRef, {get, Bucket, Key}).
 
 %% @doc List all items in a bucket
 %%
 %% @end
--spec list(Bucket :: atom()) ->
+-spec list(ServerRef :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
-list(Bucket) when is_atom(Bucket) ->
-    gen_server:call(?MODULE, {list, Bucket}).
+list(ServerRef, Bucket) when is_atom(Bucket) ->
+    gen_server:call(ServerRef, {list, Bucket}).
 
 %% @doc Put an item key value pair in an existing bucket
 %%
 %% @end
--spec put(Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec put(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-put(Bucket, Items) when is_atom(Bucket), is_map(Items) ->
-    ok = gen_server:call(?MODULE, {put, Bucket, Items}).
+put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    ok = gen_server:call(ServerRef, {put, Bucket, Items}).
 
 %%===================================================================
 %% Behavior callbacks

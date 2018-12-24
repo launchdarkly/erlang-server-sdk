@@ -25,7 +25,7 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    eld:start_storage(eld_storage_ets),
+    eld:start_instance("", #{start_stream => false}),
     Config.
 
 end_per_suite(_) ->
@@ -35,7 +35,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, _Config) ->
-    ok = eld_storage_ets:empty(flags),
+    ok = eld_storage_ets:empty(eld_storage_ets_server_default, flags),
     ok.
 
 %%====================================================================
@@ -119,6 +119,7 @@ get_simple_flag_patch() ->
             <<"version">> => 6
         }
     }.
+
 %%====================================================================
 %% Tests
 %%====================================================================
@@ -133,11 +134,11 @@ server_process_event_put_patch(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets),
-    [] = eld_storage_ets:list(segments),
-    [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(flags),
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    [] = eld_storage_ets:list(default, segments),
+    [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets),
-    [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(flags),
+    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
+    [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(default, flags),
     ok.

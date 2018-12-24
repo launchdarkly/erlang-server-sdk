@@ -24,14 +24,14 @@ Not yet implemented:
 #### Play
 
 Run in console
-```dtd
+```bash
 make run
 ```
 
 Connect and evaluate
 ```erlang
-eld:start("[sdk-key]").
-eld_eval:flag_key_for_user(<<"my-flag">>, #{key => <<"user-12345">>}).
+eld:start_instance("sdk-key").
+eld:evaluate(<<"my-flag">>, #{key => <<"user-12345">>}, "default-value").
 ```
 
 Run tests
