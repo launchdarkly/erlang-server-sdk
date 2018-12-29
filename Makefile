@@ -1,6 +1,6 @@
 PROJECT = eld
 PROJECT_DESCRIPTION = Erlang LaunchDarkly SDK Client
-PROJECT_VERSION = 0.0.1
+PROJECT_VERSION = 0.1.0
 
 # Dependencies
 
