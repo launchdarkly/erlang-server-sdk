@@ -28,6 +28,12 @@ Run in console
 make run
 ```
 
+On OS X, Homebrew installs GNU Make as `gmake`, so you may wish to run:
+
+```bash
+gmake run
+```
+
 Connect and evaluate
 ```erlang
 eld:start_instance("sdk-key").
