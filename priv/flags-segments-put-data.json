@@ -454,6 +454,48 @@
                         ],
                         "id": "77473bea-d93f-4787-84d2-92cf08b35f2b",
                         "variation": 10
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerEqual",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "9398cafc-0ab7-4d0d-8e01-6683cc4d17ec",
+                        "variation": 11
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerGreaterThan",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "3570714f-d03b-4068-ab79-18f15c74382d",
+                        "variation": 12
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerLessThan",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "2c002923-2db0-4fcc-a95e-f3cb5b4bd13d",
+                        "variation": 13
                     }
                 ],
                 "salt": "YWx0ZXJuYXRlLnBhZ2U=",
@@ -471,7 +513,10 @@
                     "h",
                     "i",
                     "j",
-                    "k"
+                    "k",
+                    "l",
+                    "m",
+                    "n"
                 ],
                 "version": 5
             },

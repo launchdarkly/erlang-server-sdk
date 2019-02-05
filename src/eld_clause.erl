@@ -137,31 +137,25 @@ check_attribute_against_clause_value(UserValue, semver_less_than, ClauseValue) -
 check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue) -> check_semver_greater_than(UserValue, ClauseValue);
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
 
--spec check_semver_equal(atom(), atom()) -> match | no_match.
+-spec check_semver_equal(string(), string()) -> boolean().
 check_semver_equal(UserSemVer, ClauseSemVer) ->
-    u_semver = semver:parse(UserSemVer),
-    c_semver = semver:parse(ClauseSemVer),
-    case semver:compare(u_semver, c_semver) of
-        0 -> match;
-        _ -> no_match
+    case semver:compare(semver:parse(UserSemVer), semver:parse(ClauseSemVer)) of
+        0 -> true;
+        _ -> false
     end.
 
--spec check_semver_less_than(atom(), atom()) -> match | no_match.
+-spec check_semver_less_than(string(), string()) -> boolean().
 check_semver_less_than(UserSemVer, ClauseSemVer) ->
-    u_semver = semver:parse(UserSemVer),
-    c_semver = semver:parse(ClauseSemVer),
-    case semver:compare(u_semver, c_semver) of
-        -1 -> match;
-        _ -> no_match
+    case semver:compare(semver:parse(UserSemVer), semver:parse(ClauseSemVer)) of
+        -1 -> true;
+        _ -> false
     end.
 
--spec check_semver_greater_than(atom(), atom()) -> match | no_match.
+-spec check_semver_greater_than(string(), string()) -> boolean().
 check_semver_greater_than(UserSemVer, ClauseSemVer) ->
-    u_semver = semver:parse(UserSemVer),
-    c_semver = semver:parse(ClauseSemVer),
-    case semver:compare(u_semver, c_semver) of
-        1 -> match;
-        _ -> no_match
+    case semver:compare(semver:parse(UserSemVer), semver:parse(ClauseSemVer)) of
+        1 -> true;
+        _ -> false
     end.
 
 check_attribute_result(match, _Rest, _Clause) -> match;
