@@ -36,6 +36,9 @@
     rule_match_greater_than_or_equal/1,
     rule_match_before_int/1,
     rule_match_after_int/1,
+    rule_match_semver_equal/1,
+    rule_match_semver_greater_than/1,
+    rule_match_semver_less_than/1,
     fallthrough_rollout/1,
     variation_out_of_range/1
 ]).
@@ -71,6 +74,9 @@ all() ->
         rule_match_greater_than_or_equal,
         rule_match_before_int,
         rule_match_after_int,
+        rule_match_semver_equal,
+        rule_match_semver_greater_than,
+        rule_match_semver_less_than,
         fallthrough_rollout,
         variation_out_of_range
     ].
@@ -367,6 +373,12 @@ rule_match_after_int(_) ->
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
+
+rule_match_semver_equal(_) -> true.
+
+rule_match_semver_greater_than(_) -> true.
+
+rule_match_semver_less_than(_) -> true.
 
 fallthrough_rollout(_) ->
     ExpectedReason = fallthrough,

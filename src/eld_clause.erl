@@ -132,8 +132,37 @@ check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
     when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue > ClauseValue;
 % TODO implement before and after with date strings
-% TODO implement semver_equal, semver_less_than, semver_greater_than
+check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue) -> check_semver_equal(UserValue, ClauseValue);
+check_attribute_against_clause_value(UserValue, semver_less_than, ClauseValue) -> check_semver_less_than(UserValue, ClauseValue);
+check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue) -> check_semver_greater_than(UserValue, ClauseValue);
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
+
+-spec check_semver_equal(atom(), atom()) -> match | no_match.
+check_semver_equal(UserSemVer, ClauseSemVer) ->
+    u_semver = semver:parse(UserSemVer),
+    c_semver = semver:parse(ClauseSemVer),
+    case semver:compare(u_semver, c_semver) of
+        0 -> match;
+        _ -> no_match
+    end.
+
+-spec check_semver_less_than(atom(), atom()) -> match | no_match.
+check_semver_less_than(UserSemVer, ClauseSemVer) ->
+    u_semver = semver:parse(UserSemVer),
+    c_semver = semver:parse(ClauseSemVer),
+    case semver:compare(u_semver, c_semver) of
+        -1 -> match;
+        _ -> no_match
+    end.
+
+-spec check_semver_greater_than(atom(), atom()) -> match | no_match.
+check_semver_greater_than(UserSemVer, ClauseSemVer) ->
+    u_semver = semver:parse(UserSemVer),
+    c_semver = semver:parse(ClauseSemVer),
+    case semver:compare(u_semver, c_semver) of
+        1 -> match;
+        _ -> no_match
+    end.
 
 check_attribute_result(match, _Rest, _Clause) -> match;
 check_attribute_result(no_match, Rest, Clause) ->
