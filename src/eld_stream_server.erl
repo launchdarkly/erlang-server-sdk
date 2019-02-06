@@ -144,6 +144,7 @@ process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
 
 -spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation().
 get_event_operation(<<"put">>) -> put;
+get_event_operation(<<"delete">>) -> delete;
 get_event_operation(<<"patch">>) -> patch.
 
 %% @doc Process a list of put or patch items
@@ -161,6 +162,13 @@ process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Item} = get_patch_item(Data),
     io:format("Patching ~p: ~p~n", [Bucket, Item]),
     ok = StorageBackend:put(Tag, Bucket, Item).
+process_items(delete, Data, StorageBackend, Tag) ->
+    [Flags, Segments] = get_delete_items(Data),
+    ok = StorageBackend:delete(Tag, Bucket, Item).
+
+-spec get_delete_items(Data :: map()) -> [map()]. %TODO not sure how to parse for DELETE Events or if we can reuse another function
+get_delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
+    [Flags, Segments].
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->

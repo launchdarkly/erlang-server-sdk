@@ -22,6 +22,7 @@
 -export([get/3]).
 -export([list/2]).
 -export([put/3]).
+-export([delete/3]).
 
 %% Types
 -type state() :: #{data => map()}.
@@ -85,6 +86,15 @@ list(ServerRef, Bucket) when is_atom(Bucket) ->
 put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
     ok = gen_server:call(ServerRef, {put, Bucket, Items}).
 
+%% @doc Remove an item from the bucket by its key
+%%
+%% @end
+-spec delete(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
+    ok |
+    {error, bucket_not_found, string()}.
+delete(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
+    gen_server:call(ServerRef, {delete, Bucket, Key}).
+
 %%===================================================================
 %% Behavior callbacks
 %%===================================================================
@@ -111,6 +121,13 @@ handle_call({list, Bucket}, _From, #{data := Data} = State) ->
     {reply, list_items(Bucket, Data), State};
 handle_call({put, Bucket, Items}, _From, #{data := Data} = State) ->
     case put_items(Items, Bucket, Data) of
+        {error, bucket_not_found, Error} ->
+            {reply, {error, bucket_not_found, Error}, State};
+        {ok, NewData} ->
+            {reply, ok, maps:update(data, NewData, State)}
+    end;
+handle_call({delete, Bucket, Key}, _From, #{data := Data} = State) ->
+    case delete_items(Key, Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
@@ -222,3 +239,20 @@ put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
             NewBucketData = maps:merge(BucketData, Items),
             {ok, maps:update(Bucket, NewBucketData, Data)}
     end.
+
+%% @doc Remove items by key from a bucket
+%% @private
+%%
+%% If no such bucket exists, error will be returned otherwise ok.
+%% @end
+-spec delete_items(Bucket :: atom(), Data :: map()) ->
+    {ok, NewData :: map()} |
+    {error, bucket_not_found, string()}.
+delete_items(Key, Bucket, Data) when is_atom(Bucket) ->
+    case bucket_exists(Bucket, Data) of
+        false ->
+            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+        _ ->
+            {ok, maps:remove(Bucket, Key)} %TODO not sure if Data is necessary
+    end.
+

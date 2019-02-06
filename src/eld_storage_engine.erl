@@ -9,7 +9,7 @@
 -module(eld_storage_engine).
 
 %% Types
--type event_operation() :: put | patch.
+-type event_operation() :: put | patch | delete.
 %% Operation for processing events.
 
 -export_type([event_operation/0]).
@@ -49,6 +49,11 @@
 %% `put' must create or update key-value pair records in the given bucket.
 %% If the bucket doesn't exist, it must return `bucket_not_found' error.
 -callback put(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
+    ok
+    | {error, bucket_not_found, string()}.
+
+%% `delete` removes a specific record from a specified bucket.
+-callback delete(Tag :: atom(), Bucket :: atom(), Key :: binary()) ->
     ok
     | {error, bucket_not_found, string()}.
 
