@@ -132,8 +132,46 @@ check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
     when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue > ClauseValue;
 % TODO implement before and after with date strings
-% TODO implement semver_equal, semver_less_than, semver_greater_than
+check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
+    check_semver_equal(UserValue, ClauseValue);
+check_attribute_against_clause_value(UserValue, semver_less_than, ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
+    check_semver_less_than(UserValue, ClauseValue);
+check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
+    check_semver_greater_than(UserValue, ClauseValue);
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
+
+-dialyzer({nowarn_function, check_semver_equal/2}).
+-spec check_semver_equal(binary(), binary()) -> boolean().
+check_semver_equal(UserSemVer, ClauseSemVer) ->
+    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
+        0 -> true;
+        _ -> false
+    end.
+
+-dialyzer({nowarn_function, check_semver_less_than/2}).
+-spec check_semver_less_than(binary(), binary()) -> boolean().
+check_semver_less_than(UserSemVer, ClauseSemVer) ->
+    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
+        -1 -> true;
+        _ -> false
+    end.
+
+-dialyzer({nowarn_function, check_semver_greater_than/2}).
+-spec check_semver_greater_than(binary(), binary()) -> boolean().
+check_semver_greater_than(UserSemVer, ClauseSemVer) ->
+    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
+        1 -> true;
+        _ -> false
+    end.
+
+-dialyzer({nowarn_function, check_semver_compare/2}).
+-spec check_semver_compare(string() | error, string() | error) -> boolean() | integer().
+check_semver_compare(error, error) -> false;
+check_semver_compare(_, error) -> false;
+check_semver_compare(UserSemVer, ClauseSemVer) -> semver:compare(UserSemVer, ClauseSemVer).
 
 check_attribute_result(match, _Rest, _Clause) -> match;
 check_attribute_result(no_match, Rest, Clause) ->
