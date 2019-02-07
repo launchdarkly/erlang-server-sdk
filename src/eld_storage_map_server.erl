@@ -89,11 +89,11 @@ put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
 %% @doc Remove an item from the bucket by its key
 %%
 %% @end
--spec delete(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
+-spec delete(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-delete(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
-    gen_server:call(ServerRef, {delete, Bucket, Key}).
+delete(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    gen_server:call(ServerRef, {delete, Bucket, Items}).
 
 %%===================================================================
 %% Behavior callbacks
@@ -167,7 +167,7 @@ create_bucket(Bucket, Data) when is_atom(Bucket) ->
         false ->
             {ok, maps:put(Bucket, #{}, Data)};
         _ ->
-            {error, already_exists, "ETS table " ++ atom_to_list(Bucket) ++ " already exists."}
+            {error, already_exists, "Map " ++ atom_to_list(Bucket) ++ " already exists."}
     end.
 
 %% @doc Empty a bucket
@@ -181,7 +181,7 @@ create_bucket(Bucket, Data) when is_atom(Bucket) ->
 empty_bucket(Bucket, Data) when is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             {ok, maps:update(Bucket, #{}, Data)}
     end.
@@ -197,7 +197,7 @@ empty_bucket(Bucket, Data) when is_atom(Bucket) ->
 list_items(Bucket, Data) when is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             maps:to_list(maps:get(Bucket, Data))
     end.
@@ -213,7 +213,7 @@ list_items(Bucket, Data) when is_atom(Bucket) ->
 lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketMap = maps:get(Bucket, Data),
             try maps:get(Key, BucketMap) of
@@ -233,7 +233,7 @@ lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
 put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketData = maps:get(Bucket, Data),
             NewBucketData = maps:merge(BucketData, Items),
@@ -248,13 +248,14 @@ put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
 -spec delete_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
     {ok, NewData :: map()} |
     {error, bucket_not_found, string()}.
-delete_items(Items, Bucket, Data) when is_atom(Bucket) ->
+delete_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketData = maps:get(Bucket, Data),
-            NewBucketData = maps:merge(maps:update(deleted, true, BucketData), Items),
+            MapFun = fun(K, V) -> maps:update(<<"deleted">>, true, V) end,
+            NewBucketData = maps:merge(BucketData, maps:map(MapFun, Items)),
             {ok, maps:update(Bucket, NewBucketData, Data)}
     end.
 

@@ -122,6 +122,45 @@ get_simple_flag_patch() ->
         }
     }.
 
+get_simple_flag_delete() ->
+    {
+        <<"abc">>,
+        <<"\"abc\":{",
+            "\"clientSide\":false,",
+            "\"debugEventsUntilDate\":null,",
+            "\"deleted\":true,",
+            "\"fallthrough\":{\"variation\":0},",
+            "\"key\":\"abc\",",
+            "\"offVariation\":1,",
+            "\"on\":true,",
+            "\"prerequisites\":[],",
+            "\"rules\":[],",
+            "\"salt\":\"d0888ec5921e45c7af5bc10b47b033ba\",",
+            "\"sel\":\"8b4d79c59adb4df492ebea0bf65dfd4c\",",
+            "\"targets\":[],",
+            "\"trackEvents\":true,",
+            "\"variations\":[true,false],",
+            "\"version\":5",
+        "}">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => true,
+            <<"fallthrough">> => #{<<"variation">> => 0},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => true,
+            <<"variations">> => [true,false],
+            <<"version">> => 5
+        }
+    }.
+
 %%====================================================================
 %% Tests
 %%====================================================================
@@ -159,5 +198,6 @@ server_process_event_put_delete(_) ->
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     ok = eld_stream_server:process_event(#{event => <<"delete">>, data => PutData}, eld_storage_ets, default),
-    [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
+    {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
+    [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
     ok.
