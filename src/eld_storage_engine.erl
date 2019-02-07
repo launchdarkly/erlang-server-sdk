@@ -53,7 +53,7 @@
     | {error, bucket_not_found, string()}.
 
 %% `delete` removes a specific record from a specified bucket.
--callback delete(Tag :: atom(), Bucket :: atom(), Key :: binary()) ->
+-callback delete(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
     ok
     | {error, bucket_not_found, string()}.
 

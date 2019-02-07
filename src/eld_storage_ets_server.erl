@@ -115,8 +115,8 @@ handle_call({list, Bucket}, _From, #{tids := Tids} = State) ->
     {reply, list_items(bucket_exists(Bucket, Tids), Bucket, Tids), State};
 handle_call({put, Bucket, Item}, _From, #{tids := Tids} = State) ->
     {reply, put_items(bucket_exists(Bucket, Tids), Item, Bucket, Tids), State};
-handle_call({delete, Bucket, Key}, _From, #{tids := Tids} = State) ->
-    {reply, delete_items(bucket_exists(Bucket, Tids), Key, Bucket, Tids), State}.
+handle_call({delete, Bucket, Item}, _From, #{tids := Tids} = State) ->
+    {reply, delete_items(bucket_exists(Bucket, Tids), Item, Bucket, Tids), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -213,12 +213,12 @@ put_items(true, Items, Bucket, Tids) ->
 %%
 %% Returns an error if no bucket exists otherwise ok.
 %% @end
--spec delete_items(BucketExists :: boolean(), Bucket :: atom(), Tids :: map()) ->
+-spec delete_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Tids :: map()) ->
     ok |
     {error, bucket_not_found, string()}.
-delete_items(false, _Key, Bucket, _Tids) ->
+delete_items(false, _Items, Bucket, _Tids) ->
     {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
-delete_items(true, Key, Bucket, Tids) ->
+delete_items(true, Items, Bucket, Tids) ->
     Tid = maps:get(Bucket, Tids),
-    true = ets:delete(Tid, Key),
+    true = ets:insert(maps:update(deleted, true, Tid), maps:to_list(Items)),
     ok.

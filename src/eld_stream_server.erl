@@ -161,14 +161,11 @@ process_items(put, Data, StorageBackend, Tag) ->
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Item} = get_patch_item(Data),
     io:format("Patching ~p: ~p~n", [Bucket, Item]),
-    ok = StorageBackend:put(Tag, Bucket, Item).
+    ok = StorageBackend:put(Tag, Bucket, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
-    [Flags, Segments] = get_delete_items(Data),
-    ok = StorageBackend:delete(Tag, Bucket, Item).
-
--spec get_delete_items(Data :: map()) -> [map()]. %TODO not sure how to parse for DELETE Events or if we can reuse another function
-get_delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
-    [Flags, Segments].
+    [Flags, Segments] = get_put_items(Data),
+    ok = StorageBackend:delete(Tag, flags, Flags),
+    ok = StorageBackend:delete(Tag, segments, Segments).
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
