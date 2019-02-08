@@ -19,7 +19,6 @@
 -export([get/3]).
 -export([list/2]).
 -export([put/3]).
--export([delete/3]).
 -export([terminate/1]).
 
 %%===================================================================
@@ -71,13 +70,6 @@ list(Tag, Bucket) ->
 put(Tag, Bucket, Items) ->
     ServerRef = get_local_reg_name(worker, Tag),
     eld_storage_map_server:put(ServerRef, Bucket, Items).
-
--spec delete(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
-    ok |
-    {error, bucket_not_found, string()}.
-delete(Tag, Bucket, Items) ->
-    ServerRef = get_local_reg_name(worker, Tag),
-    eld_storage_map_server:delete(ServerRef, Bucket, Items).
 
 -spec terminate(Tag :: atom()) -> ok.
 terminate(_Tag) -> ok.

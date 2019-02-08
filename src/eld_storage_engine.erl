@@ -52,11 +52,6 @@
     ok
     | {error, bucket_not_found, string()}.
 
-%% `delete` removes a specific record from a specified bucket.
--callback delete(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
-    ok
-    | {error, bucket_not_found, string()}.
-
 %% `terminate' is the opposite of `init'. It is expected to clean up any
 %% resources and fully shut down the storage backend.
 -callback terminate(Tag :: atom()) -> ok.
