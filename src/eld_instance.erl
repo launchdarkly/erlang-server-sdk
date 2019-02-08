@@ -36,9 +36,10 @@ start(Tag, SdkKey, Options) ->
     Settings = eld_settings:parse_options(SdkKey, Options),
     ok = eld_settings:register(Tag, Settings),
     % Start instance supervisor
-    SupName = get_supref_from_tag(instance, Tag),
-    StreamSupName = get_supref_from_tag(instance_stream, Tag),
-    {ok, _} = supervisor:start_child(eld_sup, [SupName, StreamSupName]),
+    SupName = get_ref_from_tag(instance, Tag),
+    StreamSupName = get_ref_from_tag(instance_stream, Tag),
+    EventsSupName = get_ref_from_tag(instance_events, Tag),
+    {ok, _} = supervisor:start_child(eld_sup, [SupName, StreamSupName, EventsSupName, Tag]),
     % Start storage backend
     StorageBackend = maps:get(storage_backend, Settings),
     ok = StorageBackend:init(SupName, Tag, []),
@@ -53,13 +54,13 @@ start(Tag, SdkKey, Options) ->
 stop(Tag) when is_atom(Tag) ->
     % TODO only stop stream instance if it's running
     % Terminate stream
-    StreamSupName = get_supref_from_tag(instance_stream, Tag),
+    StreamSupName = get_ref_from_tag(instance_stream, Tag),
     ok = eld_stream:stop(StreamSupName),
     % Terminate storage
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     ok = StorageBackend:terminate(Tag),
     % Terminate instance supervisors
-    SupName = get_supref_from_tag(instance, Tag),
+    SupName = get_ref_from_tag(instance, Tag),
     SupPid = erlang:whereis(SupName),
     ok = supervisor:terminate_child(eld_sup, SupPid),
     eld_settings:unregister(Tag).
@@ -80,11 +81,13 @@ stop_all() ->
 %% @private
 %%
 %% @end
--spec get_supref_from_tag(atom(), Tag :: atom()) -> atom().
-get_supref_from_tag(instance, Tag) when is_atom(Tag) ->
+-spec get_ref_from_tag(atom(), Tag :: atom()) -> atom().
+get_ref_from_tag(instance, Tag) when is_atom(Tag) ->
     list_to_atom("eld_instance_" ++ atom_to_list(Tag));
-get_supref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
-    list_to_atom("eld_instance_stream_" ++ atom_to_list(Tag)).
+get_ref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
+    list_to_atom("eld_instance_stream_" ++ atom_to_list(Tag));
+get_ref_from_tag(instance_events, Tag) when is_atom(Tag) ->
+    list_to_atom("eld_instance_events_" ++ atom_to_list(Tag)).
 
 %% @doc Initialize streamer client and start listening
 %% @private
@@ -94,6 +97,6 @@ get_supref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
     ok.
 start_stream(false, _, _) -> ok;
 start_stream(true, Tag, _SupName) ->
-    StreamSupName = get_supref_from_tag(instance_stream, Tag),
+    StreamSupName = get_ref_from_tag(instance_stream, Tag),
     %{ok, _Pid} = supervisor:start_child(eld_sup, [SupName, StreamSupName]),
     ok = eld_stream:start(StreamSupName, Tag).

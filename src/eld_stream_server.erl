@@ -164,7 +164,7 @@ process_items(patch, Data, StorageBackend, Tag) ->
     ok = StorageBackend:put(Tag, Bucket, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),
-    MapFun = fun(K, V) -> maps:update(<<"deleted">>, true, V) end,
+    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
     UpdatedFlags = maps:map(MapFun, Flags),
     UpdatedSegments = maps:map(MapFun, Segments),
     ok = StorageBackend:put(Tag, flags, UpdatedFlags),
