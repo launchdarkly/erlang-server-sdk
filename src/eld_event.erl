@@ -110,7 +110,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_flag_eval(
     VariationIndex :: eld_flag:variation(),
@@ -138,7 +138,7 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_prerequisite_eval(
     VariationIndex :: eld_flag:variation(),
@@ -166,4 +166,4 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
