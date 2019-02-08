@@ -56,3 +56,8 @@ or
 ```bash
 rebar3 ct
 ```
+
+Run Dialyzer
+```bash
+make dialyze
+```
