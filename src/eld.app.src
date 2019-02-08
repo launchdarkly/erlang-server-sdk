@@ -1,11 +1,16 @@
 {application, eld,
- [{description, "LaucchDarkly Erlang SDK"},
+ [{description, "LaunchDarkly Erlang SDK"},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {eld_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    inets, 
+    crypto,
+    asn1, 
+    public_key, 
+    ssl
    ]},
   {env,[]},
   {modules, []},
