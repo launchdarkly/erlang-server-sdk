@@ -134,7 +134,7 @@ bucket_exists(Bucket, Tids) when is_atom(Bucket) ->
 -spec create_bucket(BucketExists :: boolean(), Bucket :: atom(), Tids :: map()) ->
     {ok|{error, already_exists, string()}, NewTids :: map()}.
 create_bucket(true, Bucket, Tids) ->
-    {{error, already_exists, "Bucket " ++ atom_to_list(Bucket) ++ " already exists."}, Tids};
+    {{error, already_exists, "ETS table " ++ atom_to_list(Bucket) ++ " already exists."}, Tids};
 create_bucket(false, Bucket, Tids) ->
     Tid = ets:new(Bucket, [set]),
     {ok, Tids#{Bucket => Tid}}.
@@ -148,7 +148,7 @@ create_bucket(false, Bucket, Tids) ->
     ok |
     {error, bucket_not_found, string()}.
 empty_bucket(false, Bucket, _Tids) ->
-    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+    {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
 empty_bucket(true, Bucket, Tids) ->
     Tid = maps:get(Bucket, Tids),
     true = ets:delete_all_objects(Tid),
@@ -163,7 +163,7 @@ empty_bucket(true, Bucket, Tids) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
 list_items(false, Bucket, _Tids) ->
-    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+    {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
 list_items(true, Bucket, Tids) ->
     Tid = maps:get(Bucket, Tids),
     ets:tab2list(Tid).
@@ -177,7 +177,7 @@ list_items(true, Bucket, Tids) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
 lookup_key(false, _Key, Bucket, _Tids) ->
-    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+    {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
 lookup_key(true, Key, Bucket, Tids) ->
     Tid = maps:get(Bucket, Tids),
     ets:lookup(Tid, Key).
@@ -190,7 +190,7 @@ lookup_key(true, Key, Bucket, Tids) ->
     ok |
     {error, bucket_not_found, string()}.
 put_items(false, _Items, Bucket, _Tids) ->
-    {error, bucket_not_found, "Bucket " ++ atom_to_list(Bucket) ++ " does not exist."};
+    {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
 put_items(true, Items, Bucket, Tids) ->
     Tid = maps:get(Bucket, Tids),
     true = ets:insert(Tid, maps:to_list(Items)),

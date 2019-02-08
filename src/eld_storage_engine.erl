@@ -9,7 +9,7 @@
 -module(eld_storage_engine).
 
 %% Types
--type event_operation() :: put | patch.
+-type event_operation() :: put | patch | delete.
 %% Operation for processing events.
 
 -export_type([event_operation/0]).

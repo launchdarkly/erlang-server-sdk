@@ -150,7 +150,7 @@ create_bucket(Bucket, Data) when is_atom(Bucket) ->
         false ->
             {ok, maps:put(Bucket, #{}, Data)};
         _ ->
-            {error, already_exists, "ETS table " ++ atom_to_list(Bucket) ++ " already exists."}
+            {error, already_exists, "Map " ++ atom_to_list(Bucket) ++ " already exists."}
     end.
 
 %% @doc Empty a bucket
@@ -164,7 +164,7 @@ create_bucket(Bucket, Data) when is_atom(Bucket) ->
 empty_bucket(Bucket, Data) when is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             {ok, maps:update(Bucket, #{}, Data)}
     end.
@@ -180,7 +180,7 @@ empty_bucket(Bucket, Data) when is_atom(Bucket) ->
 list_items(Bucket, Data) when is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             maps:to_list(maps:get(Bucket, Data))
     end.
@@ -196,7 +196,7 @@ list_items(Bucket, Data) when is_atom(Bucket) ->
 lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketMap = maps:get(Bucket, Data),
             try maps:get(Key, BucketMap) of
@@ -216,7 +216,7 @@ lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
 put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
-            {error, bucket_not_found, "ETS table " ++ atom_to_list(Bucket) ++ " does not exist."};
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketData = maps:get(Bucket, Data),
             NewBucketData = maps:merge(BucketData, Items),

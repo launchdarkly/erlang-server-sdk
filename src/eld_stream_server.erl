@@ -144,6 +144,7 @@ process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
 
 -spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation().
 get_event_operation(<<"put">>) -> put;
+get_event_operation(<<"delete">>) -> delete;
 get_event_operation(<<"patch">>) -> patch.
 
 %% @doc Process a list of put or patch items
@@ -160,7 +161,14 @@ process_items(put, Data, StorageBackend, Tag) ->
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Item} = get_patch_item(Data),
     io:format("Patching ~p: ~p~n", [Bucket, Item]),
-    ok = StorageBackend:put(Tag, Bucket, Item).
+    ok = StorageBackend:put(Tag, Bucket, Item);
+process_items(delete, Data, StorageBackend, Tag) ->
+    [Flags, Segments] = get_put_items(Data),
+    MapFun = fun(K, V) -> maps:update(<<"deleted">>, true, V) end,
+    UpdatedFlags = maps:map(MapFun, Flags),
+    UpdatedSegments = maps:map(MapFun, Segments),
+    ok = StorageBackend:put(Tag, flags, UpdatedFlags),
+    ok = StorageBackend:put(Tag, segments, UpdatedSegments).
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
