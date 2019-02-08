@@ -28,6 +28,12 @@ Run in console
 make run
 ```
 
+or
+
+```bash
+rebar3 shell
+```
+
 On OS X, Homebrew installs GNU Make as `gmake`, so you may wish to run:
 
 ```bash
@@ -41,6 +47,12 @@ eld:evaluate(<<"my-flag">>, #{key => <<"user-12345">>}, "default-value").
 ```
 
 Run tests
-```dtd
+```bash
 make tests
+```
+
+or
+
+```bash
+rebar3 ct
 ```
