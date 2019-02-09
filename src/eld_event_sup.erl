@@ -36,6 +36,5 @@ init([Tag]) ->
 -spec children(Tag :: atom()) -> [supervisor:child_spec()].
 children(Tag) ->
     EventStorageWorker = ?CHILD(eld_event_server, eld_event_server, [Tag], worker),
-    %EventDispatchWorker = ?CHILD(eld_event_dispatch_server, eld_event_dispatch_server, [Tag], worker),
-    %[EventStorageWorker, EventDispatchWorker].
-    [EventStorageWorker].
+    EventDispatchWorker = ?CHILD(eld_event_dispatch_server, eld_event_dispatch_server, [Tag], worker),
+    [EventStorageWorker, EventDispatchWorker].

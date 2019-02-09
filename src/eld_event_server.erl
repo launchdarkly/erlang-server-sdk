@@ -44,6 +44,8 @@
     flag_default => term()
 }.
 
+-export_type([summary_event/0]).
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -63,7 +65,7 @@ add_event(Tag, Event) when is_atom(Tag) ->
 -spec flush(Tag :: atom) -> ok.
 flush(Tag) when is_atom(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    gen_server:call(ServerName, {flush}).
+    gen_server:call(ServerName, {flush, Tag}).
 
 %%===================================================================
 %% Supervision
@@ -101,9 +103,10 @@ handle_call({add_event, Event}, _From, #{events := Events, summary_event := Summ
     io:format("Adding event: ~p~n", [Event]),
     {NewEvents, NewSummaryEvent} = add_event(Event, Events, SummaryEvent),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
-handle_call({flush}, _From, #{events := Events, summary_event := SummaryEvent} = State) ->
+handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent} = State) ->
     io:format("Flushing events: ~p~n", [Events]),
     io:format("Flushing summary event: ~p~n", [SummaryEvent]),
+    ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
     {reply, ok, State#{events := [], summary_event := #{}}}.
 
 handle_cast(_Request, State) ->
