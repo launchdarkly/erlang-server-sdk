@@ -45,6 +45,9 @@
 }.
 
 -export_type([summary_event/0]).
+-export_type([counters/0]).
+-export_type([counter_key/0]).
+-export_type([counter_value/0]).
 
 %%===================================================================
 %% API
@@ -145,7 +148,7 @@ add_non_feature_request_event(Event, Events) ->
 
 -spec add_feature_request_event(summary_event(), eld_event:event()) ->
     summary_event().
-add_feature_request_event(#{},
+add_feature_request_event(SummaryEvent,
     #{
         timestamp := Timestamp,
         data := #{
@@ -156,7 +159,7 @@ add_feature_request_event(#{},
             version := Version
         }
     }
-) ->
+) when map_size(SummaryEvent) == 0 ->
     SummaryEventKey = create_summary_event_key(Key, Variation, Version),
     SummaryEventValue = create_summary_event_value(Value, Default),
     #{
@@ -186,16 +189,16 @@ add_feature_request_event(
         undefined ->
             create_summary_event_value(Value, Default);
         SummaryEventValue ->
-            NewStartDate = if Timestamp < CurrStartDate -> Timestamp; true -> CurrStartDate end,
-            NewEndDate = if Timestamp > CurrEndDate -> Timestamp; true -> CurrEndDate end,
-            SummaryEventValue#{
-                count := maps:get(count, SummaryEventValue) + 1,
-                start_date := NewStartDate,
-                end_date := NewEndDate
-            }
+            SummaryEventValue#{count := maps:get(count, SummaryEventValue) + 1}
     end,
-    NewSummaryEventCounters = maps:put(SummaryEventKey, NewSummaryEvenValue, SummaryEventCounters),
-    maps:put(counters, NewSummaryEventCounters, SummaryEvent).
+    NewSummaryEventCounters = SummaryEventCounters#{SummaryEventKey => NewSummaryEvenValue},
+    NewStartDate = if Timestamp < CurrStartDate -> Timestamp; true -> CurrStartDate end,
+    NewEndDate = if Timestamp > CurrEndDate -> Timestamp; true -> CurrEndDate end,
+    SummaryEvent#{
+        counters => NewSummaryEventCounters,
+        start_date => NewStartDate,
+        end_date => NewEndDate
+    }.
 
 -spec create_summary_event_key(eld_flag:key(), eld_flag:variation(), eld_flag:version()) ->
     counter_key().

@@ -99,7 +99,9 @@ evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     eld_eval:detail().
 evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     % Get evaluation result detail
-    {Detail, _Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
-    % TODO Send all events
+    {Detail, Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
+    % Send events
+    SendEventsFun = fun(Event) -> eld_event_server:add_event(Tag, Event) end,
+    lists:foreach(SendEventsFun, Events),
     % Return evaluation detail
     Detail.

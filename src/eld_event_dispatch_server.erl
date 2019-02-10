@@ -73,6 +73,9 @@ handle_call({send_events, Events, SummaryEvent}, _From, #{sdk_key := _SdkKey, ev
     {ok, {_Scheme, _UserInfo, _Host, _Port, _Path, _Query}} = http_uri:parse(Uri),
     io:format("Sending events: ~p~n", [Events]),
     io:format("Sending summary event: ~p~n", [SummaryEvent]),
+    io:format("Formatted events: ~p~n", [format_events(Events)]),
+    io:format("Formatted summary event: ~p~n", [format_summary_event(SummaryEvent)]),
+    io:format("Encoded list of events: ~p~n", [jsx:encode([SummaryEvent|Events])]),
     {reply, ok, State}.
 
 handle_cast(_Request, State) ->
@@ -92,6 +95,55 @@ code_change(_OldVsn, State, _Extra) ->
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec format_events([eld_event:event()]) -> list().
+format_events(Events) ->
+    lists:foldl(fun format_event/2, [], Events).
+
+-spec format_event(eld_event:event(), list()) -> list().
+format_event(Event, Acc) ->
+    % TODO format each event
+    [Event|Acc].
+
+-spec format_summary_event(eld_event_server:summary_event()) -> map().
+format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
+format_summary_event(#{start_date := StartDate, end_date := EndDate, counters := Counters}) ->
+    #{
+        <<"kind">> => <<"summary">>,
+        <<"startDate">> => StartDate,
+        <<"endDate">> => EndDate,
+        <<"features">> => format_summary_event_counters(Counters)
+    }.
+
+-spec format_summary_event_counters(eld_event_server:counters()) -> map().
+format_summary_event_counters(Counters) ->
+    maps:fold(fun format_summary_event_counters/3, #{}, Counters).
+
+-spec format_summary_event_counters(eld_event_server:counter_key(), eld_event_server:counter_value(), map()) ->
+    map().
+format_summary_event_counters(
+    #{
+        key := FlagKey,
+        variation := Variation,
+        version := Version
+    },
+    #{
+        count := Count,
+        flag_value := FlagValue,
+        flag_default := Default
+    },
+    Acc
+) ->
+    FlagMap = maps:get(FlagKey, Acc, #{default => Default, counters => []}),
+    Counter = #{
+        value => FlagValue,
+        version => Version,
+        count => Count,
+        variation => Variation,
+        unknown => if Version == 0 -> true; true -> false end
+    },
+    NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
+    Acc#{FlagKey => NewFlagMap}.
 
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->
