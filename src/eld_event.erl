@@ -11,6 +11,7 @@
 -export([new_for_unknown_flag/4]).
 -export([new_flag_eval/6]).
 -export([new_prerequisite_eval/6]).
+-export([new_identify/1]).
 
 %% Types
 -type event() :: #{
@@ -110,7 +111,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_flag_eval(
     VariationIndex :: eld_flag:variation(),
@@ -138,7 +139,7 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_prerequisite_eval(
     VariationIndex :: eld_flag:variation(),
@@ -166,4 +167,8 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(milli_seconds), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
+
+-spec new_identify(User :: eld_user:user()) -> event().
+new_identify(User) ->
+    new(identify, User, erlang:system_time(milli_seconds), #{}).

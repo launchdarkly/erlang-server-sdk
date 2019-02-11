@@ -17,6 +17,8 @@
 -export([stop_instance/1]).
 -export([evaluate/3]).
 -export([evaluate/4]).
+-export([identify/1]).
+-export([identify/2]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -105,3 +107,20 @@ evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User)
     lists:foreach(SendEventsFun, Events),
     % Return evaluation detail
     Detail.
+
+%% @doc Identify reports details about a user
+%%
+%% This function uses the default client instance.
+%% @end
+-spec identify(User :: eld_user:user()) -> ok.
+identify(User) ->
+    identify(?DEFAULT_INSTANCE_NAME, User).
+
+%% @doc Identify reports details about a user
+%%
+%% This is useful to report user to a specific client instance.
+%% @end
+-spec identify(Tag :: atom(), User :: eld_user:user()) -> ok.
+identify(Tag, User) when is_atom(Tag) ->
+    Event = eld_event:new_identify(User),
+    eld_event_server:add_event(Tag, Event).

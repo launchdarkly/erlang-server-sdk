@@ -79,7 +79,8 @@ handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri
     FormattedEvents = format_events(Events),
     io:format("Formatted events: ~p~n", [FormattedEvents]),
     io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
-    ok = send_events(FormattedEvents, FormattedSummaryEvent, Uri, SdkKey),
+    OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
+    ok = send(OutputEvents, Uri, SdkKey),
     {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -134,6 +135,13 @@ format_event(
         <<"prereqOf">> => PrereqOf,
         <<"reason">> => format_eval_reason(EvalReason)
     },
+    [format_event_set_user(Kind, User, OutputEvent)|Acc];
+format_event(#{type := identify, timestamp := Timestamp, user := User}, Acc) ->
+    Kind = <<"identify">>,
+    OutputEvent = #{
+        <<"kind">> => Kind,
+        <<"creationDate">> => Timestamp
+    },
     [format_event_set_user(Kind, User, OutputEvent)|Acc].
 
 -spec format_eval_reason(eld_eval:reason()) -> map().
@@ -153,7 +161,9 @@ format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
     OutputEvent#{<<"userKey">> => UserKey};
 format_event_set_user(<<"debug">>, User, OutputEvent) ->
-    OutputEvent#{<<"user">> => User}.
+    OutputEvent#{<<"user">> => User};
+format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->
+    OutputEvent#{<<"key">> => UserKey, <<"user">> => User}.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
@@ -195,20 +205,24 @@ format_summary_event_counters(
     NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
     Acc#{FlagKey => NewFlagMap}.
 
--spec send_events(FormattedEvents :: list(), FormattedSummaryEvent :: map(), string(), string()) -> ok.
-send_events([], FormattedSummaryEvent, _, _) when map_size(FormattedSummaryEvent) == 0 ->
+-spec combine_events(OutputEvents :: list(), OutputSummaryEvent :: map()) -> list().
+combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> [];
+combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
+combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
+
+-spec send(OutputEvents :: list(), string(), string()) -> ok.
+send([], _, _) ->
     io:format("Empty buffer, no events sent~n"),
     ok;
-send_events(FormattedEvents, FormattedSummaryEvent, Uri, SdkKey) ->
-    AllEvents = [FormattedSummaryEvent|FormattedEvents],
-    io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
+send(OutputEvents, Uri, SdkKey) ->
+    io:format("Encoded list of events: ~p~n", [jsx:encode(OutputEvents)]),
     Headers = [
         {"Authorization", SdkKey},
         {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
         {"User-Agent", eld_settings:get_user_agent()}
     ],
     {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
-        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(AllEvents)}, [], []),
+        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(OutputEvents)}, [], []),
     io:format("Response code from server: ~p~n", [ResponseCode]),
     ok.
 
