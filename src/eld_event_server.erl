@@ -19,7 +19,9 @@
 -type state() :: #{
     % TODO add event buffer capacity
     events := [eld_event:event()],
-    summary_event := summary_event()
+    summary_event := summary_event(),
+    flush_interval := pos_integer(),
+    timer_ref := reference()
 }.
 
 -type summary_event() :: #{} | #{
@@ -82,15 +84,19 @@ flush(Tag) when is_atom(Tag) ->
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
     io:format("Starting event storage server with name: ~p~n", [ServerName]),
-    gen_server:start_link({local, ServerName}, ?MODULE, [], []).
+    gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
-init([]) ->
+init([Tag]) ->
+    FlushInterval = eld_settings:get_value(Tag, events_flush_interval),
+    TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     State = #{
         events => [],
-        summary_event => #{}
+        summary_event => #{},
+        flush_interval => FlushInterval,
+        timer_ref => TimerRef
     },
     {ok, State}.
 
@@ -106,15 +112,22 @@ handle_call({add_event, Event}, _From, #{events := Events, summary_event := Summ
     io:format("Adding event: ~p~n", [Event]),
     {NewEvents, NewSummaryEvent} = add_event(Event, Events, SummaryEvent),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
-handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent} = State) ->
+handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
+    _ = erlang:cancel_timer(TimerRef),
     io:format("Flushing events: ~p~n", [Events]),
     io:format("Flushing summary event: ~p~n", [SummaryEvent]),
     ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
-    {reply, ok, State#{events := [], summary_event := #{}}}.
+    TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    {reply, ok, State#{events := [], summary_event := #{}, timer_ref := TimerRef}}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
+handle_info({flush, Tag}, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval} = State) ->
+    io:format("Flushing with interval~n"),
+    ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
+    TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    {noreply, State#{events := [], summary_event := #{}, timer_ref := TimerRef}};
 handle_info(_Info, State) ->
     {noreply, State}.
 

@@ -79,16 +79,9 @@ handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri
     FormattedEvents = format_events(Events),
     io:format("Formatted events: ~p~n", [FormattedEvents]),
     io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
-    AllEvents = [FormattedSummaryEvent|FormattedEvents],
-    io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
-    Headers = [
-        {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
-        {"User-Agent", eld_settings:get_user_agent()}
-    ],
-    {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
-        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(AllEvents)}, [], []),
-    io:format("Response code from server: ~p~n", [ResponseCode]),
+    ok = send_events(FormattedEvents, FormattedSummaryEvent, Uri, SdkKey),
+    {noreply, State};
+handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info(_Info, State) ->
@@ -201,6 +194,23 @@ format_summary_event_counters(
     },
     NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
     Acc#{FlagKey => NewFlagMap}.
+
+-spec send_events(FormattedEvents :: list(), FormattedSummaryEvent :: map(), string(), string()) -> ok.
+send_events([], FormattedSummaryEvent, _, _) when map_size(FormattedSummaryEvent) == 0 ->
+    io:format("Empty buffer, no events sent~n"),
+    ok;
+send_events(FormattedEvents, FormattedSummaryEvent, Uri, SdkKey) ->
+    AllEvents = [FormattedSummaryEvent|FormattedEvents],
+    io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
+    Headers = [
+        {"Authorization", SdkKey},
+        {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
+        {"User-Agent", eld_settings:get_user_agent()}
+    ],
+    {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
+        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(AllEvents)}, [], []),
+    io:format("Response code from server: ~p~n", [ResponseCode]),
+    ok.
 
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->
