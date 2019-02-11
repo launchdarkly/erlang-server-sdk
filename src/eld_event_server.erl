@@ -18,8 +18,8 @@
 
 -type state() :: #{
     % TODO add event buffer capacity
-    events => [eld_event:event()],
-    summary_event => summary_event()
+    events := [eld_event:event()],
+    summary_event := summary_event()
 }.
 
 -type summary_event() :: #{} | #{
@@ -29,19 +29,19 @@
 }.
 
 -type counters() :: #{
-    counter_key() := counter_value()
+    counter_key() => counter_value()
 }.
 
 -type counter_key() :: #{
-    key => eld_flag:key(),
-    variation => non_neg_integer(),
-    version => non_neg_integer()
+    key := eld_flag:key(),
+    variation := non_neg_integer(),
+    version := non_neg_integer()
 }.
 
 -type counter_value() :: #{
-    count => non_neg_integer(),
-    flag_value => eld_flag:variation_value(),
-    flag_default => term()
+    count := non_neg_integer(),
+    flag_value := eld_flag:variation_value(),
+    flag_default := term()
 }.
 
 -export_type([summary_event/0]).
@@ -133,7 +133,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec add_event(eld_event:event(), [eld_event:event()], summary_event()) ->
     {[eld_event:event()], summary_event()}.
 add_event(#{type := feature_request} = Event, Events, SummaryEvent) ->
-    {Events, add_feature_request_event(SummaryEvent, Event)};
+    NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
+    NewEvents = add_feature_request_full_fidelity(Event, Events),
+    {NewEvents, NewSummaryEvent};
 add_event(#{type := identify} = Event, Events, SummaryEvent) ->
     {add_non_feature_request_event(Event, Events), SummaryEvent};
 add_event(#{type := index} = Event, Events, SummaryEvent) ->
@@ -146,9 +148,9 @@ add_event(#{type := custom} = Event, Events, SummaryEvent) ->
 add_non_feature_request_event(Event, Events) ->
     [Event|Events].
 
--spec add_feature_request_event(summary_event(), eld_event:event()) ->
+-spec add_feature_request_event(eld_event:event(), summary_event()) ->
     summary_event().
-add_feature_request_event(SummaryEvent,
+add_feature_request_event(
     #{
         timestamp := Timestamp,
         data := #{
@@ -158,7 +160,8 @@ add_feature_request_event(SummaryEvent,
             variation := Variation,
             version := Version
         }
-    }
+    },
+    SummaryEvent
 ) when map_size(SummaryEvent) == 0 ->
     SummaryEventKey = create_summary_event_key(Key, Variation, Version),
     SummaryEventValue = create_summary_event_value(Value, Default),
@@ -169,11 +172,6 @@ add_feature_request_event(SummaryEvent,
     };
 add_feature_request_event(
     #{
-        start_date := CurrStartDate,
-        end_date := CurrEndDate,
-        counters := SummaryEventCounters
-    } = SummaryEvent,
-    #{
         timestamp := Timestamp,
         data := #{
             key := Key,
@@ -182,7 +180,12 @@ add_feature_request_event(
             variation := Variation,
             version := Version
         }
-    }
+    },
+    #{
+        start_date := CurrStartDate,
+        end_date := CurrEndDate,
+        counters := SummaryEventCounters
+    } = SummaryEvent
 ) ->
     SummaryEventKey = create_summary_event_key(Key, Variation, Version),
     NewSummaryEvenValue = case maps:get(SummaryEventKey, SummaryEventCounters, undefined) of
@@ -199,6 +202,13 @@ add_feature_request_event(
         start_date => NewStartDate,
         end_date => NewEndDate
     }.
+
+-spec add_feature_request_full_fidelity(eld_event:event(), [eld_event:event()]) ->
+    [eld_event:event()].
+add_feature_request_full_fidelity(#{data := #{track_events := true}} = Event, Events) ->
+    add_non_feature_request_event(Event, Events);
+add_feature_request_full_fidelity(_Event, Events) ->
+    Events.
 
 -spec create_summary_event_key(eld_flag:key(), eld_flag:variation(), eld_flag:version()) ->
     counter_key().

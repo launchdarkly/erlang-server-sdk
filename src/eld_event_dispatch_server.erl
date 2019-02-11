@@ -18,8 +18,8 @@
 -export([send_events/3]).
 
 -type state() :: #{
-    sdk_key => string(),
-    events_uri => string()
+    sdk_key := string(),
+    events_uri := string()
 }.
 
 %%===================================================================
@@ -33,7 +33,7 @@
     ok.
 send_events(Tag, Events, SummaryEvent) ->
     ServerName = get_local_reg_name(Tag),
-    gen_server:call(ServerName, {send_events, Events, SummaryEvent}).
+    gen_server:cast(ServerName, {send_events, Events, SummaryEvent}).
 
 %%===================================================================
 %% Supervision
@@ -69,16 +69,19 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({send_events, Events, SummaryEvent}, _From, #{sdk_key := _SdkKey, events_uri := Uri} = State) ->
+handle_call(_Request, _From, State) ->
+    {reply, ok, State}.
+
+handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := _SdkKey, events_uri := Uri} = State) ->
     {ok, {_Scheme, _UserInfo, _Host, _Port, _Path, _Query}} = http_uri:parse(Uri),
     io:format("Sending events: ~p~n", [Events]),
     io:format("Sending summary event: ~p~n", [SummaryEvent]),
-    io:format("Formatted events: ~p~n", [format_events(Events)]),
-    io:format("Formatted summary event: ~p~n", [format_summary_event(SummaryEvent)]),
-    io:format("Encoded list of events: ~p~n", [jsx:encode([SummaryEvent|Events])]),
-    {reply, ok, State}.
-
-handle_cast(_Request, State) ->
+    FormattedSummaryEvent = format_summary_event(SummaryEvent),
+    FormattedEvents = format_events(Events),
+    io:format("Formatted events: ~p~n", [FormattedEvents]),
+    io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
+    AllEvents = [FormattedSummaryEvent|FormattedEvents],
+    io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
     {noreply, State}.
 
 handle_info(_Info, State) ->
@@ -101,9 +104,43 @@ format_events(Events) ->
     lists:foldl(fun format_event/2, [], Events).
 
 -spec format_event(eld_event:event(), list()) -> list().
-format_event(Event, Acc) ->
-    % TODO format each event
-    [Event|Acc].
+format_event(
+    #{
+        type := feature_request,
+        timestamp := Timestamp,
+        user := User,
+        data := #{
+            debug := Debug,
+            key := Key,
+            variation := Variation,
+            value := Value,
+            default := Default,
+            version := Version,
+            prereq_of := PrereqOf,
+            eval_reason := EvalReason
+        }
+    },
+    Acc
+) ->
+    Kind = if Debug -> <<"debug">>; true -> <<"feature">> end,
+    OutputEvent = #{
+        <<"kind">> => Kind,
+        <<"creationDate">> => Timestamp,
+        <<"key">> => Key,
+        <<"variation">> => Variation,
+        <<"value">> => Value,
+        <<"default">> => Default,
+        <<"version">> => Version,
+        <<"prereqOf">> => PrereqOf,
+        <<"reason">> => EvalReason
+    },
+    [format_event_set_user(Kind, User, OutputEvent)|Acc].
+
+-spec format_event_set_user(binary(), eld_user:user(), map()) -> map().
+format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
+    OutputEvent#{<<"userKey">> => UserKey};
+format_event_set_user(<<"debug">>, User, OutputEvent) ->
+    OutputEvent#{<<"user">> => User}.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
