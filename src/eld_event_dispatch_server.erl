@@ -142,6 +142,15 @@ format_event(#{type := identify, timestamp := Timestamp, user := User}, Acc) ->
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp
     },
+    [format_event_set_user(Kind, User, OutputEvent)|Acc];
+format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data}, Acc) ->
+    Kind = <<"custom">>,
+    OutputEvent = #{
+        <<"kind">> => Kind,
+        <<"creationDate">> => Timestamp,
+        <<"key">> => Key,
+        <<"data">> => Data
+    },
     [format_event_set_user(Kind, User, OutputEvent)|Acc].
 
 -spec format_eval_reason(eld_eval:reason()) -> map().
@@ -163,7 +172,9 @@ format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
 format_event_set_user(<<"debug">>, User, OutputEvent) ->
     OutputEvent#{<<"user">> => eld_user:scrub(User)};
 format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->
-    OutputEvent#{<<"key">> => UserKey, <<"user">> => eld_user:scrub(User)}.
+    OutputEvent#{<<"key">> => UserKey, <<"user">> => eld_user:scrub(User)};
+format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent) ->
+    OutputEvent#{<<"userKey">> => UserKey}.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};

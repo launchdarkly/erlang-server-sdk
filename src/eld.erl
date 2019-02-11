@@ -19,6 +19,8 @@
 -export([evaluate/4]).
 -export([identify/1]).
 -export([identify/2]).
+-export([track/3]).
+-export([track/4]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -123,4 +125,21 @@ identify(User) ->
 -spec identify(Tag :: atom(), User :: eld_user:user()) -> ok.
 identify(Tag, User) when is_atom(Tag) ->
     Event = eld_event:new_identify(User),
+    eld_event_server:add_event(Tag, Event).
+
+%% @doc Track reports that a user has performed an event
+%%
+%% Custom data can be attached to the event.
+%% @end
+-spec track(Key :: binary(), User :: eld_user:user(), Data :: map()) -> ok.
+track(Key, User, Data) when is_binary(Key), is_map(Data) ->
+    track(?DEFAULT_INSTANCE_NAME, Key, User, Data).
+
+%% @doc Track reports that a user has performed an event
+%%
+%% This is useful for specifying a specific client instance.
+%% @end
+-spec track(Tag :: atom(), Key :: binary(), User :: eld_user:user(), Data :: map()) -> ok.
+track(Tag, Key, User, Data) when is_atom(Tag), is_binary(Key), is_map(Data) ->
+    Event = eld_event:new_custom(Key, User, Data),
     eld_event_server:add_event(Tag, Event).
