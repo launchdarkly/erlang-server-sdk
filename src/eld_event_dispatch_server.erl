@@ -81,7 +81,11 @@ handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri
     io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
     AllEvents = [FormattedSummaryEvent|FormattedEvents],
     io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
-    Headers = [{"Authorization", SdkKey}],
+    Headers = [
+        {"Authorization", SdkKey},
+        {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
+        {"User-Agent", eld_settings:get_user_agent()}
+    ],
     {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
         httpc:request(post, {Uri, Headers, "application/json", jsx:encode(AllEvents)}, [], []),
     io:format("Response code from server: ~p~n", [ResponseCode]),

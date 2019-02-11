@@ -14,6 +14,8 @@
 -export([get_value/2]).
 -export([register/2]).
 -export([unregister/1]).
+-export([get_user_agent/0]).
+-export([get_event_schema/0]).
 
 %% Types
 -type instance() :: #{
@@ -30,6 +32,9 @@
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
+-define(USER_AGENT, "ErlangClient").
+-define(VERSION, "0.1").
+-define(EVENT_SCHEMA, "3").
 
 %%===================================================================
 %% API
@@ -96,6 +101,14 @@ register(Tag, Settings) when is_atom(Tag), is_map(Settings) ->
 unregister(Tag) when is_atom(Tag) ->
     NewInstances = maps:remove(Tag, get_all()),
     application:set_env(eld, instances, NewInstances).
+
+-spec get_user_agent() -> string().
+get_user_agent() ->
+    ?USER_AGENT ++ "/" ++ ?VERSION.
+
+-spec get_event_schema() -> string().
+get_event_schema() ->
+    ?EVENT_SCHEMA.
 
 %%===================================================================
 %% Internal functions
