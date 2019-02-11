@@ -141,9 +141,14 @@ format_event(
 
 -spec format_eval_reason(eld_eval:reason()) -> map().
 format_eval_reason(target_match) -> #{<<"kind">> => <<"TARGET_MATCH">>};
-format_eval_reason({rule_match, _, _}) -> #{<<"kind">> => <<"RULE_MATCH">>};
-format_eval_reason({prerequisite_failed, _}) -> #{<<"kind">> => <<"PREREQUISITE_FAILED">>};
-format_eval_reason({error, _}) -> #{kind => <<"ERROR">>};
+format_eval_reason({rule_match, RuleIndex, RuleId}) -> #{kind => <<"RULE_MATCH">>, ruleIndex => RuleIndex, ruleId => RuleId};
+format_eval_reason({prerequisite_failed, [PrereqKey|_]}) -> #{<<"kind">> => <<"PREREQUISITE_FAILED">>, prerequisiteKey => PrereqKey};
+format_eval_reason({error, client_not_ready}) -> #{kind => <<"ERROR">>, errorKind => <<"CLIENT_NOT_READY">>};
+format_eval_reason({error, flag_not_found}) -> #{kind => <<"ERROR">>, errorKind => <<"FLAG_NOT_FOUND">>};
+format_eval_reason({error, malformed_flag}) -> #{kind => <<"ERROR">>, errorKind => <<"MALFORMED_FLAG">>};
+format_eval_reason({error, user_not_specified}) -> #{kind => <<"ERROR">>, errorKind => <<"USER_NOT_SPECIFIED">>};
+format_eval_reason({error, wrong_type}) -> #{kind => <<"ERROR">>, errorKind => <<"WRONG_TYPE">>};
+format_eval_reason({error, exception}) -> #{kind => <<"ERROR">>, errorKind => <<"EXCEPTION">>};
 format_eval_reason(fallthrough) -> #{<<"kind">> => <<"FALLTHROUGH">>};
 format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 
