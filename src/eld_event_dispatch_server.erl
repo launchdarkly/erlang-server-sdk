@@ -161,9 +161,9 @@ format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
     OutputEvent#{<<"userKey">> => UserKey};
 format_event_set_user(<<"debug">>, User, OutputEvent) ->
-    OutputEvent#{<<"user">> => User};
+    OutputEvent#{<<"user">> => eld_user:scrub(User)};
 format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->
-    OutputEvent#{<<"key">> => UserKey, <<"user">> => User}.
+    OutputEvent#{<<"key">> => UserKey, <<"user">> => eld_user:scrub(User)}.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
