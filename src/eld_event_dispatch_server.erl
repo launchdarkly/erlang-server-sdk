@@ -72,8 +72,7 @@ init([Tag]) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := _SdkKey, events_uri := Uri} = State) ->
-    {ok, {_Scheme, _UserInfo, _Host, _Port, _Path, _Query}} = http_uri:parse(Uri),
+handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri := Uri} = State) ->
     io:format("Sending events: ~p~n", [Events]),
     io:format("Sending summary event: ~p~n", [SummaryEvent]),
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
@@ -82,6 +81,10 @@ handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := _SdkKey, events_ur
     io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
     AllEvents = [FormattedSummaryEvent|FormattedEvents],
     io:format("Encoded list of events: ~p~n", [jsx:encode(AllEvents)]),
+    Headers = [{"Authorization", SdkKey}],
+    {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
+        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(AllEvents)}, [], []),
+    io:format("Response code from server: ~p~n", [ResponseCode]),
     {noreply, State}.
 
 handle_info(_Info, State) ->
@@ -132,9 +135,17 @@ format_event(
         <<"default">> => Default,
         <<"version">> => Version,
         <<"prereqOf">> => PrereqOf,
-        <<"reason">> => EvalReason
+        <<"reason">> => format_eval_reason(EvalReason)
     },
     [format_event_set_user(Kind, User, OutputEvent)|Acc].
+
+-spec format_eval_reason(eld_eval:reason()) -> map().
+format_eval_reason(target_match) -> #{<<"kind">> => <<"TARGET_MATCH">>};
+format_eval_reason({rule_match, _, _}) -> #{<<"kind">> => <<"RULE_MATCH">>};
+format_eval_reason({prerequisite_failed, _}) -> #{<<"kind">> => <<"PREREQUISITE_FAILED">>};
+format_eval_reason({error, _}) -> #{kind => <<"ERROR">>};
+format_eval_reason(fallthrough) -> #{<<"kind">> => <<"FALLTHROUGH">>};
+format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 
 -spec format_event_set_user(binary(), eld_user:user(), map()) -> map().
 format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
