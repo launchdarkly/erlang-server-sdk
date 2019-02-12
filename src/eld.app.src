@@ -10,7 +10,9 @@
     crypto,
     asn1, 
     public_key, 
-    ssl
+    ssl,
+    shotgun,
+    jsx
    ]},
   {env,[]},
   {modules, []},
