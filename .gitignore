@@ -13,3 +13,6 @@ logs
 test/*.beam
 eld.d
 .DS_Store
+_build/
+rebar.lock
+

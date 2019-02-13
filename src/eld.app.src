@@ -1,0 +1,23 @@
+{application, eld,
+ [{description, "LaunchDarkly Erlang SDK"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {eld_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    inets, 
+    crypto,
+    asn1, 
+    public_key, 
+    ssl,
+    shotgun,
+    jsx
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
