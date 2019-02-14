@@ -25,7 +25,7 @@
     targets                 => [target()],
     track_events            => boolean(),
     variations              => [variation_value()],
-    version                 => pos_integer()
+    version                 => version()
 }.
 
 -type key() :: binary().
@@ -57,6 +57,8 @@
     | list()
     | map().
 
+-type version() :: pos_integer().
+
 -export_type([flag/0]).
 -export_type([key/0]).
 -export_type([prerequisite/0]).
@@ -64,6 +66,7 @@
 -export_type([variation/0]).
 -export_type([variation_or_rollout/0]).
 -export_type([variation_value/0]).
+-export_type([version/0]).
 
 %%===================================================================
 %% API

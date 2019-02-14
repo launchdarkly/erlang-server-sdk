@@ -100,7 +100,11 @@ handle_call({listen}, _From, #{sdk_key := SdkKey, storage_backend := StorageBack
                     io:format("Got a fin message with data ~p~n", [Bin])
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
-            case shotgun:get(ShotgunPid, Path ++ Query, #{"Authorization" => SdkKey}, Options) of
+            Headers = #{
+                "Authorization" => SdkKey,
+                "User-Agent" => eld_settings:get_user_agent()
+            },
+            case shotgun:get(ShotgunPid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     {stop, normal, {error, get_req_failed, Reason}};
                 {ok, _Ref} ->

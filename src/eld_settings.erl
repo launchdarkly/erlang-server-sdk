@@ -14,6 +14,8 @@
 -export([get_value/2]).
 -export([register/2]).
 -export([unregister/1]).
+-export([get_user_agent/0]).
+-export([get_event_schema/0]).
 
 %% Types
 -type instance() :: #{
@@ -21,7 +23,8 @@
     base_uri => string(),
     events_uri => string(),
     stream_uri => string(),
-    storage_backend => atom()
+    storage_backend => atom(),
+    events_flush_interval => pos_integer()
 }.
 % Settings stored for each running SDK instance
 
@@ -30,6 +33,10 @@
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
+-define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
+-define(USER_AGENT, "ErlangClient").
+-define(VERSION, "0.1").
+-define(EVENT_SCHEMA, "3").
 
 %%===================================================================
 %% API
@@ -53,12 +60,14 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
     StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
     StorageBackend = maps:get(storage_backend, Options, ?DEFAULT_STORAGE_BACKEND),
+    EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
         events_uri => EventsUri,
         stream_uri => StreamUri,
-        storage_backend => StorageBackend
+        storage_backend => StorageBackend,
+        events_flush_interval => EventsFlushInterval
     }.
 
 %% @doc Get all registered tags
@@ -96,6 +105,14 @@ register(Tag, Settings) when is_atom(Tag), is_map(Settings) ->
 unregister(Tag) when is_atom(Tag) ->
     NewInstances = maps:remove(Tag, get_all()),
     application:set_env(eld, instances, NewInstances).
+
+-spec get_user_agent() -> string().
+get_user_agent() ->
+    ?USER_AGENT ++ "/" ++ ?VERSION.
+
+-spec get_event_schema() -> string().
+get_event_schema() ->
+    ?EVENT_SCHEMA.
 
 %%===================================================================
 %% Internal functions

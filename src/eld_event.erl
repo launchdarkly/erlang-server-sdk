@@ -8,14 +8,18 @@
 
 %% API
 -export([new/4]).
+-export([new/5]).
 -export([new_for_unknown_flag/4]).
 -export([new_flag_eval/6]).
 -export([new_prerequisite_eval/6]).
+-export([new_identify/1]).
+-export([new_custom/3]).
 
 %% Types
 -type event() :: #{
     type      => event_type(),
     timestamp => non_neg_integer(),
+    key       => binary(),
     user      => eld_user:user(),
     data      => map()
 }.
@@ -82,11 +86,20 @@ new(feature_request, User, Timestamp, #{
             eval_reason            => EvalReason,
             debug                  => Debug
         }
-    };
-new(custom, User, Timestamp, Data) when is_map(Data) ->
+    }.
+
+-spec new(
+    custom,
+    Key :: binary(),
+    User:: eld_user:user(),
+    Timestamp :: non_neg_integer(),
+    Data :: map()
+) -> event().
+new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
     #{
         type      => custom,
         timestamp => Timestamp,
+        key       => Key,
         user      => User,
         data      => Data
     }.
@@ -110,7 +123,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_flag_eval(
     VariationIndex :: eld_flag:variation(),
@@ -138,7 +151,7 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
 
 -spec new_prerequisite_eval(
     VariationIndex :: eld_flag:variation(),
@@ -166,4 +179,12 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         eval_reason             => Reason,
         debug                   => false
     },
-    eld_event:new(feature_request, User, erlang:system_time(), EventData).
+    new(feature_request, User, erlang:system_time(milli_seconds), EventData).
+
+-spec new_identify(User :: eld_user:user()) -> event().
+new_identify(User) ->
+    new(identify, User, erlang:system_time(milli_seconds), #{}).
+
+-spec new_custom(Key :: binary(), User :: eld_user:user(), Data :: map()) -> event().
+new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->
+    new(custom, Key, User, erlang:system_time(milli_seconds), Data).
