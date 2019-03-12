@@ -117,8 +117,8 @@ handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEve
     io:format("Flushing events: ~p~n", [Events]),
     io:format("Flushing summary event: ~p~n", [SummaryEvent]),
     ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
-    TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
-    {reply, ok, State#{events := [], summary_event := #{}, timer_ref := TimerRef}}.
+    NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
