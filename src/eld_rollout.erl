@@ -33,7 +33,7 @@
 -spec new(map()) -> rollout().
 new(#{
     <<"variations">> := Variations,
-    <<"bucket_by">>  := BucketBy
+    <<"bucketBy">>  := BucketBy
 }) ->
     #{
         variations => parse_variations(Variations),
@@ -79,9 +79,9 @@ match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
 
 bucket_user_value(_Key, _Salt, undefined, _Secondary) -> 0;
 bucket_user_value(Key, Salt, UserAttribute, undefined) ->
-    bucket_hash(<<Key/binary, Salt/binary, UserAttribute/binary>>);
+    bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary>>);
 bucket_user_value(Key, Salt, UserAttribute, Secondary) ->
-    bucket_hash(<<Key/binary, Salt/binary, UserAttribute/binary, Secondary/binary>>).
+    bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary, $., Secondary/binary>>).
 
 bucket_hash(Hash) ->
     Sha1 = crypto:hash(sha, Hash),

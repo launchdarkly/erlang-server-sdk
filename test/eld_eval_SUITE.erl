@@ -40,6 +40,7 @@
     rule_match_semver_greater_than/1,
     rule_match_semver_less_than/1,
     fallthrough_rollout/1,
+    fallthrough_rollout_custom/1,
     variation_out_of_range/1
 ]).
 
@@ -78,6 +79,7 @@ all() ->
         rule_match_semver_greater_than,
         rule_match_semver_less_than,
         fallthrough_rollout,
+        fallthrough_rollout_custom,
         variation_out_of_range
     ].
 
@@ -406,10 +408,24 @@ rule_match_semver_less_than(_) ->
 
 fallthrough_rollout(_) ->
     ExpectedReason = fallthrough,
-    {{4, <<"e">>, ExpectedReason}, Events} =
+    {{1, <<"b">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"roll-me">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"roll-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
+        {<<"roll-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, undefined}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_custom(_) ->
+    ExpectedReason = fallthrough,
+    User = #{
+        key => <<"user-foo">>,
+        <<"customProp">> => <<"514343">>
+    },
+    {{4, <<"e">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
