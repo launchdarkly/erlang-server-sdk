@@ -317,9 +317,15 @@ rule_match_contains(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_less_than(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"custom1">> => 30
+        }
+    },
     ExpectedReason = {rule_match, 5, <<"ca092500-1cb7-4b14-a11c-81b46ca19cae">>},
     {{5, <<"f">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"custom1">> => 30}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 5, <<"f">>, "foo", ExpectedReason, undefined}
     ]),
@@ -327,9 +333,15 @@ rule_match_less_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_less_than_or_equal(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"custom1">> => 50
+        }
+    },
     ExpectedReason = {rule_match, 6, <<"d38e11f8-93d1-453e-8022-6d8ed7f106ea">>},
     {{6, <<"g">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"custom1">> => 50}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 6, <<"g">>, "foo", ExpectedReason, undefined}
     ]),
@@ -337,9 +349,15 @@ rule_match_less_than_or_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_greater_than(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"custom2">> => 70
+        }
+    },
     ExpectedReason = {rule_match, 7, <<"a92a93c2-2004-482b-9e4a-38abe81d7050">>},
     {{7, <<"h">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"custom2">> => 70}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 7, <<"h">>, "foo", ExpectedReason, undefined}
     ]),
@@ -347,9 +365,15 @@ rule_match_greater_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_greater_than_or_equal(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"custom2">> => 50
+        }
+    },
     ExpectedReason = {rule_match, 8, <<"9158e01a-a70f-4924-8cf8-9401e2cf6c67">>},
     {{8, <<"i">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"custom2">> => 50}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 8, <<"i">>, "foo", ExpectedReason, undefined}
     ]),
@@ -357,9 +381,15 @@ rule_match_greater_than_or_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_before_int(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"date">> => 1451772244
+        }
+    },
     ExpectedReason = {rule_match, 9, <<"500633a7-2c82-4baf-8201-4892b68b31b4">>},
     {{9, <<"j">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"date">> => 1451772244}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 9, <<"j">>, "foo", ExpectedReason, undefined}
     ]),
@@ -367,9 +397,15 @@ rule_match_before_int(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_after_int(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"date">> => 1451772246
+        }
+    },
     ExpectedReason = {rule_match, 10, <<"77473bea-d93f-4787-84d2-92cf08b35f2b">>},
     {{10, <<"k">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"date">> => 1451772246}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 10, <<"k">>, "foo", ExpectedReason, undefined}
     ]),
@@ -377,9 +413,15 @@ rule_match_after_int(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_equal(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"version">> => <<"5.0.0">>
+        }
+    },
     ExpectedReason = {rule_match, 11, <<"9398cafc-0ab7-4d0d-8e01-6683cc4d17ec">>},
     {{11, <<"l">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"version">> => <<"5.0.0">>}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 11, <<"l">>, "foo", ExpectedReason, undefined}
     ]),
@@ -387,9 +429,15 @@ rule_match_semver_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_greater_than(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"version">> => <<"5.1.0">>
+        }
+    },
     ExpectedReason = {rule_match, 12, <<"3570714f-d03b-4068-ab79-18f15c74382d">>},
     {{12, <<"m">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"version">> => <<"5.1.0">>}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 12, <<"m">>, "foo", ExpectedReason, undefined}
     ]),
@@ -397,9 +445,15 @@ rule_match_semver_greater_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_less_than(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"version">> => <<"4.0.0">>
+        }
+    },
     ExpectedReason = {rule_match, 13, <<"2c002923-2db0-4fcc-a95e-f3cb5b4bd13d">>},
     {{13, <<"n">>, ExpectedReason}, Events} =
-        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-foo">>, <<"version">> => <<"4.0.0">>}, "foo"),
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 13, <<"n">>, "foo", ExpectedReason, undefined}
     ]),
@@ -420,7 +474,9 @@ fallthrough_rollout_custom(_) ->
     ExpectedReason = fallthrough,
     User = #{
         key => <<"user-foo">>,
-        <<"customProp">> => <<"514343">>
+        custom => #{
+            <<"customProp">> => <<"514343">>
+        }
     },
     {{4, <<"e">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),

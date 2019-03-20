@@ -51,8 +51,8 @@ rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key :
     match_weighted_variations(Bucket, WeightedVariations).
 
 bucket_user(Key, Salt, User, BucketBy) ->
-    UserValue = maps:get(BucketBy, User, undefined),
-    UserSecondary = maps:get(secondary, User, undefined),
+    UserValue = eld_user:get(BucketBy, User),
+    UserSecondary = eld_user:get(secondary, User),
     bucket_user_value(Key, Salt, UserValue, UserSecondary).
 
 %%===================================================================
