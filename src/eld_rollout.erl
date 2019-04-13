@@ -50,6 +50,7 @@ rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key :
     Bucket = bucket_user(FlagKey, FlagSalt, User, BucketBy),
     match_weighted_variations(Bucket, WeightedVariations).
 
+-spec bucket_user(eld_flag:key(), binary(), eld_user:user(), eld_user:attribute()) -> float().
 bucket_user(Key, Salt, User, BucketBy) ->
     UserValue = eld_user:get(BucketBy, User),
     UserSecondary = eld_user:get(secondary, User),

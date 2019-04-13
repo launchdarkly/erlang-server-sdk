@@ -13,6 +13,7 @@
 -export([new_flag_eval/6]).
 -export([new_prerequisite_eval/6]).
 -export([new_identify/1]).
+-export([new_index/2]).
 -export([new_custom/3]).
 
 %% Types
@@ -184,6 +185,10 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
 -spec new_identify(User :: eld_user:user()) -> event().
 new_identify(User) ->
     new(identify, User, erlang:system_time(milli_seconds), #{}).
+
+-spec new_index(User :: eld_user:user(), Timestamp :: non_neg_integer()) -> event().
+new_index(User, Timestamp) ->
+    new(index, User, Timestamp, #{}).
 
 -spec new_custom(Key :: binary(), User :: eld_user:user(), Data :: map()) -> event().
 new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->

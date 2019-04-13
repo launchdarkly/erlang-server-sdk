@@ -35,6 +35,9 @@ init([Tag]) ->
 
 -spec children(Tag :: atom()) -> [supervisor:child_spec()].
 children(Tag) ->
+    UserCacheName = eld_user_cache:get_local_reg_name(Tag),
+    UserKeysCapacity = eld_settings:get_value(Tag, user_keys_capacity),
+    UserCacheWorker = ?CHILD(lru, lru, [{local, UserCacheName}, UserKeysCapacity, []], worker),
     EventStorageWorker = ?CHILD(eld_event_server, eld_event_server, [Tag], worker),
-    EventDispatchWorker = ?CHILD(eld_event_dispatch_server, eld_event_dispatch_server, [Tag], worker),
-    [EventStorageWorker, EventDispatchWorker].
+    EventProcessWorker = ?CHILD(eld_event_process_server, eld_event_process_server, [Tag], worker),
+    [UserCacheWorker, EventStorageWorker, EventProcessWorker].

@@ -24,7 +24,10 @@
     events_uri => string(),
     stream_uri => string(),
     storage_backend => atom(),
-    events_flush_interval => pos_integer()
+    events_capacity => pos_integer(),
+    events_flush_interval => pos_integer(),
+    events_dispatcher => atom(),
+    user_keys_capacity => pos_integer()
 }.
 % Settings stored for each running SDK instance
 
@@ -33,7 +36,10 @@
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
+-define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
+-define(DEFAULT_EVENTS_DISPATCHER, eld_event_dispatch_httpc).
+-define(DEFAULT_USER_KEYS_CAPACITY, 1000).
 -define(USER_AGENT, "ErlangClient").
 -define(VERSION, "0.1").
 -define(EVENT_SCHEMA, "3").
@@ -60,14 +66,20 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
     StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
     StorageBackend = maps:get(storage_backend, Options, ?DEFAULT_STORAGE_BACKEND),
+    EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
+    EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
+    UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
         events_uri => EventsUri,
         stream_uri => StreamUri,
         storage_backend => StorageBackend,
-        events_flush_interval => EventsFlushInterval
+        events_capacity => EventsCapacity,
+        events_flush_interval => EventsFlushInterval,
+        events_dispatcher => EventsDispatcher,
+        user_keys_capacity => UserKeysCapacity
     }.
 
 %% @doc Get all registered tags

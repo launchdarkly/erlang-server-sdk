@@ -48,7 +48,7 @@ new(Key) when is_binary(Key) ->
 %%
 %% Lookup includes custom attributes. Returns `undefined' if attribute doesn't exist.
 %% @end
--spec get(binary(), user()) -> term().
+-spec get(attribute(), user()) -> term().
 get(Attribute, User) ->
     Attr = get_attribute(Attribute),
     get_attribute_value(Attr, User).

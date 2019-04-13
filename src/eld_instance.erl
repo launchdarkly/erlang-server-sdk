@@ -16,6 +16,7 @@
     stream_uri => string(),
     storage_backend => atom(),
     events_flush_interval => pos_integer(),
+    user_keys_capacity => pos_integer(),
     start_stream => boolean()
 }.
 %% Options for starting an SDK instance

@@ -12,7 +12,8 @@
     public_key, 
     ssl,
     shotgun,
-    jsx
+    jsx,
+    lru
    ]},
   {env,[]},
   {modules, []},

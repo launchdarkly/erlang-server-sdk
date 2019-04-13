@@ -17,9 +17,9 @@
 -export([add_event/2, flush/1]).
 
 -type state() :: #{
-    % TODO add event buffer capacity
     events := [eld_event:event()],
     summary_event := summary_event(),
+    capacity := pos_integer(),
     flush_interval := pos_integer(),
     timer_ref := reference()
 }.
@@ -55,14 +55,16 @@
 %% API
 %%===================================================================
 
-%% @doc Start listening to streaming events
+%% @doc Add an event to the buffer
 %%
+%% Events are not sent immediately. They are kept in buffer up to configured
+%% size and flushed at configured interval.
 %% @end
 -spec add_event(Tag :: atom(), Event :: eld_event:event()) ->
     ok.
 add_event(Tag, Event) when is_atom(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    gen_server:call(ServerName, {add_event, Event}).
+    gen_server:call(ServerName, {add_event, Event, Tag}).
 
 %% @doc Flush buffered events
 %%
@@ -91,10 +93,12 @@ start_link(Tag) ->
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
     FlushInterval = eld_settings:get_value(Tag, events_flush_interval),
+    Capacity = eld_settings:get_value(Tag, events_capacity),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     State = #{
         events => [],
         summary_event => #{},
+        capacity => Capacity,
         flush_interval => FlushInterval,
         timer_ref => TimerRef
     },
@@ -108,15 +112,15 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({add_event, Event}, _From, #{events := Events, summary_event := SummaryEvent} = State) ->
+handle_call({add_event, Event, Tag}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) ->
     io:format("Adding event: ~p~n", [Event]),
-    {NewEvents, NewSummaryEvent} = add_event(Event, Events, SummaryEvent),
+    {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Events, SummaryEvent, Capacity),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
 handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
     _ = erlang:cancel_timer(TimerRef),
     io:format("Flushing events: ~p~n", [Events]),
     io:format("Flushing summary event: ~p~n", [SummaryEvent]),
-    ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
+    ok = eld_event_process_server:send_events(Tag, Events, SummaryEvent),
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
 
@@ -125,7 +129,7 @@ handle_cast(_Request, State) ->
 
 handle_info({flush, Tag}, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval} = State) ->
     io:format("Flushing with interval~n"),
-    ok = eld_event_dispatch_server:send_events(Tag, Events, SummaryEvent),
+    ok = eld_event_process_server:send_events(Tag, Events, SummaryEvent),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {noreply, State#{events := [], summary_event := #{}, timer_ref := TimerRef}};
 handle_info(_Info, State) ->
@@ -143,23 +147,26 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec add_event(eld_event:event(), [eld_event:event()], summary_event()) ->
+-spec add_event(atom(), eld_event:event(), [eld_event:event()], summary_event(), pos_integer()) ->
     {[eld_event:event()], summary_event()}.
-add_event(#{type := feature_request} = Event, Events, SummaryEvent) ->
+add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} = Event, Events, SummaryEvent, Capacity) ->
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
-    NewEvents = add_feature_request_full_fidelity(Event, Events),
+    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity),
+    NewEvents = maybe_add_feature_request_full_fidelity(Event, EventsWithIndex, Capacity),
     {NewEvents, NewSummaryEvent};
-add_event(#{type := identify} = Event, Events, SummaryEvent) ->
-    {add_non_feature_request_event(Event, Events), SummaryEvent};
-add_event(#{type := index} = Event, Events, SummaryEvent) ->
-    {add_non_feature_request_event(Event, Events), SummaryEvent};
-add_event(#{type := custom} = Event, Events, SummaryEvent) ->
-    {add_non_feature_request_event(Event, Events), SummaryEvent}.
+add_event(_Tag, #{type := identify} = Event, Events, SummaryEvent, Capacity) ->
+    {add_raw_event(Event, Events, Capacity), SummaryEvent};
+add_event(Tag, #{type := custom, user := User, timestamp := Timestamp} = Event, Events, SummaryEvent, Capacity) ->
+    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity),
+    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent}.
 
--spec add_non_feature_request_event(eld_event:event(), [eld_event:event()]) ->
+-spec add_raw_event(eld_event:event(), [eld_event:event()], pos_integer()) ->
     [eld_event:event()].
-add_non_feature_request_event(Event, Events) ->
-    [Event|Events].
+add_raw_event(Event, Events, Capacity) when length(Events) < Capacity ->
+    [Event|Events];
+add_raw_event(_, Events, _) ->
+    error_logger:warning_msg("Exceeded event queue capacity. Increase capacity to avoid dropping events."),
+    Events.
 
 -spec add_feature_request_event(eld_event:event(), summary_event()) ->
     summary_event().
@@ -216,12 +223,26 @@ add_feature_request_event(
         end_date => NewEndDate
     }.
 
--spec add_feature_request_full_fidelity(eld_event:event(), [eld_event:event()]) ->
+-spec maybe_add_feature_request_full_fidelity(eld_event:event(), [eld_event:event()], pos_integer()) ->
     [eld_event:event()].
-add_feature_request_full_fidelity(#{data := #{track_events := true}} = Event, Events) ->
-    add_non_feature_request_event(Event, Events);
-add_feature_request_full_fidelity(_Event, Events) ->
+maybe_add_feature_request_full_fidelity(#{data := #{track_events := true}} = Event, Events, Capacity) ->
+    add_raw_event(Event, Events, Capacity);
+maybe_add_feature_request_full_fidelity(_Event, Events, _Capacity) ->
     Events.
+
+-spec maybe_add_index_event(atom(), eld_user:user(), non_neg_integer(), [eld_event:event()], pos_integer()) ->
+    [eld_event:event()].
+maybe_add_index_event(Tag, User, Timestamp, Events, Capacity) ->
+    case eld_user_cache:notice_user(Tag, User) of
+        true -> Events;
+        false -> add_index_event(User, Timestamp, Events, Capacity)
+    end.
+
+-spec add_index_event(User :: eld_user:user(), Timestamp :: non_neg_integer(), Events :: [eld_event:event()], pos_integer()) ->
+    [eld_event:event()].
+add_index_event(User, Timestamp, Events, Capacity) ->
+    IndexEvent = eld_event:new_index(User, Timestamp),
+    add_raw_event(IndexEvent, Events, Capacity).
 
 -spec create_summary_event_key(eld_flag:key(), eld_flag:variation(), eld_flag:version()) ->
     counter_key().

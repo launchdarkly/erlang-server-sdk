@@ -1,10 +1,10 @@
 %%-------------------------------------------------------------------
-%% @doc Event dispatch server
+%% @doc Event processor server
 %%
 %% @end
 %%-------------------------------------------------------------------
 
--module(eld_event_dispatch_server).
+-module(eld_event_process_server).
 
 -behaviour(gen_server).
 
@@ -19,6 +19,7 @@
 
 -type state() :: #{
     sdk_key := string(),
+    dispatcher := atom(),
     events_uri := string()
 }.
 
@@ -26,7 +27,7 @@
 %% API
 %%===================================================================
 
-%% @doc Start listening to streaming events
+%% @doc Send events to LaunchDarkly event server
 %%
 %% @end
 -spec send_events(Tag :: atom(), Events :: [eld_event:event()], SummaryEvent :: eld_event_server:summary_event()) ->
@@ -46,7 +47,7 @@ send_events(Tag, Events, SummaryEvent) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    io:format("Starting events dispatcher with name: ~p~n", [ServerName]),
+    io:format("Starting event processor with name: ~p~n", [ServerName]),
     gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -54,9 +55,11 @@ start_link(Tag) ->
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
     SdkKey = eld_settings:get_value(Tag, sdk_key),
+    Dispatcher = eld_settings:get_value(Tag, events_dispatcher),
     EventsUri = eld_settings:get_value(Tag, events_uri),
     State = #{
         sdk_key => SdkKey,
+        dispatcher => Dispatcher,
         events_uri => EventsUri
     },
     {ok, State}.
@@ -72,7 +75,7 @@ init([Tag]) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri := Uri} = State) ->
+handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
     io:format("Sending events: ~p~n", [Events]),
     io:format("Sending summary event: ~p~n", [SummaryEvent]),
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
@@ -80,11 +83,24 @@ handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, events_uri
     io:format("Formatted events: ~p~n", [FormattedEvents]),
     io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
-    ok = send(OutputEvents, Uri, SdkKey),
+    _ = case send(OutputEvents, Dispatcher, Uri, SdkKey) of
+        ok ->
+            io:format("Sent successfully~n"),
+            ok;
+        {error, temporary, Reason} ->
+            erlang:send_after(1000, self(), {send, OutputEvents}),
+            io:format("Temporary error sending events ~p~n", [Reason]);
+        {error, permanent, Reason} ->
+            io:format("Permanent error sending events ~p~n", [Reason])
+    end,
     {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
+handle_info({send, OutputEvents}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
+    io:format("Retrying events: ~p~n", [OutputEvents]),
+    _ = send(OutputEvents, Dispatcher, Uri, SdkKey),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -143,6 +159,13 @@ format_event(#{type := identify, timestamp := Timestamp, user := User}, Acc) ->
         <<"creationDate">> => Timestamp
     },
     [format_event_set_user(Kind, User, OutputEvent)|Acc];
+format_event(#{type := index, timestamp := Timestamp, user := User}, Acc) ->
+    Kind = <<"index">>,
+    OutputEvent = #{
+        <<"kind">> => Kind,
+        <<"creationDate">> => Timestamp
+    },
+    [format_event_set_user(Kind, User, OutputEvent)|Acc];
 format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data}, Acc) ->
     Kind = <<"custom">>,
     OutputEvent = #{
@@ -173,6 +196,8 @@ format_event_set_user(<<"debug">>, User, OutputEvent) ->
     OutputEvent#{<<"user">> => eld_user:scrub(User)};
 format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->
     OutputEvent#{<<"key">> => UserKey, <<"user">> => eld_user:scrub(User)};
+format_event_set_user(<<"index">>, User, OutputEvent) ->
+    OutputEvent#{<<"user">> => eld_user:scrub(User)};
 format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent) ->
     OutputEvent#{<<"userKey">> => UserKey}.
 
@@ -221,22 +246,15 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec send(OutputEvents :: list(), string(), string()) -> ok.
-send([], _, _) ->
+-spec send(OutputEvents :: list(), Dispatcher :: atom(), string(), string()) ->
+    ok | {error, temporary, string()} | {error, permanent, string()}.
+send([], _, _, _) ->
     io:format("Empty buffer, no events sent~n"),
     ok;
-send(OutputEvents, Uri, SdkKey) ->
-    io:format("Encoded list of events: ~p~n", [jsx:encode(OutputEvents)]),
-    Headers = [
-        {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
-        {"User-Agent", eld_settings:get_user_agent()}
-    ],
-    {ok, {{_Version, ResponseCode, _ReasonPhrase}, _Headers, _Body}} =
-        httpc:request(post, {Uri, Headers, "application/json", jsx:encode(OutputEvents)}, [], []),
-    io:format("Response code from server: ~p~n", [ResponseCode]),
-    ok.
+send(OutputEvents, Dispatcher, Uri, SdkKey) ->
+    JsonEvents = jsx:encode(OutputEvents),
+    Dispatcher:send(JsonEvents, Uri, SdkKey).
 
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->
-    list_to_atom("eld_event_dispatch_server_" ++ atom_to_list(Tag)).
+    list_to_atom("eld_event_process_server_" ++ atom_to_list(Tag)).
