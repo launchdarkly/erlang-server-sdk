@@ -13,6 +13,7 @@
 -export([
     add_flag_eval_events_flush_with_track/1,
     add_flag_eval_events_flush_no_track/1,
+    add_flag_eval_events_with_debug/1,
     add_identify_events/1,
     auto_flush/1,
     exceed_capacity/1
@@ -26,6 +27,7 @@ all() ->
     [
         add_flag_eval_events_flush_with_track,
         add_flag_eval_events_flush_no_track,
+        add_flag_eval_events_with_debug,
         add_identify_events,
         auto_flush,
         exceed_capacity
@@ -84,6 +86,30 @@ get_simple_flag_no_track() ->
         #{
             <<"clientSide">> => false,
             <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => false,
+            <<"fallthrough">> => #{<<"variation">> => 0},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => false,
+            <<"variations">> => [true,false],
+            <<"version">> => 5
+        }
+    }.
+
+get_simple_flag_debug() ->
+    % Now + 30 secs
+    DebugDate = erlang:system_time(milli_seconds) + 30000,
+    {
+        <<"abc">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => DebugDate,
             <<"deleted">> => false,
             <<"fallthrough">> => #{<<"variation">> => 0},
             <<"key">> => <<"abc">>,
@@ -248,6 +274,56 @@ add_flag_eval_events_flush_no_track(_) ->
         }
     ] = ActualEvents2.
 
+add_flag_eval_events_with_debug(_) ->
+    {FlagKey, FlagBin} = get_simple_flag_debug(),
+    Flag = eld_flag:new(FlagKey, FlagBin),
+    Event = eld_event:new_flag_eval(
+        5,
+        <<"variation-value-5">>,
+        <<"default-value">>,
+        #{key => <<"12345-debug">>},
+        target_match,
+        Flag
+    ),
+    Events = [Event],
+    ActualEvents = send_await_events(Events, true),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
+                            <<"unknown">> := false,
+                            <<"value">> := <<"variation-value-5">>,
+                            <<"variation">> := 5,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"12345-debug">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"debug">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            <<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
+            <<"user">> := #{<<"key">> := <<"12345-debug">>},
+            <<"value">> := <<"variation-value-5">>,
+            <<"variation">> := 5,
+            <<"version">> := 5,
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
 
 add_identify_events(_) ->
     Event1 = eld_event:new_identify(#{key => <<"12345">>}),

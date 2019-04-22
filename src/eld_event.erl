@@ -68,24 +68,23 @@ new(feature_request, User, Timestamp, #{
     prereq_of               := PrereqOf,             % undefined | eld_flag:key()
     track_events            := TrackEvents,          % undefined | boolean()
     debug_events_until_date := DebugEventsUntilDate, % undefined | boolean()
-    eval_reason             := EvalReason,           % undefined | eld_eval:reason()
-    debug                   := Debug                 % undefined | boolean()
+    eval_reason             := EvalReason            % undefined | eld_eval:reason()
 }) ->
     #{
         type      => feature_request,
         timestamp => Timestamp,
         user      => User,
         data      => #{
-            key                    => Key,
-            variation              => Variation,
-            value                  => Value,
-            default                => Default,
-            version                => Version,
-            prereq_of              => PrereqOf,
-            track_events           => TrackEvents,
-            debug_events_util_date => DebugEventsUntilDate,
-            eval_reason            => EvalReason,
-            debug                  => Debug
+            key                     => Key,
+            variation               => Variation,
+            value                   => Value,
+            default                 => Default,
+            version                 => Version,
+            prereq_of               => PrereqOf,
+            track_events            => TrackEvents,
+            debug_events_until_date => DebugEventsUntilDate,
+            eval_reason             => EvalReason,
+            debug                   => false
         }
     }.
 

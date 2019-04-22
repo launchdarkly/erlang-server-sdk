@@ -152,7 +152,8 @@ code_change(_OldVsn, State, _Extra) ->
 add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} = Event, Events, SummaryEvent, Capacity) ->
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
     EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity),
-    NewEvents = maybe_add_feature_request_full_fidelity(Event, EventsWithIndex, Capacity),
+    EventsWithDebug = maybe_add_debug_event(Event, EventsWithIndex, Capacity),
+    NewEvents = maybe_add_feature_request_full_fidelity(Event, EventsWithDebug, Capacity),
     {NewEvents, NewSummaryEvent};
 add_event(_Tag, #{type := identify} = Event, Events, SummaryEvent, Capacity) ->
     {add_raw_event(Event, Events, Capacity), SummaryEvent};
@@ -243,6 +244,16 @@ maybe_add_index_event(Tag, User, Timestamp, Events, Capacity) ->
 add_index_event(User, Timestamp, Events, Capacity) ->
     IndexEvent = eld_event:new_index(User, Timestamp),
     add_raw_event(IndexEvent, Events, Capacity).
+
+-spec maybe_add_debug_event(eld_event:event(), [eld_event:event()], pos_integer()) ->
+    [eld_event:event()].
+maybe_add_debug_event(#{data := #{debug_events_until_date := null}}, Events, _) -> Events;
+maybe_add_debug_event(#{data := #{debug_events_until_date := DebugDate} = EventData} = FeatureEvent, Events, Capacity) ->
+    Now = erlang:system_time(milli_seconds),
+    case DebugDate > Now of
+        true -> add_raw_event(FeatureEvent#{data := EventData#{debug => true}}, Events, Capacity);
+        false -> Events
+    end.
 
 -spec create_summary_event_key(eld_flag:key(), eld_flag:variation(), eld_flag:version()) ->
     counter_key().
