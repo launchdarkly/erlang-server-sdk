@@ -25,7 +25,7 @@
     ok
     | {error, gun_open_failed, term()}
     | {error, gun_open_timeout, term()}
-    | {error, get_req_failed, term()}.
+    | {error, get_request_failed, term()}.
 start(StreamSupName, Tag) when is_atom(StreamSupName) ->
     {ok, Pid} = supervisor:start_child(StreamSupName, [Tag]),
     eld_stream_server:listen(Pid).

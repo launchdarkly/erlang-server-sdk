@@ -13,7 +13,8 @@
     ssl,
     shotgun,
     jsx,
-    lru
+    lru,
+    backoff
    ]},
   {env,[]},
   {modules, []},
