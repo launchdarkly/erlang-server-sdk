@@ -21,7 +21,7 @@
 -spec start_link(SupName :: atom(), Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(SupName, Tag) ->
-    io:format("Starting event_sup with sup name: ~p~n", [SupName]),
+    error_logger:info_msg("Starting event supervisor for ~p with name ~p", [Tag, SupName]),
     supervisor:start_link({local, SupName}, ?MODULE, [Tag]).
 
 -spec init(Args :: term()) ->

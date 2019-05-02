@@ -26,7 +26,7 @@
 ) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(SupName, StreamSupName, EventSupName, Tag) ->
-    io:format("Starting instance_sup with sup name: ~p~n", [SupName]),
+    error_logger:info_msg("Starting instance supervisor for ~p with name ~p", [Tag, SupName]),
     supervisor:start_link({local, SupName}, ?MODULE, [StreamSupName, EventSupName, Tag]).
 
 -spec init(Args :: term()) ->

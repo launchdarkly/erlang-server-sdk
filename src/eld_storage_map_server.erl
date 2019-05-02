@@ -31,6 +31,7 @@
 %%===================================================================
 
 start_link(WorkerRegName) ->
+    error_logger:info_msg("Starting map server with name ~p", [WorkerRegName]),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [], []).
 
 init([]) ->

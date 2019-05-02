@@ -219,7 +219,6 @@ process_items(put, Data, StorageBackend, Tag) ->
     ok = StorageBackend:put(Tag, segments, Segments);
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Item} = get_patch_item(Data),
-    error_logger:info_msg("Received patch for ~p: ~p", [Bucket, Item]),
     ok = StorageBackend:put(Tag, Bucket, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),

@@ -32,7 +32,7 @@
 %%===================================================================
 
 start_link(WorkerRegName) ->
-    io:format("Starting ets server with name: ~p~n", [WorkerRegName]),
+    error_logger:info_msg("Starting ets server with name ~p", [WorkerRegName]),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [], []).
 
 init([]) ->

@@ -85,7 +85,7 @@ flush(Tag) when is_atom(Tag) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    io:format("Starting event storage server with name: ~p~n", [ServerName]),
+    error_logger:info_msg("Starting event storage server for ~p with name ~p", [Tag, ServerName]),
     gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -113,13 +113,10 @@ init([Tag]) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
 handle_call({add_event, Event, Tag}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) ->
-    io:format("Adding event: ~p~n", [Event]),
     {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Events, SummaryEvent, Capacity),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
 handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
     _ = erlang:cancel_timer(TimerRef),
-    io:format("Flushing events: ~p~n", [Events]),
-    io:format("Flushing summary event: ~p~n", [SummaryEvent]),
     ok = eld_event_process_server:send_events(Tag, Events, SummaryEvent),
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
@@ -128,7 +125,6 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({flush, Tag}, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval} = State) ->
-    io:format("Flushing with interval~n"),
     ok = eld_event_process_server:send_events(Tag, Events, SummaryEvent),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {noreply, State#{events := [], summary_event := #{}, timer_ref := TimerRef}};

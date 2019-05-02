@@ -47,7 +47,7 @@ send_events(Tag, Events, SummaryEvent) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    io:format("Starting event processor with name: ~p~n", [ServerName]),
+    error_logger:info_msg("Starting event processor for ~p with name ~p", [Tag, ServerName]),
     gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -76,29 +76,22 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
-    io:format("Sending events: ~p~n", [Events]),
-    io:format("Sending summary event: ~p~n", [SummaryEvent]),
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events),
-    io:format("Formatted events: ~p~n", [FormattedEvents]),
-    io:format("Formatted summary event: ~p~n", [FormattedSummaryEvent]),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     _ = case send(OutputEvents, Dispatcher, Uri, SdkKey) of
         ok ->
-            io:format("Sent successfully~n"),
             ok;
-        {error, temporary, Reason} ->
-            erlang:send_after(1000, self(), {send, OutputEvents}),
-            io:format("Temporary error sending events ~p~n", [Reason]);
+        {error, temporary, _Reason} ->
+            erlang:send_after(1000, self(), {send, OutputEvents});
         {error, permanent, Reason} ->
-            io:format("Permanent error sending events ~p~n", [Reason])
+            error_logger:error_msg("Permanent error sending events ~p", [Reason])
     end,
     {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({send, OutputEvents}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
-    io:format("Retrying events: ~p~n", [OutputEvents]),
     _ = send(OutputEvents, Dispatcher, Uri, SdkKey),
     {noreply, State};
 handle_info(_Info, State) ->
@@ -249,7 +242,6 @@ combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEv
 -spec send(OutputEvents :: list(), Dispatcher :: atom(), string(), string()) ->
     ok | {error, temporary, string()} | {error, permanent, string()}.
 send([], _, _, _) ->
-    io:format("Empty buffer, no events sent~n"),
     ok;
 send(OutputEvents, Dispatcher, Uri, SdkKey) ->
     JsonEvents = jsx:encode(OutputEvents),

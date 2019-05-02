@@ -20,7 +20,6 @@
 %% @end
 -spec send(JsonEvents :: binary(), Uri :: string(), SdkKey :: string()) -> ok.
 send(JsonEvents, Uri, SdkKey) ->
-    io:format("Encoded list of events: ~p~n", [JsonEvents]),
     Headers = [
         {"Authorization", SdkKey},
         {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
@@ -28,7 +27,6 @@ send(JsonEvents, Uri, SdkKey) ->
     ],
     {ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}} =
         httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),
-    io:format("Response code from server: ~p~n", [StatusCode]),
     Result = if
         StatusCode < 400 -> ok;
         true ->
