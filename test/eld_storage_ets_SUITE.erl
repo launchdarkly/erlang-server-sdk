@@ -127,8 +127,8 @@ server_process_events_patch(_) ->
         <<"path">> => <<"/">>,
         <<"data">> => #{
             <<"flags">> => #{
-                <<"flag-key-1">> => <<"flag-value-1">>,
-                <<"flag-key-2">> => <<"flag-value-2">>
+                <<"flag-key-1">> => #{<<"key">> => <<"flag-key-1">>, <<"on">> => true},
+                <<"flag-key-2">> => #{<<"key">> => <<"flag-key-2">>, <<"on">> => true}
             },
             <<"segments">> => #{}
         }
@@ -136,10 +136,10 @@ server_process_events_patch(_) ->
     ok = eld_stream_server:process_items(put, PutEvent, eld_storage_ets, default),
     PatchEvent = #{
         <<"path">> => <<"/flags/flag-key-2">>,
-        <<"data">> => <<"flag-value-2-mod">>
+        <<"data">> => #{<<"key">> => <<"flag-key-2">>, <<"on">> => false}
     },
     ok = eld_stream_server:process_items(patch, PatchEvent, eld_storage_ets, default),
     [
-        {<<"flag-key-1">>, <<"flag-value-1">>},
-        {<<"flag-key-2">>, <<"flag-value-2-mod">>}
+        {<<"flag-key-1">>, #{<<"key">> := <<"flag-key-1">>, <<"on">> := true}},
+        {<<"flag-key-2">>, #{<<"key">> := <<"flag-key-2">>, <<"on">> := false}}
     ] = lists:sort(eld_storage_ets:list(default, flags)).

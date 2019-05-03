@@ -218,8 +218,8 @@ process_items(put, Data, StorageBackend, Tag) ->
     ok = StorageBackend:put(Tag, flags, Flags),
     ok = StorageBackend:put(Tag, segments, Segments);
 process_items(patch, Data, StorageBackend, Tag) ->
-    {Bucket, Item} = get_patch_item(Data),
-    ok = StorageBackend:put(Tag, Bucket, Item);
+    {Bucket, Key, Item} = get_patch_item(Data),
+    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
@@ -232,8 +232,24 @@ process_items(delete, Data, StorageBackend, Tag) ->
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
--spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, #{Key :: binary() => map()}}.
+-spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}}.
 get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
-    {flags, #{FlagKey => FlagMap}};
+    {flags, FlagKey, #{FlagKey => FlagMap}};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    {segments, #{SegmentKey => SegmentMap}}.
+    {segments, SegmentKey, #{SegmentKey => SegmentMap}}.
+
+-spec maybe_patch_item(atom(), atom(), atom(), binary(), map()) -> ok.
+maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
+    FlagMap = maps:get(Key, Item, #{}),
+    NewVersion = maps:get(<<"version">>, FlagMap, 0),
+    ok = case StorageBackend:get(Tag, Bucket, Key) of
+        [] ->
+            StorageBackend:put(Tag, Bucket, Item);
+        [{Key, ExistingFlagMap}] ->
+            ExistingVersion = maps:get(<<"version">>, ExistingFlagMap, 0),
+            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
+            if
+                Overwrite -> StorageBackend:put(Tag, Bucket, Item);
+                true -> ok
+            end
+    end.
