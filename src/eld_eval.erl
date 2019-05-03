@@ -19,8 +19,8 @@
     Value :: value(),
     Reason :: reason()
 }.
--type value() :: undefined | eld_flag:variation_value().
--type variation_index() :: undefined | non_neg_integer().
+-type value() :: null | eld_flag:variation_value().
+-type variation_index() :: null | non_neg_integer().
 -type reason() ::
     target_match
     | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
@@ -70,7 +70,7 @@ flag_recs_for_user(FlagKey, [], User, _StorageBackend, _Tag, DefaultValue) ->
     error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
     Reason = {error, flag_not_found},
     Events = [eld_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
-    {{undefined, DefaultValue, Reason}, Events};
+    {{null, DefaultValue, Reason}, Events};
 flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend, Tag, DefaultValue) ->
     % Flag found
     Flag = eld_flag:new(FlagKey, FlagProperties),
@@ -177,10 +177,10 @@ flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, Events) when is_
     Result = eld_rollout:rollout_user(Rollout, Flag, User),
     flag_for_user_rollout_result(Result, Reason, Flag, Events).
 
-flag_for_user_rollout_result(undefined, _Reason, #{key := FlagKey}, Events) ->
+flag_for_user_rollout_result(null, _Reason, #{key := FlagKey}, Events) ->
     error_logger:warning_msg("Data inconsistency in feature flag ~p: variation/rollout object with no variation or rollout", [FlagKey]),
     Reason = {error, malformed_flag},
-    {{undefined, undefined, Reason}, Events};
+    {{null, null, Reason}, Events};
 flag_for_user_rollout_result(Variation, Reason, Flag, Events) ->
     result_for_variation_index(Variation, Reason, Flag, Events).
 
@@ -188,8 +188,8 @@ result_for_variation_index(Variation, Reason, Flag, Events) ->
     VariationValue = eld_flag:get_variation(Flag, Variation),
     result_for_variation_value(VariationValue, Variation, Reason, Flag, Events).
 
-result_for_variation_value(undefined, _Variation, _Reason, _Flag, Events) ->
+result_for_variation_value(null, _Variation, _Reason, _Flag, Events) ->
     Reason = {error, malformed_flag},
-    {{undefined, undefined, Reason}, Events};
+    {{null, null, Reason}, Events};
 result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events) ->
     {{Variation, VariationValue, Reason}, Events}.

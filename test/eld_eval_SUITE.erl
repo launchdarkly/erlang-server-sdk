@@ -132,33 +132,33 @@ extract_events(Events) ->
 %%====================================================================
 
 unknown_flag(_) ->
-    {{undefined, "foo", {error, flag_not_found}}, Events} =
+    {{null, "foo", {error, flag_not_found}}, Events} =
         eld_eval:flag_key_for_user(default, <<"flag-that-does-not-exist">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"flag-that-does-not-exist">>, feature_request, undefined, undefined, "foo", {error, flag_not_found}, undefined}
+        {<<"flag-that-does-not-exist">>, feature_request, null, null, "foo", {error, flag_not_found}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 unknown_flag_another(_) ->
     % Flag exists in default instance, doesn't exist in another1 instance
-    {{undefined, "foo", {error, flag_not_found}}, Events} =
+    {{null, "foo", {error, flag_not_found}}, Events} =
         eld_eval:flag_key_for_user(another1, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"bad-variation">>, feature_request, undefined, undefined, "foo", {error, flag_not_found}, undefined}
+        {<<"bad-variation">>, feature_request, null, null, "foo", {error, flag_not_found}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 off_flag(_) ->
     {{1, false, off}, Events} = eld_eval:flag_key_for_user(default, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
-    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, undefined}]),
+    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 off_flag_another(_) ->
     {{1, false, off}, Events} = eld_eval:flag_key_for_user(another1, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
-    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, undefined}]),
+    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
@@ -166,8 +166,8 @@ prerequisite_fail_off(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         eld_eval:flag_key_for_user(default, <<"prereqs-fail-off">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"keep-it-off">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-fail-off">>},
-        {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, undefined}
+        {<<"keep-it-off">>, feature_request, 0, true, null, fallthrough, <<"prereqs-fail-off">>},
+        {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -176,9 +176,9 @@ prerequisite_fail_variation(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-on">>]}}, Events} =
         eld_eval:flag_key_for_user(default, <<"prereqs-fail-variation">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-fail-variation">>},
-        {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>},
-        {<<"prereqs-fail-variation">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-on">>]}, undefined}
+        {<<"keep-it-on">>, feature_request, 0, true, null, fallthrough, <<"prereqs-fail-variation">>},
+        {<<"keep-it-on-two">>, feature_request, 0, true, null, fallthrough, <<"keep-it-on">>},
+        {<<"prereqs-fail-variation">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-on">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -187,10 +187,10 @@ prerequisite_success(_) ->
     {{1, false, fallthrough}, Events} =
         eld_eval:flag_key_for_user(default, <<"prereqs-success">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"prereqs-success">>, feature_request, 1, false, "foo", fallthrough, undefined},
-        {<<"keep-it-on-another">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
-        {<<"keep-it-on">>, feature_request, 0, true, undefined, fallthrough, <<"prereqs-success">>},
-        {<<"keep-it-on-two">>, feature_request, 0, true, undefined, fallthrough, <<"keep-it-on">>}
+        {<<"prereqs-success">>, feature_request, 1, false, "foo", fallthrough, null},
+        {<<"keep-it-on-another">>, feature_request, 0, true, null, fallthrough, <<"prereqs-success">>},
+        {<<"keep-it-on">>, feature_request, 0, true, null, fallthrough, <<"prereqs-success">>},
+        {<<"keep-it-on-two">>, feature_request, 0, true, null, fallthrough, <<"keep-it-on">>}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -199,7 +199,7 @@ target_user(_) ->
     {{0, true, target_match}, Events} =
         eld_eval:flag_key_for_user(default, <<"target-me">>, #{key => <<"user-33333">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"target-me">>, feature_request, 0, true, "foo", target_match, undefined}
+        {<<"target-me">>, feature_request, 0, true, "foo", target_match, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -209,7 +209,7 @@ target_user_another(_) ->
     {{1, false, target_match}, Events} =
         eld_eval:flag_key_for_user(another1, <<"target-me">>, #{key => <<"user-33333">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"target-me">>, feature_request, 1, false, "foo", target_match, undefined}
+        {<<"target-me">>, feature_request, 1, false, "foo", target_match, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -219,7 +219,7 @@ segment_included(_) ->
     {{1, false, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -229,7 +229,7 @@ segment_excluded_negated(_) ->
     {{1, false, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-33333">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -240,7 +240,7 @@ segment_excluded_negated_nonuser(_) ->
     {{1, false, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-99999">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -251,7 +251,7 @@ segment_excluded_another(_) ->
     {{1, false, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(another1, <<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, undefined}
+        {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -261,7 +261,7 @@ rule_match_in(_) ->
     {{0, <<"a">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-key-match@example.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -271,7 +271,7 @@ rule_match_ends_with(_) ->
     {{1, <<"b">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-ends-with@example.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -281,7 +281,7 @@ rule_match_ends_and_starts_with_order(_) ->
     {{1, <<"b">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-starts-with@example.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -291,7 +291,7 @@ rule_match_starts_with(_) ->
     {{2, <<"c">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-starts-with@foo.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 2, <<"c">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 2, <<"c">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -301,7 +301,7 @@ rule_match_regex(_) ->
     {{3, <<"d">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-regex-match@foo.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 3, <<"d">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 3, <<"d">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -311,7 +311,7 @@ rule_match_contains(_) ->
     {{4, <<"e">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-contains@foo.com">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -327,7 +327,7 @@ rule_match_less_than(_) ->
     {{5, <<"f">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 5, <<"f">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 5, <<"f">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -343,7 +343,7 @@ rule_match_less_than_or_equal(_) ->
     {{6, <<"g">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 6, <<"g">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 6, <<"g">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -359,7 +359,7 @@ rule_match_greater_than(_) ->
     {{7, <<"h">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 7, <<"h">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 7, <<"h">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -375,7 +375,7 @@ rule_match_greater_than_or_equal(_) ->
     {{8, <<"i">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 8, <<"i">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 8, <<"i">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -391,7 +391,7 @@ rule_match_before_int(_) ->
     {{9, <<"j">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 9, <<"j">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 9, <<"j">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -407,7 +407,7 @@ rule_match_after_int(_) ->
     {{10, <<"k">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 10, <<"k">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 10, <<"k">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -423,7 +423,7 @@ rule_match_semver_equal(_) ->
     {{11, <<"l">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 11, <<"l">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 11, <<"l">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -439,7 +439,7 @@ rule_match_semver_greater_than(_) ->
     {{12, <<"m">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 12, <<"m">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 12, <<"m">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -455,7 +455,7 @@ rule_match_semver_less_than(_) ->
     {{13, <<"n">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"rule-me">>, feature_request, 13, <<"n">>, "foo", ExpectedReason, undefined}
+        {<<"rule-me">>, feature_request, 13, <<"n">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -465,7 +465,7 @@ fallthrough_rollout(_) ->
     {{1, <<"b">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"roll-me">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"roll-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, undefined}
+        {<<"roll-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -481,16 +481,16 @@ fallthrough_rollout_custom(_) ->
     {{4, <<"e">>, ExpectedReason}, Events} =
         eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, undefined}
+        {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 variation_out_of_range(_) ->
-    {{undefined, undefined, {error, malformed_flag}}, Events} =
+    {{null, null, {error, malformed_flag}}, Events} =
         eld_eval:flag_key_for_user(default, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"bad-variation">>, feature_request, undefined, undefined, "foo", {error, malformed_flag}, undefined}
+        {<<"bad-variation">>, feature_request, null, null, "foo", {error, malformed_flag}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

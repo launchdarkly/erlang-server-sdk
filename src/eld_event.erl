@@ -61,14 +61,14 @@ new(index, User, Timestamp, #{}) ->
     };
 new(feature_request, User, Timestamp, #{
     key                     := Key,                  % eld_flag:key()
-    variation               := Variation,            % undefined | eld_flag:variation()
-    value                   := Value,                % undefined | eld_flag:variation_value()
-    default                 := Default,              % undefined | eld_flag:variation_value()
-    version                 := Version,              % undefined | eld_flag:version()
-    prereq_of               := PrereqOf,             % undefined | eld_flag:key()
-    track_events            := TrackEvents,          % undefined | boolean()
-    debug_events_until_date := DebugEventsUntilDate, % undefined | boolean()
-    eval_reason             := EvalReason            % undefined | eld_eval:reason()
+    variation               := Variation,            % null | eld_flag:variation()
+    value                   := Value,                % null | eld_flag:variation_value()
+    default                 := Default,              % null | eld_flag:variation_value()
+    version                 := Version,              % null | eld_flag:version()
+    prereq_of               := PrereqOf,             % null | eld_flag:key()
+    track_events            := TrackEvents,          % null | boolean()
+    debug_events_until_date := DebugEventsUntilDate, % null | boolean()
+    eval_reason             := EvalReason            % null | eld_eval:reason()
 }) ->
     #{
         type      => feature_request,
@@ -113,13 +113,13 @@ new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
 new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
     EventData = #{
         key                     => FlagKey,
-        variation               => undefined,
-        value                   => undefined,
+        variation               => null,
+        value                   => null,
         default                 => DefaultValue,
-        version                 => undefined,
-        prereq_of               => undefined,
-        track_events            => undefined,
-        debug_events_until_date => undefined,
+        version                 => null,
+        prereq_of               => null,
+        track_events            => null,
+        debug_events_until_date => null,
         eval_reason             => Reason,
         debug                   => false
     },
@@ -145,7 +145,7 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         value                   => VariationValue,
         default                 => DefaultValue,
         version                 => Version,
-        prereq_of               => undefined,
+        prereq_of               => null,
         track_events            => TrackEvents,
         debug_events_until_date => DebugEventsUntilDate,
         eval_reason             => Reason,
@@ -171,7 +171,7 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         key                     => Key,
         variation               => VariationIndex,
         value                   => VariationValue,
-        default                 => undefined,
+        default                 => null,
         version                 => Version,
         prereq_of               => PrerequisiteOf,
         track_events            => TrackEvents,

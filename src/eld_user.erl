@@ -46,7 +46,7 @@ new(Key) when is_binary(Key) ->
 
 %% @doc Get an attribute value of a user
 %%
-%% Lookup includes custom attributes. Returns `undefined' if attribute doesn't exist.
+%% Lookup includes custom attributes. Returns `null' if attribute doesn't exist.
 %% @end
 -spec get(attribute(), user()) -> term().
 get(Attribute, User) ->
@@ -71,9 +71,9 @@ scrub(User) ->
 
 -spec get_attribute_value(Attr :: attribute(), User :: user()) -> any().
 get_attribute_value(Attr, User) when is_atom(Attr) ->
-    maps:get(Attr, User, undefined);
+    maps:get(Attr, User, null);
 get_attribute_value(Attr, #{custom := Custom}) when is_binary(Attr) ->
-    maps:get(Attr, Custom, undefined).
+    maps:get(Attr, Custom, null).
 
 -spec get_attribute(attribute()) -> attribute().
 get_attribute(<<"key">>) -> key;

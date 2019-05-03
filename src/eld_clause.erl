@@ -97,8 +97,8 @@ check_attribute_against_clause_value_result(true, _UserValue, _Operator, _Rest) 
 check_attribute_against_clause_value_result(false, UserValue, Operator, Rest) ->
     check_attribute_against_clause_values(UserValue, Operator, Rest).
 
-check_attribute_against_clause_value(undefined, _Operator, _ClauseValue) -> false;
-check_attribute_against_clause_value(_UserValue, _Operator, undefined) -> false;
+check_attribute_against_clause_value(null, _Operator, _ClauseValue) -> false;
+check_attribute_against_clause_value(_UserValue, _Operator, null) -> false;
 check_attribute_against_clause_value(Value, in, Value) -> true;
 check_attribute_against_clause_value(_UserValue, in, _ClauseValue) -> false;
 check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)

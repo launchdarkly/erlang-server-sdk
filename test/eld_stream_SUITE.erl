@@ -37,7 +37,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, _Config) ->
-    ok = eld_storage_ets:empty(eld_storage_ets_server_default, flags),
+    ok = eld_storage_ets:empty(default, flags),
     ok.
 
 %%====================================================================

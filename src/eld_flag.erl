@@ -12,7 +12,7 @@
 
 %% Types
 -type flag() :: #{
-    debug_events_until_date => pos_integer() | undefined,
+    debug_events_until_date => pos_integer() | null,
     deleted                 => boolean(),
     fallthrough             => variation_or_rollout(),
     key                     => key(),
@@ -107,9 +107,9 @@ new(Key, #{
     }.
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
-get_variation(_Flag, Variation) when Variation < 0 -> undefined;
+get_variation(_Flag, Variation) when Variation < 0 -> null;
 get_variation(#{variations := Variations}, VariationIndex)
-    when VariationIndex + 1 > length(Variations) -> undefined;
+    when VariationIndex + 1 > length(Variations) -> null;
 get_variation(#{variations := Variations}, VariationIndex) ->
     lists:nth(VariationIndex + 1, Variations).
 

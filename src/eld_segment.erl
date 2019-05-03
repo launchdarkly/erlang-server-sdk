@@ -23,7 +23,7 @@
 
 -type rule() :: #{
     clauses      => [eld_clause:clause()],
-    weight       => undefined | non_neg_integer(),
+    weight       => null | non_neg_integer(),
     bucket_by    => eld_user:attribute(),
     segment_key  => binary(),
     segment_salt => binary()
@@ -77,7 +77,7 @@ parse_rules(SegmentKey, SegmentSalt, Rules) ->
 
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
 parse_rule_optional_attributes(Rule, RuleRaw) ->
-    Weight = maps:get(<<"weight">>, RuleRaw, undefined),
+    Weight = maps:get(<<"weight">>, RuleRaw, null),
     BucketBy = maps:get(<<"bucketBy">>, RuleRaw, key),
     Rule#{weight => Weight, bucket_by => BucketBy}.
 
@@ -134,7 +134,7 @@ check_clause_result(no_match, _Rest, _User) -> no_match;
 check_clause_result(match, Rest, User) ->
     check_clauses(Rest, User).
 
-check_rule_weight(#{weight := undefined}, _User) -> match;
+check_rule_weight(#{weight := null}, _User) -> match;
 check_rule_weight(Rule, User) ->
     check_user_bucket(Rule, User).
 

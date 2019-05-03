@@ -45,7 +45,7 @@ new(#{<<"variations">> := Variations}) ->
         bucket_by  => key
     }.
 
--spec rollout_user(rollout(), eld_flag:flag(), eld_user:user()) -> eld_flag:variation() | undefined.
+-spec rollout_user(rollout(), eld_flag:flag(), eld_user:user()) -> eld_flag:variation() | null.
 rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key := FlagKey, salt := FlagSalt}, User) ->
     Bucket = bucket_user(FlagKey, FlagSalt, User, BucketBy),
     match_weighted_variations(Bucket, WeightedVariations).
@@ -67,19 +67,19 @@ parse_variations(Variations) ->
         end,
     lists:map(F, Variations).
 
-match_weighted_variations(_, []) -> undefined;
+match_weighted_variations(_, []) -> null;
 match_weighted_variations(Bucket, WeightedVariations) ->
     match_weighted_variations(Bucket, WeightedVariations, 0).
 
-match_weighted_variations(_Bucket, [], _Sum) -> undefined;
+match_weighted_variations(_Bucket, [], _Sum) -> null;
 match_weighted_variations(Bucket, [#{variation := Variation, weight := Weight}|_], Sum)
     when Bucket < Sum + Weight / 100000 ->
     Variation;
 match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
     match_weighted_variations(Bucket, Rest, Sum + Weight / 100000).
 
-bucket_user_value(_Key, _Salt, undefined, _Secondary) -> 0;
-bucket_user_value(Key, Salt, UserAttribute, undefined) ->
+bucket_user_value(_Key, _Salt, null, _Secondary) -> 0;
+bucket_user_value(Key, Salt, UserAttribute, null) ->
     bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary>>);
 bucket_user_value(Key, Salt, UserAttribute, Secondary) ->
     bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary, $., Secondary/binary>>).
