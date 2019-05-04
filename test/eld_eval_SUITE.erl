@@ -39,6 +39,8 @@
     rule_match_semver_equal/1,
     rule_match_semver_greater_than/1,
     rule_match_semver_less_than/1,
+    rule_match_before_date/1,
+    rule_match_after_date/1,
     fallthrough_rollout/1,
     fallthrough_rollout_custom/1,
     variation_out_of_range/1
@@ -78,6 +80,8 @@ all() ->
         rule_match_semver_equal,
         rule_match_semver_greater_than,
         rule_match_semver_less_than,
+        rule_match_before_date,
+        rule_match_after_date,
         fallthrough_rollout,
         fallthrough_rollout_custom,
         variation_out_of_range
@@ -456,6 +460,38 @@ rule_match_semver_less_than(_) ->
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 13, <<"n">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+rule_match_before_date(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"date">> => <<"2018-01-01T11:59:59">>
+        }
+    },
+    ExpectedReason = {rule_match, 14, <<"b6c5ceec-364d-4c23-a041-7865f4f136d3">>},
+    {{14, <<"o">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"rule-me">>, feature_request, 14, <<"o">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+rule_match_after_date(_) ->
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"date">> => <<"2018-01-01T12:00:01">>
+        }
+    },
+    ExpectedReason = {rule_match, 15, <<"764c5346-6478-4d34-83e7-59c0afc7a15b">>},
+    {{15, <<"p">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"rule-me">>, feature_request, 15, <<"p">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

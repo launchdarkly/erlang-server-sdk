@@ -496,6 +496,34 @@
                         ],
                         "id": "2c002923-2db0-4fcc-a95e-f3cb5b4bd13d",
                         "variation": 13
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "date",
+                                "negate": false,
+                                "op": "before",
+                                "values": [
+                                    "2018-01-01T12:00:00"
+                                ]
+                            }
+                        ],
+                        "id": "b6c5ceec-364d-4c23-a041-7865f4f136d3",
+                        "variation": 14
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "date",
+                                "negate": false,
+                                "op": "after",
+                                "values": [
+                                    "2018-01-01T12:00:00"
+                                ]
+                            }
+                        ],
+                        "id": "764c5346-6478-4d34-83e7-59c0afc7a15b",
+                        "variation": 15
                     }
                 ],
                 "salt": "YWx0ZXJuYXRlLnBhZ2U=",
@@ -516,7 +544,9 @@
                     "k",
                     "l",
                     "m",
-                    "n"
+                    "n",
+                    "o",
+                    "p"
                 ],
                 "version": 5
             },

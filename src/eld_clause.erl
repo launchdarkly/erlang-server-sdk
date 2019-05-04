@@ -128,10 +128,19 @@ check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseVal
 check_attribute_against_clause_value(UserValue, before, ClauseValue)
     when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue < ClauseValue;
+check_attribute_against_clause_value(UserValue, before, ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
+    UserDate = calendar:rfc3339_to_system_time(binary_to_list(UserValue), [{unit, nanosecond}]),
+    ClauseDate = calendar:rfc3339_to_system_time(binary_to_list(ClauseValue), [{unit, nanosecond}]),
+    UserDate < ClauseDate;
 check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
     when is_integer(UserValue), is_integer(ClauseValue) ->
     UserValue > ClauseValue;
-% TODO implement before and after with date strings
+check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
+    when is_binary(UserValue), is_binary(ClauseValue) ->
+    UserDate = calendar:rfc3339_to_system_time(binary_to_list(UserValue), [{unit, nanosecond}]),
+    ClauseDate = calendar:rfc3339_to_system_time(binary_to_list(ClauseValue), [{unit, nanosecond}]),
+    UserDate > ClauseDate;
 check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_equal(UserValue, ClauseValue);
