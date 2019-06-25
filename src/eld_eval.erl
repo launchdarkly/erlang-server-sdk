@@ -85,14 +85,18 @@ flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue) ->
 
 -spec flag_for_user(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
 flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue) ->
-    {{Variation, VariationValue, Reason}, Events} = flag_for_user_valid(Flag, User, StorageBackend, Tag),
+    {{Variation, VariationValue, Reason}, Events} = flag_for_user_valid(Flag, User, StorageBackend, Tag, DefaultValue),
     FlagEvalEvent = eld_event:new_flag_eval(Variation, VariationValue, DefaultValue, User, Reason, Flag),
     {{Variation, VariationValue, Reason}, [FlagEvalEvent|Events]}.
 
--spec flag_for_user_valid(eld_flag:flag(), eld_user:user(), atom(), atom()) -> result().
-flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User, _StorageBackend, _Tag) ->
+-spec flag_for_user_valid(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
+flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User, _StorageBackend, _Tag, _DefaultValue)
+    when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, off, Flag, []);
-flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBackend, Tag) ->
+flag_for_user_valid(#{on := false}, _User, _StorageBackend, _Tag, DefaultValue) ->
+    % off_variation is null or not set
+    {{null, DefaultValue, off}, []};
+flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBackend, Tag, _DefaultValue) ->
     check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag).
 
 -spec check_prerequisites([eld_flag:prerequisite()], eld_flag:flag(), eld_user:user(), atom(), atom()) ->

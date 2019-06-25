@@ -73,7 +73,9 @@ scrub(User) ->
 get_attribute_value(Attr, User) when is_atom(Attr) ->
     maps:get(Attr, User, null);
 get_attribute_value(Attr, #{custom := Custom}) when is_binary(Attr) ->
-    maps:get(Attr, Custom, null).
+    maps:get(Attr, Custom, null);
+get_attribute_value(Attr, _) when is_binary(Attr) ->
+    null.
 
 -spec get_attribute(attribute()) -> attribute().
 get_attribute(<<"key">>) -> key;

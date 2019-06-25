@@ -12,6 +12,7 @@
 %% Tests
 -export([
     server_process_event_put_patch/1,
+    server_process_event_put_patch_flag_with_extra_property/1,
     server_process_event_put_patch_old_version/1,
     server_process_event_put_delete/1
 ]).
@@ -23,6 +24,7 @@
 all() ->
     [
         server_process_event_put_patch,
+        server_process_event_put_patch_flag_with_extra_property,
         server_process_event_put_patch_old_version,
         server_process_event_put_delete
     ].
@@ -202,6 +204,48 @@ get_simple_flag_delete() ->
         }
     }.
 
+get_flag_with_extra_property() ->
+    {
+        <<"abc">>,
+        <<"\"abc\":{",
+            "\"clientSide\":false,",
+            "\"debugEventsUntilDate\":null,",
+            "\"deleted\":false,",
+            "\"fallthrough\":{\"variation\":0},",
+            "\"key\":\"abc\",",
+            "\"offVariation\":1,",
+            "\"on\":true,",
+            "\"prerequisites\":[],",
+            "\"rules\":[],",
+            "\"salt\":\"d0888ec5921e45c7af5bc10b47b033ba\",",
+            "\"sel\":\"8b4d79c59adb4df492ebea0bf65dfd4c\",",
+            "\"targets\":[],",
+            "\"trackEvents\":true,",
+            "\"variations\":[true,false],",
+            "\"foo\":\"bar\",",
+            "\"version\":5",
+            "}">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => false,
+            <<"fallthrough">> => #{<<"variation">> => 0},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => true,
+            <<"variations">> => [true,false],
+            <<"foo">> => <<"bar">>,
+            <<"version">> => 5
+        }
+    }.
+
+
 %%====================================================================
 %% Tests
 %%====================================================================
@@ -216,6 +260,25 @@ server_process_event_put_patch(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    [] = eld_storage_ets:list(default, segments),
+    [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
+    {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = get_simple_flag_patch(),
+    PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
+    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
+    [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(default, flags),
+    ok.
+
+server_process_event_put_patch_flag_with_extra_property(_) ->
+    {FlagSimpleKey, FlagSimpleBin, FlagSimpleMap} = get_flag_with_extra_property(),
+    PutData = <<"{\"path\":\"/\",",
+        "\"data\":{",
+        "\"flags\":{",
+        FlagSimpleBin/binary,
+        "},",
+        "\"segments\":{}",
+        "}",
+        "}">>,
     ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),

@@ -24,6 +24,28 @@
                 ],
                 "version": 5
             },
+            "keep-it-off-null-off-variation": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off-null-off-variation",
+                "offVariation": null,
+                "on": false,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
             "bad-variation": {
                 "clientSide": false,
                 "debugEventsUntilDate": null,
@@ -646,6 +668,46 @@
                     "e"
                 ],
                 "version": 5
+            },
+            "extra-fields": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "extra-fields",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": false,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "extra-fields"
+                                ]
+                            }
+                        ],
+                        "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                        "variation": 1
+                    }
+                ],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5,
+                "foo": "bar",
+                "bar": 2,
+                "baz": null
             }
         },
         "segments": {
@@ -662,6 +724,20 @@
                 "rules": [],
                 "salt": "b2ba88c74ad34c288ec10ba78e150afd",
                 "version": 8
+            },
+            "extra-fields": {
+                "deleted": false,
+                "excluded": [],
+                "included": [
+                    "user-12345"
+                ],
+                "key": "extra-fields",
+                "rules": [],
+                "salt": "b2ba88c74ad34c288ec10ba78e150afd",
+                "version": 8,
+                "foo": "bar",
+                "bar": 2,
+                "baz": null
             }
         }
     }

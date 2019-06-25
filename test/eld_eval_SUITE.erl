@@ -15,6 +15,7 @@
     unknown_flag_another/1,
     off_flag/1,
     off_flag_another/1,
+    off_flag_null_off_variation/1,
     prerequisite_fail_off/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
@@ -43,7 +44,8 @@
     rule_match_after_date/1,
     fallthrough_rollout/1,
     fallthrough_rollout_custom/1,
-    variation_out_of_range/1
+    variation_out_of_range/1,
+    extra_fields/1
 ]).
 
 %%====================================================================
@@ -56,6 +58,7 @@ all() ->
         unknown_flag_another,
         off_flag,
         off_flag_another,
+        off_flag_null_off_variation,
         prerequisite_fail_off,
         prerequisite_fail_variation,
         prerequisite_success,
@@ -84,7 +87,8 @@ all() ->
         rule_match_after_date,
         fallthrough_rollout,
         fallthrough_rollout_custom,
-        variation_out_of_range
+        variation_out_of_range,
+        extra_fields
     ].
 
 init_per_suite(Config) ->
@@ -163,6 +167,12 @@ off_flag(_) ->
 off_flag_another(_) ->
     {{1, false, off}, Events} = eld_eval:flag_key_for_user(another1, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+off_flag_null_off_variation(_) ->
+    {{null, "foo", off}, Events} = eld_eval:flag_key_for_user(default, <<"keep-it-off-null-off-variation">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"keep-it-off-null-off-variation">>, feature_request, null, "foo", "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
@@ -527,6 +537,16 @@ variation_out_of_range(_) ->
         eld_eval:flag_key_for_user(default, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"bad-variation">>, feature_request, null, null, "foo", {error, malformed_flag}, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+extra_fields(_) ->
+    ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
+    {{1, false, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>, secondary => <<"bar">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"extra-fields">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

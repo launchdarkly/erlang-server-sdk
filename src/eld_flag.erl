@@ -31,7 +31,7 @@
 -type key() :: binary().
 %% Flag key
 
--type variation() :: non_neg_integer().
+-type variation() :: non_neg_integer() | null.
 %% Variation index
 
 -type variation_or_rollout() :: variation() | eld_rollout:rollout().
