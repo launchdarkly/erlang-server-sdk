@@ -20,7 +20,12 @@
     set/1,
     set_binary/1,
     set_custom/1,
-    set_custom_atom/1
+    set_custom_atom/1,
+    set_private_attribute_names/1,
+    set_private_attribute_names_empty/1,
+    set_private_attribute_names_reset/1,
+    scrub/1,
+    scrub_empty/1
 ]).
 
 %%====================================================================
@@ -38,7 +43,12 @@ all() ->
         set,
         set_binary,
         set_custom,
-        set_custom_atom
+        set_custom_atom,
+        set_private_attribute_names,
+        set_private_attribute_names_empty,
+        set_private_attribute_names_reset,
+        scrub,
+        scrub_empty
     ].
 
 init_per_suite(Config) ->
@@ -172,4 +182,65 @@ set_custom_atom(_) ->
     CustomVal = 345,
     User = eld_user:set(CustomAttr, CustomVal, eld_user:new(Key)),
     User = #{key => Key, custom => #{CustomAttrExpected => CustomVal}}.
+
+set_private_attribute_names(_) ->
+    Key = <<"123">>,
+    PrivateAttributeNames = ["name", "country"],
+    User = eld_user:new(Key),
+    UserActual = eld_user:set_private_attribute_names(PrivateAttributeNames, User),
+    UserExpected = #{key => Key, private_attribute_names => PrivateAttributeNames},
+    UserExpected = UserActual.
+
+set_private_attribute_names_empty(_) ->
+    Key = <<"123">>,
+    User = eld_user:new(Key),
+    UserActual = eld_user:set_private_attribute_names([], User),
+    User = UserActual.
+
+set_private_attribute_names_reset(_) ->
+    Key = <<"123">>,
+    PrivateAttributeNames = ["name", "country"],
+    User = eld_user:new(Key),
+    UserWithPrivateAttributes = eld_user:set_private_attribute_names(PrivateAttributeNames, User),
+    UserActual = eld_user:set_private_attribute_names([], UserWithPrivateAttributes),
+    User = UserActual.
+
+scrub(_) ->
+    Key = 123,
+    Name = "foo",
+    Country = "bar",
+    Custom1Name = <<"custom-attr-1">>,
+    Custom1Value = 345,
+    Custom2Name = <<"custom-attr-2">>,
+    Custom2Value = 789,
+    User = eld_user:new_from_map(#{
+        key => Key,
+        name => Name,
+        country => Country,
+        Custom1Name => Custom1Value,
+        Custom2Name => Custom2Value
+    }),
+    PrivateAttributeNames = [country, Custom1Name],
+    UserWithPrivateAttrs = eld_user:set_private_attribute_names(PrivateAttributeNames, User),
+    UserActual = eld_user:scrub(UserWithPrivateAttrs),
+    UserExpected = eld_user:new_from_map(#{
+        key => Key,
+        name => Name,
+        Custom2Name => Custom2Value
+    }),
+    UserExpected = UserActual.
+
+scrub_empty(_) ->
+    Key = 123,
+    Name = "foo",
+    Custom1Name = <<"custom-attr-1">>,
+    Custom1Value = 345,
+    User = eld_user:new_from_map(#{
+        key => Key,
+        name => Name,
+        Custom1Name => Custom1Value
+    }),
+    UserWithPrivateAttrs = eld_user:set_private_attribute_names([], User),
+    UserActual = eld_user:scrub(UserWithPrivateAttrs),
+    User = UserActual.
 

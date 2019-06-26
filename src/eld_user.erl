@@ -11,6 +11,7 @@
 -export([new_from_map/1]).
 -export([get/2]).
 -export([set/3]).
+-export([set_private_attribute_names/2]).
 -export([scrub/1]).
 
 %% Types
@@ -69,6 +70,19 @@ set(Attribute, Value, User) ->
     Attr = get_attribute(Attribute),
     set_attribute_value(Attr, Value, User).
 
+%% @doc Sets a list of private attribute names for a user
+%%
+%% Any attributes that are on this list will not be sent to and indexed by
+%% LaunchDarkly. However, they are still available for flag evaluations
+%% performed by the SDK locally. This handles both built-in and custom
+%% attributes.
+%% @end
+-spec set_private_attribute_names([attribute()], user()) -> user().
+set_private_attribute_names([], User) ->
+    maps:remove(private_attribute_names, User);
+set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) ->
+    maps:put(private_attribute_names, AttributeNames, User).
+
 %% @doc Scrub private attributes from user
 %%
 %% @end
@@ -79,7 +93,7 @@ scrub(User) ->
     ScrubbedUser = scrub_private_attributes(StartingUser, PrivateAttributeNames),
     CustomAttributes = maps:get(custom, ScrubbedUser, #{}),
     ScrubbedCustomAttributes = scrub_custom_attributes(CustomAttributes, PrivateAttributeNames),
-    maybe_set_custom_attributes(ScrubbedUser, ScrubbedCustomAttributes).
+    set_custom_attributes(ScrubbedUser, ScrubbedCustomAttributes).
 
 %%===================================================================
 %% Internal functions
@@ -139,8 +153,8 @@ scrub_custom_attributes(CustomAttributes, []) ->
 scrub_custom_attributes(CustomAttributes, [Attr|Rest]) ->
     scrub_private_attributes(maps:remove(Attr, CustomAttributes), Rest).
 
--spec maybe_set_custom_attributes(user(), custom_attributes()) -> user().
-maybe_set_custom_attributes(User, CustomAttributes) when map_size(CustomAttributes) == 0 ->
-    User;
-maybe_set_custom_attributes(User, CustomAttributes) ->
+-spec set_custom_attributes(user(), custom_attributes()) -> user().
+set_custom_attributes(User, CustomAttributes) when map_size(CustomAttributes) == 0 ->
+    maps:remove(custom, User);
+set_custom_attributes(User, CustomAttributes) ->
     User#{custom => CustomAttributes}.
