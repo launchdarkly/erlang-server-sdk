@@ -75,9 +75,12 @@ set(Attribute, Value, User) ->
 %% Any attributes that are on this list will not be sent to and indexed by
 %% LaunchDarkly. However, they are still available for flag evaluations
 %% performed by the SDK locally. This handles both built-in and custom
-%% attributes.
+%% attributes. The built-in `key' attribute cannot be made private - it will
+%% always be sent.
 %% @end
 -spec set_private_attribute_names([attribute()], user()) -> user().
+set_private_attribute_names(null, User) ->
+    maps:remove(private_attribute_names, User);
 set_private_attribute_names([], User) ->
     maps:remove(private_attribute_names, User);
 set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) ->
@@ -143,7 +146,14 @@ scrub_private_attributes(User, []) ->
     User;
 scrub_private_attributes(User, [Attr|Rest]) ->
     RealAttr = get_attribute(Attr),
-    scrub_private_attributes(maps:remove(RealAttr, User), Rest).
+    scrub_private_attributes(scrub_private_attribute(RealAttr, User), Rest).
+
+-spec scrub_private_attribute(attribute(), user()) -> user().
+scrub_private_attribute(key, User) ->
+    % The key attribute is never scrubbed, even if marked private.
+    User;
+scrub_private_attribute(Attr, User) ->
+    maps:remove(Attr, User).
 
 -spec scrub_custom_attributes(custom_attributes(), private_attribute_names()) -> custom_attributes().
 scrub_custom_attributes(CustomAttributes, _) when map_size(CustomAttributes) == 0 ->
