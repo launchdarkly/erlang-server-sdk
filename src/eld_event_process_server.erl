@@ -185,6 +185,9 @@ format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 -spec format_event_set_user(binary(), eld_user:user(), map()) -> map().
 format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
     OutputEvent#{<<"userKey">> => UserKey};
+format_event_set_user(<<"feature">>, _User, OutputEvent) ->
+    % User has no key
+    OutputEvent#{<<"userKey">> => null};
 format_event_set_user(<<"debug">>, User, OutputEvent) ->
     OutputEvent#{<<"user">> => eld_user:scrub(User)};
 format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->

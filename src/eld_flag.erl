@@ -106,11 +106,12 @@ new(Key, #{
         version                 => Version
     }.
 
--spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()) -> term().
-get_variation(_Flag, Variation) when Variation < 0 -> null;
+-spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().
+get_variation(_Flag, null) -> null;
+get_variation(_Flag, Variation) when is_integer(Variation), Variation < 0 -> null;
 get_variation(#{variations := Variations}, VariationIndex)
-    when VariationIndex + 1 > length(Variations) -> null;
-get_variation(#{variations := Variations}, VariationIndex) ->
+    when is_integer(VariationIndex), VariationIndex + 1 > length(Variations) -> null;
+get_variation(#{variations := Variations}, VariationIndex) when is_integer(VariationIndex) ->
     lists:nth(VariationIndex + 1, Variations).
 
 %%===================================================================

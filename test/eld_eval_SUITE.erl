@@ -13,6 +13,8 @@
 -export([
     unknown_flag/1,
     unknown_flag_another/1,
+    user_with_no_key/1,
+    user_with_null_key/1,
     off_flag/1,
     off_flag_another/1,
     off_flag_null_off_variation/1,
@@ -56,6 +58,8 @@ all() ->
     [
         unknown_flag,
         unknown_flag_another,
+        user_with_no_key,
+        user_with_null_key,
         off_flag,
         off_flag_another,
         off_flag_null_off_variation,
@@ -143,7 +147,7 @@ unknown_flag(_) ->
     {{null, "foo", {error, flag_not_found}}, Events} =
         eld_eval:flag_key_for_user(default, <<"flag-that-does-not-exist">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"flag-that-does-not-exist">>, feature_request, null, null, "foo", {error, flag_not_found}, null}
+        {<<"flag-that-does-not-exist">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -153,7 +157,25 @@ unknown_flag_another(_) ->
     {{null, "foo", {error, flag_not_found}}, Events} =
         eld_eval:flag_key_for_user(another1, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"bad-variation">>, feature_request, null, null, "foo", {error, flag_not_found}, null}
+        {<<"bad-variation">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+user_with_no_key(_) ->
+    {{null, "foo", {error, user_not_specified}}, Events} =
+        eld_eval:flag_key_for_user(default, <<"keep-it-off">>, #{name => <<"some-user">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, null, "foo", "foo", {error, user_not_specified}, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+user_with_null_key(_) ->
+    {{null, "foo", {error, user_not_specified}}, Events} =
+        eld_eval:flag_key_for_user(default, <<"keep-it-off">>, #{key => null}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, null, "foo", "foo", {error, user_not_specified}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

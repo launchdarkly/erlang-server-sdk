@@ -114,7 +114,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
     EventData = #{
         key                     => FlagKey,
         variation               => null,
-        value                   => null,
+        value                   => DefaultValue,
         default                 => DefaultValue,
         version                 => null,
         prereq_of               => null,

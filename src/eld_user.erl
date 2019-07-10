@@ -30,7 +30,7 @@
     private_attribute_names => private_attribute_names()
 }.
 
--type key() :: binary().
+-type key() :: binary() | null.
 -type attribute() :: binary() | atom().
 -type custom_attributes() :: #{binary() := any()}.
 -type private_attribute_names() :: [binary()].

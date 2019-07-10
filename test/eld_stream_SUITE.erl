@@ -14,7 +14,8 @@
     server_process_event_put_patch/1,
     server_process_event_put_patch_flag_with_extra_property/1,
     server_process_event_put_patch_old_version/1,
-    server_process_event_put_delete/1
+    server_process_event_put_delete/1,
+    server_process_event_put_delete_single/1
 ]).
 
 %%====================================================================
@@ -26,7 +27,8 @@ all() ->
         server_process_event_put_patch,
         server_process_event_put_patch_flag_with_extra_property,
         server_process_event_put_patch_old_version,
-        server_process_event_put_delete
+        server_process_event_put_delete,
+        server_process_event_put_delete_single
     ].
 
 init_per_suite(Config) ->
@@ -321,6 +323,25 @@ server_process_event_put_delete(_) ->
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     ok = eld_stream_server:process_event(#{event => <<"delete">>, data => PutData}, eld_storage_ets, default),
+    {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
+    [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
+    ok.
+
+server_process_event_put_delete_single(_) ->
+    {FlagSimpleKey, FlagSimpleBin, FlagSimpleMap} = get_simple_flag(),
+    PutData = <<"{\"path\":\"/\",",
+        "\"data\":{",
+        "\"flags\":{",
+        FlagSimpleBin/binary,
+        "},",
+        "\"segments\":{}",
+        "}",
+        "}">>,
+    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    [] = eld_storage_ets:list(default, segments),
+    [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
+    DeleteData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\"}">>,
+    ok = eld_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, eld_storage_ets, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
     [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
     ok.

@@ -178,7 +178,7 @@ check_semver_greater_than(UserSemVer, ClauseSemVer) ->
 
 -dialyzer({nowarn_function, check_semver_compare/2}).
 -spec check_semver_compare(string() | error, string() | error) -> boolean() | integer().
-check_semver_compare(error, error) -> false;
+check_semver_compare(error, _) -> false;
 check_semver_compare(_, error) -> false;
 check_semver_compare(UserSemVer, ClauseSemVer) -> semver:compare(UserSemVer, ClauseSemVer).
 

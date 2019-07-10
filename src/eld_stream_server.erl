@@ -221,12 +221,7 @@ process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Key, Item} = get_patch_item(Data),
     ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
-    [Flags, Segments] = get_put_items(Data),
-    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
-    UpdatedFlags = maps:map(MapFun, Flags),
-    UpdatedSegments = maps:map(MapFun, Segments),
-    ok = StorageBackend:put(Tag, flags, UpdatedFlags),
-    ok = StorageBackend:put(Tag, segments, UpdatedSegments).
+    delete_items(Data, StorageBackend, Tag).
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
@@ -237,6 +232,23 @@ get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagM
     {flags, FlagKey, #{FlagKey => FlagMap}};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
     {segments, SegmentKey, #{SegmentKey => SegmentMap}}.
+
+-spec delete_items(map(), atom(), atom()) -> ok.
+delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, StorageBackend, Tag) ->
+    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
+    UpdatedFlags = maps:map(MapFun, Flags),
+    UpdatedSegments = maps:map(MapFun, Segments),
+    ok = StorageBackend:put(Tag, flags, UpdatedFlags),
+    ok = StorageBackend:put(Tag, segments, UpdatedSegments);
+delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, StorageBackend, Tag) ->
+    ok = maybe_delete_item(StorageBackend, Tag, flags, Key, Version);
+delete_items(#{<<"path">> := <<"/flags/",Key/binary>>}, StorageBackend, Tag) ->
+    ok = maybe_delete_item(StorageBackend, Tag, flags, Key, undefined);
+delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, StorageBackend, Tag) ->
+    ok = maybe_delete_item(StorageBackend, Tag, segments, Key, Version);
+delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, StorageBackend, Tag) ->
+    ok = maybe_delete_item(StorageBackend, Tag, segments, Key, undefined).
+
 
 -spec maybe_patch_item(atom(), atom(), atom(), binary(), map()) -> ok.
 maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
@@ -251,5 +263,21 @@ maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
             if
                 Overwrite -> StorageBackend:put(Tag, Bucket, Item);
                 true -> ok
+            end
+    end.
+
+-spec maybe_delete_item(atom(), atom(), atom(), binary(), pos_integer()|undefined) -> ok.
+maybe_delete_item(StorageBackend, Tag, Bucket, Key, NewVersion) ->
+    case StorageBackend:get(Tag, Bucket, Key) of
+        [] -> ok;
+        [{Key, ExistingItem}] ->
+            ExistingVersion = maps:get(<<"version">>, ExistingItem, 0),
+            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
+            if
+                Overwrite ->
+                    NewItem = #{Key => maps:put(<<"deleted">>, true, ExistingItem)},
+                    StorageBackend:put(Tag, Bucket, NewItem);
+                true ->
+                    ok
             end
     end.

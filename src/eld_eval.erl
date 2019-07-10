@@ -80,8 +80,20 @@ flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend,
 flag_for_user_check_empty_key(Flag, #{key := <<>>} = User, StorageBackend, Tag, DefaultValue) ->
     error_logger:warning_msg("User key is blank. Flag evaluation will proceed, but the user will not be stored in Launchdarkly"),
     flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue);
-flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue) ->
-    flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue).
+flag_for_user_check_empty_key(Flag, #{key := null} = User, _StorageBackend, _Tag, DefaultValue) ->
+    % User has null key
+    flag_for_user_with_no_key(Flag, User, DefaultValue);
+flag_for_user_check_empty_key(Flag, #{key := _Key} = User, StorageBackend, Tag, DefaultValue) ->
+    flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue);
+flag_for_user_check_empty_key(Flag, User, _StorageBackend, _Tag, DefaultValue) ->
+    % User has no key
+    flag_for_user_with_no_key(Flag, User, DefaultValue).
+
+-spec flag_for_user_with_no_key(eld_flag:flag(), eld_user:user(), eld_flag:variation_value()) -> result().
+flag_for_user_with_no_key(Flag, User, DefaultValue) ->
+    Reason = {error, user_not_specified},
+    Events = [eld_event:new_flag_eval(null, DefaultValue, DefaultValue, User, Reason, Flag)],
+    {{null, DefaultValue, Reason}, Events}.
 
 -spec flag_for_user(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
 flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue) ->

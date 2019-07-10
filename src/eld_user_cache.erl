@@ -23,7 +23,13 @@ get_local_reg_name(Tag) ->
 %%
 %% @end
 -spec notice_user(Tag :: atom(), User :: eld_user:user()) -> boolean().
+notice_user(_Tag, #{key := null}) ->
+    % Null user key always returns true so it's not indexed
+    true;
 notice_user(Tag, #{key := UserKey}) ->
     CacheServer = get_local_reg_name(Tag),
     {Exists, _} = lru:contains_or_add(whereis(CacheServer), UserKey, UserKey),
-    Exists.
+    Exists;
+notice_user(_Tag, _User) ->
+    % No user key always returns true so it's not indexed
+    true.
