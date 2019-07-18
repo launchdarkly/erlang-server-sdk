@@ -18,6 +18,7 @@
     off_flag/1,
     off_flag_another/1,
     off_flag_null_off_variation/1,
+    deleted_flag/1,
     prerequisite_fail_off/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
@@ -44,6 +45,7 @@
     rule_match_semver_less_than/1,
     rule_match_before_date/1,
     rule_match_after_date/1,
+    rule_nomatch_in_negated_null_attribute/1,
     fallthrough_rollout/1,
     fallthrough_rollout_custom/1,
     variation_out_of_range/1,
@@ -63,6 +65,7 @@ all() ->
         off_flag,
         off_flag_another,
         off_flag_null_off_variation,
+        deleted_flag,
         prerequisite_fail_off,
         prerequisite_fail_variation,
         prerequisite_success,
@@ -89,6 +92,7 @@ all() ->
         rule_match_semver_less_than,
         rule_match_before_date,
         rule_match_after_date,
+        rule_nomatch_in_negated_null_attribute,
         fallthrough_rollout,
         fallthrough_rollout_custom,
         variation_out_of_range,
@@ -195,6 +199,12 @@ off_flag_another(_) ->
 off_flag_null_off_variation(_) ->
     {{null, "foo", off}, Events} = eld_eval:flag_key_for_user(default, <<"keep-it-off-null-off-variation">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off-null-off-variation">>, feature_request, null, "foo", "foo", off, null}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+deleted_flag(_) ->
+    {{null, "foo", {error, flag_not_found}}, Events} = eld_eval:flag_key_for_user(default, <<"keep-it-deleted">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"keep-it-deleted">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
@@ -524,6 +534,16 @@ rule_match_after_date(_) ->
         eld_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 15, <<"p">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+rule_nomatch_in_negated_null_attribute(_) ->
+    ExpectedReason = fallthrough,
+    {{0, <<"a">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"no-match">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"rule-me">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

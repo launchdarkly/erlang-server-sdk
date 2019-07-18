@@ -71,6 +71,12 @@ flag_recs_for_user(FlagKey, [], User, _StorageBackend, _Tag, DefaultValue) ->
     Reason = {error, flag_not_found},
     Events = [eld_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
+flag_recs_for_user(FlagKey, [{FlagKey, #{<<"deleted">> := true}}|_], User, _StorageBackend, _Tag, DefaultValue) ->
+    % Flag found, but it's deleted
+    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
+    Reason = {error, flag_not_found},
+    Events = [eld_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
+    {{null, DefaultValue, Reason}, Events};
 flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend, Tag, DefaultValue) ->
     % Flag found
     Flag = eld_flag:new(FlagKey, FlagProperties),

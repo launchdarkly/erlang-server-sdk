@@ -41,14 +41,14 @@ new(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"v
 %% @end
 -spec match_user(clause(), eld_user:user()) -> match | no_match.
 match_user(Clause, User) ->
-    maybe_negate_match(Clause, check_clause(Clause, User)).
+    check_clause(Clause, User).
 
 %% @doc Match all clauses to user, includes possible segment_match
 %%
 %% @end
 -spec match_user(clause(), eld_user:user(), atom(), atom()) -> match | no_match.
 match_user(Clause, User, StorageBackend, Tag) ->
-    maybe_negate_match(Clause, check_clause(Clause, User, StorageBackend, Tag)).
+    check_clause(Clause, User, StorageBackend, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -72,14 +72,18 @@ parse_operator(<<"semVerLessThan">>) -> semver_less_than;
 parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than.
 
 -spec check_clause(clause(), eld_user:user(), atom(), atom()) -> match | no_match.
-check_clause(#{op := segment_match, values := SegmentKeys}, User, StorageBackend, Tag) ->
-    check_segment_keys_match(SegmentKeys, User, StorageBackend, Tag);
+check_clause(#{op := segment_match, values := SegmentKeys} = Clause, User, StorageBackend, Tag) ->
+    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, StorageBackend, Tag));
 check_clause(Clause, User, _StorageBackend, _Tag) ->
     check_clause(Clause, User).
 
 check_clause(#{attribute := Attribute} = Clause, User) ->
     UserValue = eld_user:get(Attribute, User),
-    check_attribute(UserValue, Clause).
+    check_user_value_null(UserValue, Clause).
+
+check_user_value_null(null, _Clause) -> no_match;
+check_user_value_null(UserValue, Clause) ->
+    maybe_negate_match(Clause, check_attribute(UserValue, Clause)).
 
 check_attribute([] = UserValues, _Clause) when is_list(UserValues) -> no_match;
 check_attribute([UserValue|Rest] = UserValues, Clause) when is_list(UserValues) ->

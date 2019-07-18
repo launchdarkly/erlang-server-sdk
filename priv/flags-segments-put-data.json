@@ -46,6 +46,28 @@
                 ],
                 "version": 5
             },
+            "keep-it-deleted": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": true,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "66c9f33265754ebb9bc3-2d71a6710595",
+                "sel": "0c7fec46297e468089792dd2f5793ed8",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
             "bad-variation": {
                 "clientSide": false,
                 "debugEventsUntilDate": null,
@@ -546,6 +568,20 @@
                         ],
                         "id": "764c5346-6478-4d34-83e7-59c0afc7a15b",
                         "variation": 15
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "group",
+                                "negate": true,
+                                "op": "in",
+                                "values": [
+                                    "group1"
+                                ]
+                            }
+                        ],
+                        "id": "726cb09a-2ecb-48b8-b3a9-24163f40163f",
+                        "variation": 16
                     }
                 ],
                 "salt": "YWx0ZXJuYXRlLnBhZ2U=",
@@ -568,7 +604,8 @@
                     "m",
                     "n",
                     "o",
-                    "p"
+                    "p",
+                    "q"
                 ],
                 "version": 5
             },
