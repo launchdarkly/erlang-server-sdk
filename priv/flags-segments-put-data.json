@@ -474,7 +474,7 @@
                     {
                         "clauses": [
                             {
-                                "attribute": "date",
+                                "attribute": "beforeInt",
                                 "negate": false,
                                 "op": "before",
                                 "values": [
@@ -488,7 +488,7 @@
                     {
                         "clauses": [
                             {
-                                "attribute": "date",
+                                "attribute": "afterInt",
                                 "negate": false,
                                 "op": "after",
                                 "values": [
@@ -544,7 +544,7 @@
                     {
                         "clauses": [
                             {
-                                "attribute": "date",
+                                "attribute": "beforeDate",
                                 "negate": false,
                                 "op": "before",
                                 "values": [
@@ -558,7 +558,7 @@
                     {
                         "clauses": [
                             {
-                                "attribute": "date",
+                                "attribute": "afterDate",
                                 "negate": false,
                                 "op": "after",
                                 "values": [

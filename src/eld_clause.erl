@@ -129,21 +129,13 @@ check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
 check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue >= ClauseValue;
-check_attribute_against_clause_value(UserValue, before, ClauseValue)
-    when is_integer(UserValue), is_integer(ClauseValue) ->
-    UserValue < ClauseValue;
-check_attribute_against_clause_value(UserValue, before, ClauseValue)
-    when is_binary(UserValue), is_binary(ClauseValue) ->
-    UserDate = calendar:rfc3339_to_system_time(binary_to_list(UserValue), [{unit, nanosecond}]),
-    ClauseDate = calendar:rfc3339_to_system_time(binary_to_list(ClauseValue), [{unit, nanosecond}]),
+check_attribute_against_clause_value(UserValue, before, ClauseValue) ->
+    UserDate = parse_date_to_int(UserValue),
+    ClauseDate = parse_date_to_int(ClauseValue),
     UserDate < ClauseDate;
-check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
-    when is_integer(UserValue), is_integer(ClauseValue) ->
-    UserValue > ClauseValue;
-check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
-    when is_binary(UserValue), is_binary(ClauseValue) ->
-    UserDate = calendar:rfc3339_to_system_time(binary_to_list(UserValue), [{unit, nanosecond}]),
-    ClauseDate = calendar:rfc3339_to_system_time(binary_to_list(ClauseValue), [{unit, nanosecond}]),
+check_attribute_against_clause_value(UserValue, 'after', ClauseValue) ->
+    UserDate = parse_date_to_int(UserValue),
+    ClauseDate = parse_date_to_int(ClauseValue),
     UserDate > ClauseDate;
 check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
@@ -155,6 +147,13 @@ check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_greater_than(UserValue, ClauseValue);
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
+
+-spec parse_date_to_int(binary()|integer()) -> integer().
+parse_date_to_int(Value) when is_binary(Value) ->
+    calendar:rfc3339_to_system_time(binary_to_list(Value), [{unit, nanosecond}]);
+parse_date_to_int(Value) when is_integer(Value) ->
+    % Convert milliseconds to nanoseconds
+    Value * 1000000.
 
 -dialyzer({nowarn_function, check_semver_equal/2}).
 -spec check_semver_equal(binary(), binary()) -> boolean().

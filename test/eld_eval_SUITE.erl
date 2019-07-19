@@ -430,7 +430,7 @@ rule_match_before_int(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"date">> => 1451772244
+            <<"beforeInt">> => 1451772244
         }
     },
     ExpectedReason = {rule_match, 9, <<"500633a7-2c82-4baf-8201-4892b68b31b4">>},
@@ -446,7 +446,7 @@ rule_match_after_int(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"date">> => 1451772246
+            <<"afterInt">> => 1451772246
         }
     },
     ExpectedReason = {rule_match, 10, <<"77473bea-d93f-4787-84d2-92cf08b35f2b">>},
@@ -510,7 +510,7 @@ rule_match_before_date(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"date">> => <<"2018-01-01T11:59:59">>
+            <<"beforeDate">> => <<"2018-01-01T11:59:59">>
         }
     },
     ExpectedReason = {rule_match, 14, <<"b6c5ceec-364d-4c23-a041-7865f4f136d3">>},
@@ -526,7 +526,7 @@ rule_match_after_date(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"date">> => <<"2018-01-01T12:00:01">>
+            <<"afterDate">> => <<"2018-01-01T12:00:01">>
         }
     },
     ExpectedReason = {rule_match, 15, <<"764c5346-6478-4d34-83e7-59c0afc7a15b">>},
