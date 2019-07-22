@@ -28,6 +28,10 @@
 
 -export_type([clause/0]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -129,23 +133,35 @@ check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
 check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue >= ClauseValue;
+check_attribute_against_clause_value(UserValue, before, ClauseValue)
+    when
+    is_binary(UserValue) =/= true, is_integer(UserValue) =/= true;
+    is_binary(ClauseValue) =/= true, is_integer(ClauseValue) =/= true ->
+    % One of the values is neither binary nor integer
+    false;
 check_attribute_against_clause_value(UserValue, before, ClauseValue) ->
     UserDate = parse_date_to_int(UserValue),
     ClauseDate = parse_date_to_int(ClauseValue),
     UserDate < ClauseDate;
+check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
+    when
+    is_binary(UserValue) =/= true, is_integer(UserValue) =/= true;
+    is_binary(ClauseValue) =/= true, is_integer(ClauseValue) =/= true ->
+    % One of the values is neither binary nor integer
+    false;
 check_attribute_against_clause_value(UserValue, 'after', ClauseValue) ->
     UserDate = parse_date_to_int(UserValue),
     ClauseDate = parse_date_to_int(ClauseValue),
     UserDate > ClauseDate;
 check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
-    check_semver_equal(UserValue, ClauseValue);
+    check_semver_equal(parse_semver(UserValue), parse_semver(ClauseValue));
 check_attribute_against_clause_value(UserValue, semver_less_than, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
-    check_semver_less_than(UserValue, ClauseValue);
+    check_semver_less_than(parse_semver(UserValue), parse_semver(ClauseValue));
 check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
-    check_semver_greater_than(UserValue, ClauseValue);
+    check_semver_greater_than(parse_semver(UserValue), parse_semver(ClauseValue));
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
 
 -spec parse_date_to_int(binary()|integer()) -> integer().
@@ -155,35 +171,39 @@ parse_date_to_int(Value) when is_integer(Value) ->
     % Convert milliseconds to nanoseconds
     Value * 1000000.
 
--dialyzer({nowarn_function, check_semver_equal/2}).
+-spec parse_semver(binary()) -> binary().
+parse_semver(S) ->
+    case re:run(S, <<"^\\d+(\\.\\d+)?(\\.\\d)?">>, [{capture, all, binary}]) of
+        {match, [M0|_] = Matches} when length(Matches) =:= 1 ->
+            Rest = binary:part(S, byte_size(M0), byte_size(S)-byte_size(M0)),
+            <<M0/binary, $., $0, $., $0, Rest/binary>>;
+        {match, [M0|_] = Matches} when length(Matches) =:= 2 ->
+            Rest = binary:part(S, byte_size(M0), byte_size(S)-byte_size(M0)),
+            <<M0/binary, $., $0, Rest/binary>>;
+        {match, _Matches} -> S;
+        nomatch -> S
+    end.
+
 -spec check_semver_equal(binary(), binary()) -> boolean().
 check_semver_equal(UserSemVer, ClauseSemVer) ->
-    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
-        0 -> true;
+    case verl:compare(UserSemVer, ClauseSemVer) of
+        eq -> true;
         _ -> false
     end.
 
--dialyzer({nowarn_function, check_semver_less_than/2}).
 -spec check_semver_less_than(binary(), binary()) -> boolean().
 check_semver_less_than(UserSemVer, ClauseSemVer) ->
-    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
-        -1 -> true;
+    case verl:compare(UserSemVer, ClauseSemVer) of
+        lt -> true;
         _ -> false
     end.
 
--dialyzer({nowarn_function, check_semver_greater_than/2}).
 -spec check_semver_greater_than(binary(), binary()) -> boolean().
 check_semver_greater_than(UserSemVer, ClauseSemVer) ->
-    case check_semver_compare(semver:parse(binary_to_list(UserSemVer)), semver:parse(binary_to_list(ClauseSemVer))) of
-        1 -> true;
+    case verl:compare(UserSemVer, ClauseSemVer) of
+        gt -> true;
         _ -> false
     end.
-
--dialyzer({nowarn_function, check_semver_compare/2}).
--spec check_semver_compare(string() | error, string() | error) -> boolean() | integer().
-check_semver_compare(error, _) -> false;
-check_semver_compare(_, error) -> false;
-check_semver_compare(UserSemVer, ClauseSemVer) -> semver:compare(UserSemVer, ClauseSemVer).
 
 check_attribute_result(match, _Rest, _Clause) -> match;
 check_attribute_result(no_match, Rest, Clause) ->
