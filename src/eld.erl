@@ -17,10 +17,19 @@
 -export([stop_instance/1]).
 -export([evaluate/3]).
 -export([evaluate/4]).
+-export([all_flags_state/1]).
+-export([all_flags_state/2]).
 -export([identify/1]).
 -export([identify/2]).
 -export([track/3]).
 -export([track/4]).
+
+%% Types
+-type feature_flags_state() :: #{
+    flag_values => #{binary() => any()}
+}.
+
+-export_type([feature_flags_state/0]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -88,7 +97,7 @@ stop_instance(Tag) when is_atom(Tag) ->
 %% clauses and percentage rollouts. It returns the flag variation index, value
 %% and reason, explaining why the specific result was chosen.
 %% @end
--spec evaluate(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_flag:variation_value()) ->
+-spec evaluate(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
     eld_eval:detail().
 evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     evaluate(?DEFAULT_INSTANCE_NAME, FlagKey, User, DefaultValue).
@@ -99,7 +108,7 @@ evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
 %% clauses and percentage rollouts. It returns the flag variation index, value
 %% and reason, explaining why the specific result was chosen.
 %% @end
--spec evaluate(Tag :: atom(), FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_flag:variation_value()) ->
+-spec evaluate(Tag :: atom(), FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
     eld_eval:detail().
 evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     % Get evaluation result detail
@@ -109,6 +118,30 @@ evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User)
     lists:foreach(SendEventsFun, Events),
     % Return evaluation detail
     Detail.
+
+%% @doc Evaluate all flags for a given user and return their values
+%%
+%% Evaluates all existing flags, but does not create any events as a side
+%% effect of the evaluation. It returns a map of flag keys to evaluated values.
+%% @end
+-spec all_flags_state(User :: eld_user:user()) -> feature_flags_state().
+all_flags_state(User) ->
+    all_flags_state(?DEFAULT_INSTANCE_NAME, User).
+
+%% @doc Evaluate all flags for a given user and given client instance
+%%
+%% Evaluates all existing flags, but does not create any events as a side
+%% effect of the evaluation. It returns a map of flag keys to evaluated values.
+%% @end
+-spec all_flags_state(Tag :: atom(), User :: eld_user:user()) -> feature_flags_state().
+all_flags_state(Tag, User) ->
+    StorageBackend = eld_settings:get_value(Tag, storage_backend),
+    AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(default, flags)],
+    EvalFun = fun(FlagKey, Acc) ->
+        {{_, V, _}, _Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, null),
+        Acc#{FlagKey => V}
+    end,
+    #{flag_values => lists:foldl(EvalFun, #{}, AllFlags)}.
 
 %% @doc Identify reports details about a user
 %%

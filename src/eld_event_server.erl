@@ -42,7 +42,7 @@
 
 -type counter_value() :: #{
     count := non_neg_integer(),
-    flag_value := eld_flag:variation_value(),
+    flag_value := eld_eval:result_value(),
     flag_default := term()
 }.
 
@@ -260,7 +260,7 @@ create_summary_event_key(Key, Variation, Version) ->
         version => Version
     }.
 
--spec create_summary_event_value(eld_flag:variation_value(), term()) ->
+-spec create_summary_event_value(eld_eval:result_value(), term()) ->
     counter_value().
 create_summary_event_value(Value, Default) ->
     #{

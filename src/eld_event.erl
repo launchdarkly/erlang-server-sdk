@@ -18,8 +18,8 @@
 
 %% Types
 -type event() :: #{
-    type      => event_type(),
-    timestamp => non_neg_integer(),
+    type      := event_type(),
+    timestamp := non_neg_integer(),
     key       => binary(),
     user      => eld_user:user(),
     data      => map()
@@ -62,8 +62,8 @@ new(index, User, Timestamp, #{}) ->
 new(feature_request, User, Timestamp, #{
     key                     := Key,                  % eld_flag:key()
     variation               := Variation,            % null | eld_flag:variation()
-    value                   := Value,                % null | eld_flag:variation_value()
-    default                 := Default,              % null | eld_flag:variation_value()
+    value                   := Value,                % eld_eval:result_value()
+    default                 := Default,              % eld_eval:result_value()
     version                 := Version,              % null | eld_flag:version()
     prereq_of               := PrereqOf,             % null | eld_flag:key()
     track_events            := TrackEvents,          % null | boolean()
@@ -107,7 +107,7 @@ new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
 -spec new_for_unknown_flag(
     FlagKey :: eld_flag:key(),
     User :: eld_user:user(),
-    DefaultValue :: eld_flag:variation_value(),
+    DefaultValue :: eld_eval:result_value(),
     Reason :: eld_eval:reason()
 ) -> event().
 new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
@@ -127,8 +127,8 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
 
 -spec new_flag_eval(
     VariationIndex :: eld_flag:variation(),
-    VariationValue :: eld_flag:variation_value(),
-    DefaultValue :: eld_flag:variation_value(),
+    VariationValue :: eld_eval:result_value(),
+    DefaultValue :: eld_eval:result_value(),
     User :: eld_user:user(),
     Reason :: eld_eval:reason(),
     Flag :: eld_flag:flag()

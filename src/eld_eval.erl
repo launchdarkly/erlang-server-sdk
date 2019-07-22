@@ -16,10 +16,10 @@
 }.
 -type detail() :: {
     VariationIndex :: variation_index(),
-    Value :: value(),
+    Value :: result_value(),
     Reason :: reason()
 }.
--type value() :: null | eld_flag:variation_value().
+-type result_value() :: null | eld_flag:variation_value().
 -type variation_index() :: null | non_neg_integer().
 -type reason() ::
     target_match
@@ -34,6 +34,7 @@
 
 -export_type([detail/0]).
 -export_type([reason/0]).
+-export_type([result_value/0]).
 
 %%===================================================================
 %% API
@@ -46,7 +47,7 @@
     Tag :: atom(),
     FlagKey :: eld_flag:key(),
     User :: eld_user:user(),
-    DefaultValue :: eld_flag:variation_value()
+    DefaultValue :: result_value()
 ) -> result().
 flag_key_for_user(Tag, FlagKey, User, DefaultValue) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
@@ -63,7 +64,7 @@ flag_key_for_user(Tag, FlagKey, User, DefaultValue) ->
     User :: eld_user:user(),
     StorageBackend :: atom(),
     Tag :: atom(),
-    DefaultValue :: eld_flag:variation_value()
+    DefaultValue :: result_value()
 ) -> result().
 flag_recs_for_user(FlagKey, [], User, _StorageBackend, _Tag, DefaultValue) ->
     % Flag not found
@@ -82,7 +83,7 @@ flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend,
     Flag = eld_flag:new(FlagKey, FlagProperties),
     flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue).
 
--spec flag_for_user_check_empty_key(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
+-spec flag_for_user_check_empty_key(eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) -> result().
 flag_for_user_check_empty_key(Flag, #{key := <<>>} = User, StorageBackend, Tag, DefaultValue) ->
     error_logger:warning_msg("User key is blank. Flag evaluation will proceed, but the user will not be stored in Launchdarkly"),
     flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue);
@@ -95,19 +96,19 @@ flag_for_user_check_empty_key(Flag, User, _StorageBackend, _Tag, DefaultValue) -
     % User has no key
     flag_for_user_with_no_key(Flag, User, DefaultValue).
 
--spec flag_for_user_with_no_key(eld_flag:flag(), eld_user:user(), eld_flag:variation_value()) -> result().
+-spec flag_for_user_with_no_key(eld_flag:flag(), eld_user:user(), result_value()) -> result().
 flag_for_user_with_no_key(Flag, User, DefaultValue) ->
     Reason = {error, user_not_specified},
     Events = [eld_event:new_flag_eval(null, DefaultValue, DefaultValue, User, Reason, Flag)],
     {{null, DefaultValue, Reason}, Events}.
 
--spec flag_for_user(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
+-spec flag_for_user(eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) -> result().
 flag_for_user(Flag, User, StorageBackend, Tag, DefaultValue) ->
     {{Variation, VariationValue, Reason}, Events} = flag_for_user_valid(Flag, User, StorageBackend, Tag, DefaultValue),
     FlagEvalEvent = eld_event:new_flag_eval(Variation, VariationValue, DefaultValue, User, Reason, Flag),
     {{Variation, VariationValue, Reason}, [FlagEvalEvent|Events]}.
 
--spec flag_for_user_valid(eld_flag:flag(), eld_user:user(), atom(), atom(), eld_flag:variation_value()) -> result().
+-spec flag_for_user_valid(eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) -> result().
 flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User, _StorageBackend, _Tag, _DefaultValue)
     when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, off, Flag, []);
