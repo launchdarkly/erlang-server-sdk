@@ -115,47 +115,55 @@ flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User,
 flag_for_user_valid(#{on := false}, _User, _StorageBackend, _Tag, DefaultValue) ->
     % off_variation is null or not set
     {{null, DefaultValue, off}, []};
-flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBackend, Tag, _DefaultValue) ->
-    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag).
+flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, StorageBackend, Tag, DefaultValue) ->
+    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue).
 
--spec check_prerequisites([eld_flag:prerequisite()], eld_flag:flag(), eld_user:user(), atom(), atom()) ->
+-spec check_prerequisites([eld_flag:prerequisite()], eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) ->
     result().
-check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag) ->
-    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, []).
+check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue) ->
+    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, []).
 
-check_prerequisites([], Flag, User, StorageBackend, Tag, Events) ->
-    flag_for_user_prerequisites(success, Flag, User, StorageBackend, Tag, Events);
-check_prerequisites([#{key := PrerequisiteKey, variation := Variation}|Rest], Flag, User, StorageBackend, Tag, Events) ->
+check_prerequisites([], Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
+    flag_for_user_prerequisites(success, Flag, User, StorageBackend, Tag, DefaultValue, Events);
+check_prerequisites([#{key := PrerequisiteKey, variation := Variation}|Rest], Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
     PrerequisiteFlagRecs = StorageBackend:get(Tag, flags, PrerequisiteKey),
-    check_prerequisite_recs(PrerequisiteFlagRecs, PrerequisiteKey, Variation, Rest, Flag, User, StorageBackend, Tag, Events).
+    check_prerequisite_recs(PrerequisiteFlagRecs, PrerequisiteKey, Variation, Rest, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
-check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag, User, StorageBackend, Tag, Events) ->
+check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
     % Short circuit if prerequisite flag is not found
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
-    flag_for_user_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, User, StorageBackend, Tag, Events);
-check_prerequisite_recs([{PrerequisiteKey, PrerequisiteProperties}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, Events) ->
+    flag_for_user_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, User, StorageBackend, Tag, DefaultValue, Events);
+check_prerequisite_recs([{PrerequisiteKey, PrerequisiteProperties}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
     PrerequisiteFlag = eld_flag:new(PrerequisiteKey, PrerequisiteProperties),
-    check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, User, StorageBackend, Tag, Events).
+    check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
-check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag, Variation, Prerequisites, #{key := FlagKey} = Flag, User, StorageBackend, Tag, Events) ->
-    {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents} = check_prerequisites(SubPrerequisites, PrerequisiteFlag, User, StorageBackend, Tag, Events),
-    NewEvents = [eld_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey, User, ResultReason, PrerequisiteFlag)|ResultEvents],
-    check_prerequisite_flag_result(PrerequisiteFlag, Variation =:= ResultVariation, Prerequisites, Flag, User, StorageBackend, Tag, NewEvents).
-
-check_prerequisite_flag_result(#{key := PrerequisiteKey, on := false}, _, _Prerequisites, Flag, User, StorageBackend, Tag, Events) ->
-    % Prerequisite flag is off: short-circuit fail and move on
+check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
+    % Prerequisite flag is deleted, short circuit fail
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
-    flag_for_user_prerequisites(Result, Flag, User, StorageBackend, Tag, Events);
-check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites, Flag, User, StorageBackend, Tag, Events) ->
+    flag_for_user_prerequisites(Result, Flag, User, StorageBackend, Tag, DefaultValue, Events);
+check_prerequisite_flag(#{key := PrerequisiteKey, on := false}, _, _, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
+    % Prerequisite flag is off, short circuit fail
+    Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
+    flag_for_user_prerequisites(Result, Flag, User, StorageBackend, Tag, DefaultValue, Events);
+check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag, Variation, Prerequisites, #{key := FlagKey} = Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
+    {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents} = check_prerequisites(SubPrerequisites, PrerequisiteFlag, User, StorageBackend, Tag, DefaultValue, Events),
+    NewEvents = [eld_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey, User, ResultReason, PrerequisiteFlag)|ResultEvents],
+    check_prerequisite_flag_result(PrerequisiteFlag, Variation =:= ResultVariation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, NewEvents).
+
+check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
     % Prerequisite flag variation didn't match: short-circuit fail and move on
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
-    flag_for_user_prerequisites(Result, Flag, User, StorageBackend, Tag, Events);
-check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, User, StorageBackend, Tag, Events) ->
-    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, Events).
+    flag_for_user_prerequisites(Result, Flag, User, StorageBackend, Tag, DefaultValue, Events);
+check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
+    check_prerequisites(Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
-flag_for_user_prerequisites({fail, Reason}, #{off_variation := OffVariation} = Flag, _User, _StorageBackend, _Tag, Events) ->
+flag_for_user_prerequisites({fail, Reason}, #{off_variation := OffVariation} = Flag, _User, _StorageBackend, _Tag, _DefaultValue, Events)
+    when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, Reason, Flag, Events);
-flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, StorageBackend, Tag, Events) ->
+flag_for_user_prerequisites({fail, Reason}, _Flag, _User, _StorageBackend, _Tag, DefaultValue, Events) ->
+    % prerequisite failed, but off_variation is null or not set
+    {{null, DefaultValue, Reason}, Events};
+flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, StorageBackend, Tag, _DefaultValue, Events) ->
     check_targets(Targets, Flag, User, StorageBackend, Tag, Events).
 
 check_targets([], Flag, User, StorageBackend, Tag, Events) ->

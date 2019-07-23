@@ -117,6 +117,33 @@
                 ],
                 "version": 245
             },
+            "prereqs-fail-off-null": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-off-null",
+                "offVariation": null,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-off",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 2
+            },
             "prereqs-fail-variation": {
                 "clientSide": true,
                 "debugEventsUntilDate": null,

@@ -20,6 +20,7 @@
     off_flag_null_off_variation/1,
     deleted_flag/1,
     prerequisite_fail_off/1,
+    prerequisite_fail_off_null/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
     target_user/1,
@@ -67,6 +68,7 @@ all() ->
         off_flag_null_off_variation,
         deleted_flag,
         prerequisite_fail_off,
+        prerequisite_fail_off_null,
         prerequisite_fail_variation,
         prerequisite_success,
         target_user,
@@ -212,8 +214,16 @@ prerequisite_fail_off(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         eld_eval:flag_key_for_user(default, <<"prereqs-fail-off">>, #{key => <<"user123">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"keep-it-off">>, feature_request, 0, true, null, fallthrough, <<"prereqs-fail-off">>},
         {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+prerequisite_fail_off_null(_) ->
+    {{null, "foo", {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
+        eld_eval:flag_key_for_user(default, <<"prereqs-fail-off-null">>, #{key => <<"user123">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"prereqs-fail-off-null">>, feature_request, null, "foo", "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
