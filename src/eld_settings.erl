@@ -41,7 +41,7 @@
 -define(DEFAULT_EVENTS_DISPATCHER, eld_event_dispatch_httpc).
 -define(DEFAULT_USER_KEYS_CAPACITY, 1000).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "0.1").
+-define(VERSION, "1.0.0-alpha1").
 -define(EVENT_SCHEMA, "3").
 
 %%===================================================================
