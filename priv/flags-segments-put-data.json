@@ -1,0 +1,809 @@
+{
+    "path": "/",
+    "data": {
+        "flags": {
+            "keep-it-off": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off",
+                "offVariation": 1,
+                "on": false,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-off-null-off-variation": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off-null-off-variation",
+                "offVariation": null,
+                "on": false,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-deleted": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": true,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-off",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "66c9f33265754ebb9bc3-2d71a6710595",
+                "sel": "0c7fec46297e468089792dd2f5793ed8",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "bad-variation": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 3
+                },
+                "key": "bad-variation",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "prereqs-fail-off": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-off",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-off",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 245
+            },
+            "prereqs-fail-off-null": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-off-null",
+                "offVariation": null,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-off",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 2
+            },
+            "prereqs-fail-variation": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "prereqs-fail-variation",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on",
+                        "variation": 1
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 245
+            },
+            "keep-it-on": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on-two",
+                        "variation": 0
+                    }
+                ],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-on-two": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on-two",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "keep-it-on-another": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "keep-it-on-another",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "prereqs-success": {
+                "clientSide": true,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 1
+                },
+                "key": "prereqs-success",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [
+                    {
+                        "key": "keep-it-on",
+                        "variation": 0
+                    },
+                    {
+                        "key": "keep-it-on-another",
+                        "variation": 0
+                    }
+                ],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 24
+            },
+            "target-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "target-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [
+                    {
+                        "values": [
+                            "user-33333",
+                            "user-12345"
+                        ],
+                        "variation": 0
+                    },
+                    {
+                        "values": [
+                            "user-77777"
+                        ],
+                        "variation": 1
+                    }
+                ],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "segment-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "segment-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": false,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "test-included"
+                                ]
+                            }
+                        ],
+                        "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                        "variation": 1
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": true,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "test-included"
+                                ]
+                            }
+                        ],
+                        "id": "489a185d-caaf-4db9-b192-e09e927d070c",
+                        "variation": 1
+                    }
+                ],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5
+            },
+            "rule-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "rule-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "key",
+                                "negate": false,
+                                "op": "in",
+                                "values": [
+                                    "user-key-match@example.com"
+                                ]
+                            }
+                        ],
+                        "id": "08b9b261-5df6-4881-892b-e25bdb28b6d3",
+                        "variation": 0
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "key",
+                                "negate": false,
+                                "op": "endsWith",
+                                "values": [
+                                    "@example.com"
+                                ]
+                            }
+                        ],
+                        "id": "2fac50d0-d912-424a-831e-ab60ad0547b4",
+                        "variation": 1
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "key",
+                                "negate": false,
+                                "op": "startsWith",
+                                "values": [
+                                    "user-starts-with"
+                                ]
+                            }
+                        ],
+                        "id": "e3b70ddf-a000-4649-93c5-ac0eaea675f8",
+                        "variation": 2
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "key",
+                                "negate": false,
+                                "op": "matches",
+                                "values": [
+                                    "^user-regex-match.*$"
+                                ]
+                            }
+                        ],
+                        "id": "1d63c99a-3016-4778-bf1f-68d1fce5004e",
+                        "variation": 3
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "key",
+                                "negate": false,
+                                "op": "contains",
+                                "values": [
+                                    "user-contains"
+                                ]
+                            }
+                        ],
+                        "id": "1f1dadfc-0e66-42e0-b479-979186d972ce",
+                        "variation": 4
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "custom1",
+                                "negate": false,
+                                "op": "lessThan",
+                                "values": [
+                                    50
+                                ]
+                            }
+                        ],
+                        "id": "ca092500-1cb7-4b14-a11c-81b46ca19cae",
+                        "variation": 5
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "custom1",
+                                "negate": false,
+                                "op": "lessThanOrEqual",
+                                "values": [
+                                    50
+                                ]
+                            }
+                        ],
+                        "id": "d38e11f8-93d1-453e-8022-6d8ed7f106ea",
+                        "variation": 6
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "custom2",
+                                "negate": false,
+                                "op": "greaterThan",
+                                "values": [
+                                    50
+                                ]
+                            }
+                        ],
+                        "id": "a92a93c2-2004-482b-9e4a-38abe81d7050",
+                        "variation": 7
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "custom2",
+                                "negate": false,
+                                "op": "greaterThanOrEqual",
+                                "values": [
+                                    50
+                                ]
+                            }
+                        ],
+                        "id": "9158e01a-a70f-4924-8cf8-9401e2cf6c67",
+                        "variation": 8
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "beforeInt",
+                                "negate": false,
+                                "op": "before",
+                                "values": [
+                                    1451772245
+                                ]
+                            }
+                        ],
+                        "id": "500633a7-2c82-4baf-8201-4892b68b31b4",
+                        "variation": 9
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "afterInt",
+                                "negate": false,
+                                "op": "after",
+                                "values": [
+                                    1451772245
+                                ]
+                            }
+                        ],
+                        "id": "77473bea-d93f-4787-84d2-92cf08b35f2b",
+                        "variation": 10
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerEqual",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "9398cafc-0ab7-4d0d-8e01-6683cc4d17ec",
+                        "variation": 11
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerGreaterThan",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "3570714f-d03b-4068-ab79-18f15c74382d",
+                        "variation": 12
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "version",
+                                "negate": false,
+                                "op": "semVerLessThan",
+                                "values": [
+                                    "5.0.0"
+                                ]
+                            }
+                        ],
+                        "id": "2c002923-2db0-4fcc-a95e-f3cb5b4bd13d",
+                        "variation": 13
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "beforeDate",
+                                "negate": false,
+                                "op": "before",
+                                "values": [
+                                    "2018-01-01T12:00:00"
+                                ]
+                            }
+                        ],
+                        "id": "b6c5ceec-364d-4c23-a041-7865f4f136d3",
+                        "variation": 14
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "afterDate",
+                                "negate": false,
+                                "op": "after",
+                                "values": [
+                                    "2018-01-01T12:00:00"
+                                ]
+                            }
+                        ],
+                        "id": "764c5346-6478-4d34-83e7-59c0afc7a15b",
+                        "variation": 15
+                    },
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "group",
+                                "negate": true,
+                                "op": "in",
+                                "values": [
+                                    "group1"
+                                ]
+                            }
+                        ],
+                        "id": "726cb09a-2ecb-48b8-b3a9-24163f40163f",
+                        "variation": 16
+                    }
+                ],
+                "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                "sel": "45501b9314dc4641841af774cb038b96",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e",
+                    "f",
+                    "g",
+                    "h",
+                    "i",
+                    "j",
+                    "k",
+                    "l",
+                    "m",
+                    "n",
+                    "o",
+                    "p",
+                    "q"
+                ],
+                "version": 5
+            },
+            "roll-me": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "rollout": {
+                        "variations": [
+                            {
+                                "variation": 0,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 1,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 2,
+                                "weight": 10000
+                            },
+                            {
+                                "variation": 3,
+                                "weight": 30000
+                            },
+                            {
+                                "variation": 4,
+                                "weight": 30000
+                            }
+                        ]
+                    }
+                },
+                "key": "roll-me",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e"
+                ],
+                "version": 5
+            },
+            "roll-me-custom": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "rollout": {
+                        "bucketBy": "customProp",
+                        "variations": [
+                            {
+                                "variation": 0,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 1,
+                                "weight": 15000
+                            },
+                            {
+                                "variation": 2,
+                                "weight": 10000
+                            },
+                            {
+                                "variation": 3,
+                                "weight": 30000
+                            },
+                            {
+                                "variation": 4,
+                                "weight": 30000
+                            }
+                        ]
+                    }
+                },
+                "key": "roll-me-custom",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "66cfe4b49630456c81a5d9dd3008e5a7",
+                "sel": "c521521b61774e078b48d3d477bd2f22",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e"
+                ],
+                "version": 5
+            },
+            "extra-fields": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "extra-fields",
+                "offVariation": 1,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                    {
+                        "clauses": [
+                            {
+                                "attribute": "this-value-does-not-matter",
+                                "negate": false,
+                                "op": "segmentMatch",
+                                "values": [
+                                    "extra-fields"
+                                ]
+                            }
+                        ],
+                        "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                        "variation": 1
+                    }
+                ],
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                "targets": [],
+                "trackEvents": true,
+                "variations": [
+                    true,
+                    false
+                ],
+                "version": 5,
+                "foo": "bar",
+                "bar": 2,
+                "baz": null
+            }
+        },
+        "segments": {
+            "test-included": {
+                "deleted": false,
+                "excluded": [
+                    "user-33333"
+                ],
+                "included": [
+                    "user-12345",
+                    "user-456"
+                ],
+                "key": "test-included",
+                "rules": [],
+                "salt": "b2ba88c74ad34c288ec10ba78e150afd",
+                "version": 8
+            },
+            "extra-fields": {
+                "deleted": false,
+                "excluded": [],
+                "included": [
+                    "user-12345"
+                ],
+                "key": "extra-fields",
+                "rules": [],
+                "salt": "b2ba88c74ad34c288ec10ba78e150afd",
+                "version": 8,
+                "foo": "bar",
+                "bar": 2,
+                "baz": null
+            }
+        }
+    }
+}
+
