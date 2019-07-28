@@ -14,7 +14,8 @@
     shotgun,
     jsx,
     lru,
-    backoff
+    backoff,
+    verl
    ]},
   {env,[]},
   {modules, []},
