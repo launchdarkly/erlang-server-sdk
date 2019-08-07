@@ -12,7 +12,7 @@
 -export([get/2]).
 -export([set/3]).
 -export([set_private_attribute_names/2]).
--export([scrub/1]).
+-export([scrub/2]).
 
 %% Types
 -type user() :: #{
@@ -88,19 +88,35 @@ set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) -
 
 %% @doc Scrub private attributes from user
 %%
+%% Returns the scrubbed user and the list of attributes that were actually
+%% scrubbed.
 %% @end
--spec scrub(user()) -> user().
-scrub(User) ->
-    PrivateAttributeNames = maps:get(private_attribute_names, User, []),
-    StartingUser = maps:remove(private_attribute_names, User),
-    ScrubbedUser = scrub_private_attributes(StartingUser, PrivateAttributeNames),
-    CustomAttributes = maps:get(custom, ScrubbedUser, #{}),
-    ScrubbedCustomAttributes = scrub_custom_attributes(CustomAttributes, PrivateAttributeNames),
-    set_custom_attributes(ScrubbedUser, ScrubbedCustomAttributes).
+-spec scrub(user(), eld_settings:private_attributes()) -> {user(), private_attribute_names()}.
+scrub(User, all) ->
+    AllStandardAttributes = [<<"key">>, <<"secondary">>, <<"ip">>, <<"country">>, <<"email">>, <<"first_name">>, <<"last_name">>, <<"avatar">>, <<"name">>, <<"anonymous">>],
+    AllCustomAttributes = maps:keys(maps:get(custom, User, #{})),
+    AllPrivateAttributes = lists:append(AllStandardAttributes, AllCustomAttributes),
+    scrub(User#{private_attribute_names => AllPrivateAttributes});
+scrub(User, GlobalPrivateAttributes) when is_list(GlobalPrivateAttributes) ->
+    UserPrivateAttributes = maps:get(private_attribute_names, User, []),
+    AllPrivateAttributes = lists:append(GlobalPrivateAttributes, UserPrivateAttributes),
+    scrub(User#{private_attribute_names => AllPrivateAttributes});
+scrub(User, []) ->
+    scrub(User).
 
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec scrub(user()) -> {user(), private_attribute_names()}.
+scrub(User) ->
+    PrivateAttributeNames = maps:get(private_attribute_names, User, []),
+    StartingUser = maps:remove(private_attribute_names, User),
+    {ScrubbedUser, ScrubbedAttrNames} = scrub_private_attributes(StartingUser, PrivateAttributeNames),
+    CustomAttributes = maps:get(custom, ScrubbedUser, #{}),
+    {ScrubbedCustomAttributes, ScrubbedCustomAttrNames} = scrub_custom_attributes(CustomAttributes, PrivateAttributeNames),
+    FinalUser = set_custom_attributes(ScrubbedUser, ScrubbedCustomAttributes),
+    {FinalUser, lists:append(ScrubbedAttrNames, ScrubbedCustomAttrNames)}.
 
 -spec get_attribute_value(Attr :: attribute(), User :: user()) -> any().
 get_attribute_value(Attr, User) when is_atom(Attr) ->
@@ -141,27 +157,46 @@ set_attribute_value(Attr, Value, User) when is_binary(Attr) ->
     Custom = maps:get(custom, User, #{}),
     maps:put(custom, Custom#{Attr => Value}, User).
 
--spec scrub_private_attributes(user(), private_attribute_names()) -> user().
-scrub_private_attributes(User, []) ->
-    User;
-scrub_private_attributes(User, [Attr|Rest]) ->
-    RealAttr = get_attribute(Attr),
-    scrub_private_attributes(scrub_private_attribute(RealAttr, User), Rest).
+-spec scrub_private_attributes(user(), private_attribute_names()) -> {user(), [attribute()]}.
+scrub_private_attributes(User, PrivateAttributeNames) ->
+    scrub_private_attributes(User, PrivateAttributeNames, []).
 
--spec scrub_private_attribute(attribute(), user()) -> user().
+-spec scrub_private_attributes(user(), private_attribute_names(), private_attribute_names()) ->
+    {user(), private_attribute_names()}.
+scrub_private_attributes(User, [], ScrubbedAttrNames) ->
+    {User, ScrubbedAttrNames};
+scrub_private_attributes(User, [Attr|Rest], ScrubbedAttrNames) ->
+    RealAttr = get_attribute(Attr),
+    {NewUser, NewScrubbedAttrNames} = case scrub_private_attribute(RealAttr, User) of
+        {ScrubbedUser, true} -> {ScrubbedUser, [Attr|ScrubbedAttrNames]};
+        {SameUser, false} -> {SameUser, ScrubbedAttrNames}
+    end,
+    scrub_private_attributes(NewUser, Rest, NewScrubbedAttrNames).
+
+-spec scrub_private_attribute(attribute(), user()) -> {user(), boolean()}.
 scrub_private_attribute(key, User) ->
     % The key attribute is never scrubbed, even if marked private.
-    User;
+    {User, false};
 scrub_private_attribute(Attr, User) ->
-    maps:remove(Attr, User).
+    {maps:remove(Attr, User), maps:is_key(Attr, User)}.
 
--spec scrub_custom_attributes(custom_attributes(), private_attribute_names()) -> custom_attributes().
-scrub_custom_attributes(CustomAttributes, _) when map_size(CustomAttributes) == 0 ->
-    #{};
-scrub_custom_attributes(CustomAttributes, []) ->
-    CustomAttributes;
-scrub_custom_attributes(CustomAttributes, [Attr|Rest]) ->
-    scrub_private_attributes(maps:remove(Attr, CustomAttributes), Rest).
+-spec scrub_custom_attributes(custom_attributes(), private_attribute_names()) ->
+    {custom_attributes(), private_attribute_names()}.
+scrub_custom_attributes(CustomAttributes, PrivateAttributeNames) ->
+    scrub_custom_attributes(CustomAttributes, PrivateAttributeNames, []).
+
+-spec scrub_custom_attributes(custom_attributes(), private_attribute_names(), private_attribute_names()) ->
+    {custom_attributes(), private_attribute_names()}.
+scrub_custom_attributes(CustomAttributes, _, ScrubbedAttributeNames) when map_size(CustomAttributes) == 0 ->
+    {#{}, ScrubbedAttributeNames};
+scrub_custom_attributes(CustomAttributes, [], ScrubbedAttributeNames) ->
+    {CustomAttributes, ScrubbedAttributeNames};
+scrub_custom_attributes(CustomAttributes, [Attr|Rest], ScrubbedAttributeNames) ->
+    {NewCustomAttributes, NewScrubbedAttributeNames} = case maps:is_key(Attr, CustomAttributes) of
+        true -> {maps:remove(Attr, CustomAttributes), [Attr|ScrubbedAttributeNames]};
+        false -> {CustomAttributes, ScrubbedAttributeNames}
+    end,
+    scrub_custom_attributes(NewCustomAttributes, Rest, NewScrubbedAttributeNames).
 
 -spec set_custom_attributes(user(), custom_attributes()) -> user().
 set_custom_attributes(User, CustomAttributes) when map_size(CustomAttributes) == 0 ->

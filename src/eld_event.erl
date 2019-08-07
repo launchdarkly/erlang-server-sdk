@@ -15,6 +15,7 @@
 -export([new_identify/1]).
 -export([new_index/2]).
 -export([new_custom/3]).
+-export([strip_eval_reason/1]).
 
 %% Types
 -type event() :: #{
@@ -192,3 +193,7 @@ new_index(User, Timestamp) ->
 -spec new_custom(Key :: binary(), User :: eld_user:user(), Data :: map()) -> event().
 new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->
     new(custom, Key, User, erlang:system_time(milli_seconds), Data).
+
+-spec strip_eval_reason(eld_event:event()) -> eld_event:event().
+strip_eval_reason(#{type := feature_request, data := Data} = Event) ->
+    Event#{data => maps:remove(eval_reason, Data)}.

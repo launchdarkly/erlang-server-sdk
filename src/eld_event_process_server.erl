@@ -17,9 +17,12 @@
 %% API
 -export([send_events/3]).
 
+%% Types
 -type state() :: #{
     sdk_key := string(),
     dispatcher := atom(),
+    inline_users := boolean(),
+    global_private_attributes := eld_settings:private_attributes(),
     events_uri := string()
 }.
 
@@ -56,10 +59,14 @@ start_link(Tag) ->
 init([Tag]) ->
     SdkKey = eld_settings:get_value(Tag, sdk_key),
     Dispatcher = eld_settings:get_value(Tag, events_dispatcher),
+    InlineUsers = eld_settings:get_value(Tag, inline_users_in_events),
+    GlobalPrivateAttributes = eld_settings:get_value(Tag, private_attributes),
     EventsUri = eld_settings:get_value(Tag, events_uri),
     State = #{
         sdk_key => SdkKey,
         dispatcher => Dispatcher,
+        inline_users => InlineUsers,
+        global_private_attributes => GlobalPrivateAttributes,
         events_uri => EventsUri
     },
     {ok, State}.
@@ -75,9 +82,16 @@ init([Tag]) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({send_events, Events, SummaryEvent}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
+handle_cast({send_events, Events, SummaryEvent},
+    #{
+        sdk_key := SdkKey,
+        dispatcher := Dispatcher,
+        inline_users := InlineUsers,
+        global_private_attributes := GlobalPrivateAttributes,
+        events_uri := Uri
+    } = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
-    FormattedEvents = format_events(Events),
+    FormattedEvents = format_events(Events, InlineUsers, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     _ = case send(OutputEvents, Dispatcher, Uri, SdkKey) of
         ok ->
@@ -109,11 +123,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec format_events([eld_event:event()]) -> list().
-format_events(Events) ->
-    lists:foldl(fun format_event/2, [], Events).
+-spec format_events([eld_event:event()], boolean(), eld_settings:private_attributes()) -> list().
+format_events(Events, InlineUsers, GlobalPrivateAttributes) ->
+    {FormattedEvents, _, _} = lists:foldl(fun format_event/2, {[], InlineUsers, GlobalPrivateAttributes}, Events),
+    FormattedEvents.
 
--spec format_event(eld_event:event(), list()) -> list().
+-spec format_event(eld_event:event(), {list(), boolean(), eld_settings:private_attributes()}) -> {list(), boolean(), eld_settings:private_attributes()}.
 format_event(
     #{
         type := feature_request,
@@ -126,11 +141,10 @@ format_event(
             value := Value,
             default := Default,
             version := Version,
-            prereq_of := PrereqOf,
-            eval_reason := EvalReason
+            prereq_of := PrereqOf
         }
-    },
-    Acc
+    } = Event,
+    {FormattedEvents, InlineUsers, GlobalPrivateAttributes}
 ) ->
     Kind = if Debug -> <<"debug">>; true -> <<"feature">> end,
     OutputEvent = #{
@@ -141,25 +155,27 @@ format_event(
         <<"value">> => Value,
         <<"default">> => Default,
         <<"version">> => Version,
-        <<"prereqOf">> => PrereqOf,
-        <<"reason">> => format_eval_reason(EvalReason)
+        <<"prereqOf">> => PrereqOf
     },
-    [format_event_set_user(Kind, User, OutputEvent)|Acc];
-format_event(#{type := identify, timestamp := Timestamp, user := User}, Acc) ->
+    FormattedEvent = format_event_set_user(Kind, User, maybe_set_reason(Event, OutputEvent), InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
+format_event(#{type := identify, timestamp := Timestamp, user := User}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
     Kind = <<"identify">>,
     OutputEvent = #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp
     },
-    [format_event_set_user(Kind, User, OutputEvent)|Acc];
-format_event(#{type := index, timestamp := Timestamp, user := User}, Acc) ->
+    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
+format_event(#{type := index, timestamp := Timestamp, user := User}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
     Kind = <<"index">>,
     OutputEvent = #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp
     },
-    [format_event_set_user(Kind, User, OutputEvent)|Acc];
-format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data}, Acc) ->
+    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
+format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
     Kind = <<"custom">>,
     OutputEvent = #{
         <<"kind">> => Kind,
@@ -167,7 +183,14 @@ format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User,
         <<"key">> => Key,
         <<"data">> => Data
     },
-    [format_event_set_user(Kind, User, OutputEvent)|Acc].
+    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
+
+-spec maybe_set_reason(eld_event:event(), #{binary() => any()}) -> #{binary() => any()}.
+maybe_set_reason(#{data := #{eval_reason := EvalReason}}, OutputEvent) ->
+    OutputEvent#{<<"reason">> => format_eval_reason(EvalReason)};
+maybe_set_reason(_Event, OutputEvent) ->
+    OutputEvent.
 
 -spec format_eval_reason(eld_eval:reason()) -> map().
 format_eval_reason(target_match) -> #{<<"kind">> => <<"TARGET_MATCH">>};
@@ -182,19 +205,39 @@ format_eval_reason({error, exception}) -> #{kind => <<"ERROR">>, errorKind => <<
 format_eval_reason(fallthrough) -> #{<<"kind">> => <<"FALLTHROUGH">>};
 format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 
--spec format_event_set_user(binary(), eld_user:user(), map()) -> map().
-format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent) ->
+-spec format_event_set_user(binary(), eld_user:user(), map(), boolean(), eld_settings:private_attributes()) -> map().
+format_event_set_user(<<"feature">>, User, OutputEvent, true, GlobalPrivateAttributes) ->
+    {ScrubbedUser, ScrubbedAttrNames} = eld_user:scrub(User, GlobalPrivateAttributes),
+    OutputEvent#{
+        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+    };
+format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent, false, _) ->
     OutputEvent#{<<"userKey">> => UserKey};
-format_event_set_user(<<"feature">>, _User, OutputEvent) ->
+format_event_set_user(<<"feature">>, _User, OutputEvent, _, _) ->
     % User has no key
     OutputEvent#{<<"userKey">> => null};
-format_event_set_user(<<"debug">>, User, OutputEvent) ->
-    OutputEvent#{<<"user">> => eld_user:scrub(User)};
-format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent) ->
-    OutputEvent#{<<"key">> => UserKey, <<"user">> => eld_user:scrub(User)};
-format_event_set_user(<<"index">>, User, OutputEvent) ->
-    OutputEvent#{<<"user">> => eld_user:scrub(User)};
-format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent) ->
+format_event_set_user(<<"debug">>, User, OutputEvent, _, GlobalPrivateAttributes) ->
+    {ScrubbedUser, ScrubbedAttrNames} = eld_user:scrub(User, GlobalPrivateAttributes),
+    OutputEvent#{
+        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+    };
+format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent, _, GlobalPrivateAttributes) ->
+    {ScrubbedUser, ScrubbedAttrNames} = eld_user:scrub(User, GlobalPrivateAttributes),
+    OutputEvent#{
+        <<"key">> => UserKey,
+        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+    };
+format_event_set_user(<<"index">>, User, OutputEvent, _, GlobalPrivateAttributes) ->
+    {ScrubbedUser, ScrubbedAttrNames} = eld_user:scrub(User, GlobalPrivateAttributes),
+    OutputEvent#{
+        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+    };
+format_event_set_user(<<"custom">>, User, OutputEvent, true, GlobalPrivateAttributes) ->
+    {ScrubbedUser, ScrubbedAttrNames} = eld_user:scrub(User, GlobalPrivateAttributes),
+    OutputEvent#{
+        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+    };
+format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent, false, _) ->
     OutputEvent#{<<"userKey">> => UserKey}.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
@@ -232,7 +275,7 @@ format_summary_event_counters(
         version => Version,
         count => Count,
         variation => Variation,
-        unknown => if Version == 0 -> true; true -> false end
+        unknown => if Version == null -> true; true -> false end
     },
     NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
     Acc#{FlagKey => NewFlagMap}.

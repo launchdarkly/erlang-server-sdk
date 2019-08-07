@@ -27,19 +27,28 @@
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
-    user_keys_capacity => pos_integer()
+    user_keys_capacity => pos_integer(),
+    inline_users_in_events => boolean(),
+    private_attributes => private_attributes()
 }.
 % Settings stored for each running SDK instance
 
+-type private_attributes() :: all | [eld_user:attribute()].
+
+-export_type([private_attributes/0]).
+
+
 %% Constants
 -define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
--define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
+-define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com/api/events/bulk").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, eld_event_dispatch_httpc).
 -define(DEFAULT_USER_KEYS_CAPACITY, 1000).
+-define(DEFAULT_INLINE_USERS_IN_EVENTS, false).
+-define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(USER_AGENT, "ErlangClient").
 -define(VERSION, "1.0.0-alpha1").
 -define(EVENT_SCHEMA, "3").
@@ -70,6 +79,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
+    InlineUsersInEvents = maps:get(inline_users_in_events, Options, ?DEFAULT_INLINE_USERS_IN_EVENTS),
+    PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -79,7 +90,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_capacity => EventsCapacity,
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
-        user_keys_capacity => UserKeysCapacity
+        user_keys_capacity => UserKeysCapacity,
+        inline_users_in_events => InlineUsersInEvents,
+        private_attributes => PrivateAttributes
     }.
 
 %% @doc Get all registered tags
