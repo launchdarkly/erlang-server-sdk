@@ -17,6 +17,10 @@
 -export([stop_instance/1]).
 -export([evaluate/3]).
 -export([evaluate/4]).
+-export([variation/3]).
+-export([variation/4]).
+-export([variation_detail/3]).
+-export([variation_detail/4]).
 -export([all_flags_state/1]).
 -export([all_flags_state/2]).
 -export([identify/1]).
@@ -93,6 +97,33 @@ stop_instance(Tag) when is_atom(Tag) ->
 
 %% @doc Evaluate given flag key for given user
 %%
+%% Evaluates the flag and returns the resulting variation value. The default
+%% value will be returned in case of any errors.
+%% @end
+-spec variation(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
+    eld_eval:result_value().
+variation(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
+     variation(FlagKey, User, DefaultValue, ?DEFAULT_INSTANCE_NAME).
+
+%% @doc Evaluate given flag key for given user and given client instance
+%%
+%% Evaluates the flag and returns the resulting variation value. The default
+%% value will be returned in case of any errors.
+%% @end
+-spec variation(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value(), Tag :: atom()) ->
+    eld_eval:result_value().
+variation(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_map(User) ->
+    % Get evaluation result detail
+    {{_Index, Value, _Reason}, Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
+    % Send events
+    SendEventsFun = fun(Event) -> eld_event_server:add_event(Tag, Event, #{}) end,
+    lists:foreach(SendEventsFun, Events),
+    % Return evaluation result
+    Value.
+
+%% @doc Evaluate given flag key for given user
+%% @deprecated
+%%
 %% Evaluation iterates through flag's prerequisites, targets, rules, associated
 %% clauses and percentage rollouts. It returns the flag variation index, value
 %% and reason, explaining why the specific result was chosen.
@@ -103,6 +134,7 @@ evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
     evaluate(?DEFAULT_INSTANCE_NAME, FlagKey, User, DefaultValue).
 
 %% @doc Evaluate given flag key for given user and given client instance
+%% @deprecated
 %%
 %% Evaluation iterates through flag's prerequisites, targets, rules, associated
 %% clauses and percentage rollouts. It returns the flag variation index, value
@@ -111,10 +143,33 @@ evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
 -spec evaluate(Tag :: atom(), FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
     eld_eval:detail().
 evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
+    error_logger:info_msg("eld:evaluate/3-4 is deprecated, use eld:variation_detail/3-4 instead."),
+    variation_detail(FlagKey, User, DefaultValue, Tag).
+
+%% @doc Evaluate given flag key for given user
+%%
+%% Evaluates the flag and returns the result detail containing the variation
+%% index, value, and reason why the specific result was chosen. The default
+%% value will be returned in case of any errors.
+%% @end
+-spec variation_detail(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
+    eld_eval:detail().
+variation_detail(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
+    variation_detail(FlagKey, User, DefaultValue, ?DEFAULT_INSTANCE_NAME).
+
+%% @doc Evaluate given flag key for given user and given client instance
+%%
+%% Evaluates the flag and returns the result detail containing the variation
+%% index, value, and reason why the specific result was chosen. The default
+%% value will be returned in case of any errors.
+%% @end
+-spec variation_detail(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value(), Tag :: atom()) ->
+    eld_eval:detail().
+variation_detail(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_map(User) ->
     % Get evaluation result detail
     {Detail, Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
     % Send events
-    SendEventsFun = fun(Event) -> eld_event_server:add_event(Tag, Event) end,
+    SendEventsFun = fun(Event) -> eld_event_server:add_event(Tag, Event, #{include_reasons => true}) end,
     lists:foreach(SendEventsFun, Events),
     % Return evaluation detail
     Detail.
@@ -126,15 +181,15 @@ evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User)
 %% @end
 -spec all_flags_state(User :: eld_user:user()) -> feature_flags_state().
 all_flags_state(User) ->
-    all_flags_state(?DEFAULT_INSTANCE_NAME, User).
+    all_flags_state(User, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Evaluate all flags for a given user and given client instance
 %%
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(Tag :: atom(), User :: eld_user:user()) -> feature_flags_state().
-all_flags_state(Tag, User) ->
+-spec all_flags_state(User :: eld_user:user(), Tag :: atom()) -> feature_flags_state().
+all_flags_state(User, Tag) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(default, flags)],
     EvalFun = fun(FlagKey, Acc) ->
@@ -149,16 +204,16 @@ all_flags_state(Tag, User) ->
 %% @end
 -spec identify(User :: eld_user:user()) -> ok.
 identify(User) ->
-    identify(?DEFAULT_INSTANCE_NAME, User).
+    identify(User, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Identify reports details about a user
 %%
 %% This is useful to report user to a specific client instance.
 %% @end
--spec identify(Tag :: atom(), User :: eld_user:user()) -> ok.
-identify(Tag, User) when is_atom(Tag) ->
+-spec identify(User :: eld_user:user(), Tag :: atom()) -> ok.
+identify(User, Tag) when is_atom(Tag) ->
     Event = eld_event:new_identify(User),
-    eld_event_server:add_event(Tag, Event).
+    eld_event_server:add_event(Tag, Event, #{}).
 
 %% @doc Track reports that a user has performed an event
 %%
@@ -166,13 +221,13 @@ identify(Tag, User) when is_atom(Tag) ->
 %% @end
 -spec track(Key :: binary(), User :: eld_user:user(), Data :: map()) -> ok.
 track(Key, User, Data) when is_binary(Key), is_map(Data) ->
-    track(?DEFAULT_INSTANCE_NAME, Key, User, Data).
+    track(Key, User, Data, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Track reports that a user has performed an event
 %%
 %% This is useful for specifying a specific client instance.
 %% @end
--spec track(Tag :: atom(), Key :: binary(), User :: eld_user:user(), Data :: map()) -> ok.
-track(Tag, Key, User, Data) when is_atom(Tag), is_binary(Key), is_map(Data) ->
+-spec track(Key :: binary(), User :: eld_user:user(), Data :: map(), Tag :: atom()) -> ok.
+track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key), is_map(Data) ->
     Event = eld_event:new_custom(Key, User, Data),
-    eld_event_server:add_event(Tag, Event).
+    eld_event_server:add_event(Tag, Event, #{}).
