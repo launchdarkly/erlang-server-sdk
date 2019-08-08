@@ -5,18 +5,21 @@ All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in 
 ## [1.0.0-alpha2] - 2019-08-07
 
 ### Added
+
 - Support for all server side LaunchDarkly events
 - `eld:variation/3-4` and `eld:variation_detail/3-4` functions to replace `eld:evaluate/3-4` to reflect the naming convention
 - Feature to inline users inside events
 - Feature to define global private user attributes, including making all user attributes private
 
 ### Fixed
+
 - Events POST URI, it no longer gets HTTP 405 Method Not Allowed error
 
 ### Deprecated
 - `eld:evaluate/3-4` will be removed in a future release
 
 ### Missing
+
 - Polling support
 - Known issues for some edge case error conditions, and other minor missing features
 
