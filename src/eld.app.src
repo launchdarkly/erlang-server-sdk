@@ -1,6 +1,6 @@
 {application, eld,
  [{description, "LaunchDarkly Erlang SDK"},
-  {vsn, "1.0.0-alpha1"},
+  {vsn, "1.0.0-alpha2"},
   {registered, []},
   {mod, {eld_app, []}},
   {applications,
