@@ -1,6 +1,7 @@
 .erlang.mk
 .eunit
 .idea
+.rebar3
 *.iml
 *.kdev4
 *.o

@@ -14,7 +14,7 @@ erlang-docker-template: &erlang-docker-template
         path: ~/eld
     - run:
         name: install dependencies and compile
-        command: make
+        command: make compile
         working_directory: ~/eld
     - run:
         name: run tests
@@ -25,12 +25,12 @@ erlang-docker-template: &erlang-docker-template
         command: make dialyze
         working_directory: ~/eld
     - run:
-        name: make test-results directory
+        name: create test-results directory
         command: mkdir test-results
         working_directory: ~/eld
     - run:
         name: copy test results
-        command: cp logs/*/junit_report.xml test-results/
+        command: cp logs/ct/*/junit_report.xml test-results/
         working_directory: ~/eld
     - store_test_results:
         path: ~/eld/test-results
