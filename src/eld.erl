@@ -191,7 +191,7 @@ all_flags_state(User) ->
 -spec all_flags_state(User :: eld_user:user(), Tag :: atom()) -> feature_flags_state().
 all_flags_state(User, Tag) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
-    AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(default, flags)],
+    AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(Tag, flags)],
     EvalFun = fun(FlagKey, Acc) ->
         {{_, V, _}, _Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, null),
         Acc#{FlagKey => V}
