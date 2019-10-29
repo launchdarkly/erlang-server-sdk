@@ -50,7 +50,7 @@
 -define(DEFAULT_INLINE_USERS_IN_EVENTS, false).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.0.0-alpha2").
+-define(VERSION, "1.0.0-alpha3").
 -define(EVENT_SCHEMA, "3").
 
 %%===================================================================
