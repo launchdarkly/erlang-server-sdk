@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-alpha3] - 2019-10-29
+
+### Fixed
+
+- Dependencies specify tagged versions and use hex (thank you @hez)
+- `eld:all_flags_state/2` now uses correct non-default instance (thank you @hez)
+- Streaming connection will now retry after initial request timeout
+
+### Removed
+- `eld:evaluate/3-4` which were deprecated in the previous version
+- `erlang.mk`, `Makefile` now uses `rebar3`
+
 ## [1.0.0-alpha2] - 2019-08-07
 
 ### Added
