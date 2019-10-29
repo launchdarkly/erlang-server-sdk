@@ -14,9 +14,9 @@ We encourage pull requests and other contributions from the community. Before su
 
 ### Prerequisites
 
-This project can be built with either [rebar3](https://www.rebar3.org/) or [erlang.mk](https://erlang.mk/).
+This project is built with [rebar3](https://www.rebar3.org/) and `make`.
 
-### Installing dependencies
+### Run all tasks
 
 From the project root directory:
 

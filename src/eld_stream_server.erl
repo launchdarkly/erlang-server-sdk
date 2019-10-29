@@ -40,10 +40,7 @@
 %%
 %% @end
 -spec listen(Pid :: pid()) ->
-    ok
-    | {error, gun_open_failed, term()}
-    | {error, gun_open_timeout, term()}
-    | {error, get_request_failed, term()}.
+    ok.
 listen(Pid) ->
     gen_server:call(Pid, {listen}).
 
@@ -136,12 +133,10 @@ do_listen(#{
     Now = erlang:system_time(milli_seconds),
     NewState = State#{last_attempted := Now},
     case do_listen(Uri, StorageBackend, Tag, SdkKey) of
-        {error, get_request_failed, Reason} ->
-            % Monitored shotgun process terminates, which we will detect, nothing else to do
-            error_logger:warning_msg("Streaming connection request error: ~p", [Reason]),
-            NewState;
-        {error, Code, _Reason} ->
-            error_logger:warning_msg("Could not establish streaming connection (~p), will retry in ~p ms", [Code, backoff:get(Backoff)]),
+        {error, Code, Reason} ->
+            % Error occurred during initial connection, shotgun pid is not in state yet, so we
+            % handle reconnection manually.
+            error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, backoff:get(Backoff)]),
             _ = backoff:fire(Backoff),
             {_, NewBackoff} = backoff:fail(Backoff),
             NewState#{backoff := NewBackoff};
@@ -174,7 +169,7 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
             F = fun(nofin, _Ref, Bin) ->
                     process_event(shotgun:parse_event(Bin), StorageBackend, Tag);
                 (fin, _Ref, _Bin) ->
-                    % Connection ended, close shotgun client, so we can reconnect
+                    % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
                     shotgun:close(Pid)
                 end,
@@ -185,6 +180,7 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
+                    shotgun:close(Pid),
                     {error, get_request_failed, Reason};
                 {ok, _Ref} ->
                     {ok, Pid}

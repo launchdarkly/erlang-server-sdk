@@ -15,8 +15,6 @@
 -export([stop_all_instances/0]).
 -export([stop_instance/0]).
 -export([stop_instance/1]).
--export([evaluate/3]).
--export([evaluate/4]).
 -export([variation/3]).
 -export([variation/4]).
 -export([variation_detail/3]).
@@ -120,31 +118,6 @@ variation(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_map(User
     lists:foreach(SendEventsFun, Events),
     % Return evaluation result
     Value.
-
-%% @doc Evaluate given flag key for given user
-%% @deprecated
-%%
-%% Evaluation iterates through flag's prerequisites, targets, rules, associated
-%% clauses and percentage rollouts. It returns the flag variation index, value
-%% and reason, explaining why the specific result was chosen.
-%% @end
--spec evaluate(FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
-    eld_eval:detail().
-evaluate(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
-    evaluate(?DEFAULT_INSTANCE_NAME, FlagKey, User, DefaultValue).
-
-%% @doc Evaluate given flag key for given user and given client instance
-%% @deprecated
-%%
-%% Evaluation iterates through flag's prerequisites, targets, rules, associated
-%% clauses and percentage rollouts. It returns the flag variation index, value
-%% and reason, explaining why the specific result was chosen.
-%% @end
--spec evaluate(Tag :: atom(), FlagKey :: binary(), User :: eld_user:user(), DefaultValue :: eld_eval:result_value()) ->
-    eld_eval:detail().
-evaluate(Tag, FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
-    error_logger:info_msg("eld:evaluate/3-4 is deprecated, use eld:variation_detail/3-4 instead."),
-    variation_detail(FlagKey, User, DefaultValue, Tag).
 
 %% @doc Evaluate given flag key for given user
 %%
