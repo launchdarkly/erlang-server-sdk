@@ -15,19 +15,54 @@
 -export([new_identify/1]).
 -export([new_index/2]).
 -export([new_custom/3]).
+-export([new_custom/4]).
 -export([strip_eval_reason/1]).
 
 %% Types
--type event() :: #{
-    type      := event_type(),
-    timestamp := non_neg_integer(),
-    key       => binary(),
-    user      => eld_user:user(),
-    data      => map()
-}.
+-type event() :: feature_request() | identify() | index() | custom().
 
 -type event_type() :: identify | index | feature_request | custom.
 %% Event type
+
+-type feature_request() :: #{
+    type      := feature_request,
+    timestamp := non_neg_integer(),
+    user      := eld_user:user(),
+    data      := #{
+        key                     := eld_flag:key(),
+        variation               := eld_flag:variation() | null,
+        value                   := eld_eval:result_value(),
+        default                 := eld_eval:result_value(),
+        version                 := eld_flag:version() | null,
+        prereq_of               := eld_flag:key() | null,
+        track_events            := boolean() | null,
+        debug_events_until_date := boolean() | null,
+        eval_reason             := eld_eval:reason() | null,
+        include_reason          := boolean(),
+        debug                   := boolean()
+    }
+}.
+
+-type identify() :: #{
+    type      := identify,
+    timestamp := non_neg_integer(),
+    user      := eld_user:user()
+}.
+
+-type index() :: #{
+    type      := index,
+    timestamp := non_neg_integer(),
+    user      := eld_user:user()
+}.
+
+-type custom() :: #{
+    type         := custom,
+    timestamp    := non_neg_integer(),
+    key          := binary(),
+    user         := eld_user:user(),
+    data         => map(),
+    metric_value => number()
+}.
 
 -export_type([event/0]).
 
@@ -69,7 +104,8 @@ new(feature_request, User, Timestamp, #{
     prereq_of               := PrereqOf,             % null | eld_flag:key()
     track_events            := TrackEvents,          % null | boolean()
     debug_events_until_date := DebugEventsUntilDate, % null | boolean()
-    eval_reason             := EvalReason            % null | eld_eval:reason()
+    eval_reason             := EvalReason,           % null | eld_eval:reason()
+    include_reason          := IncludeReason         % boolean()
 }) ->
     #{
         type      => feature_request,
@@ -85,6 +121,7 @@ new(feature_request, User, Timestamp, #{
             track_events            => TrackEvents,
             debug_events_until_date => DebugEventsUntilDate,
             eval_reason             => EvalReason,
+            include_reason          => IncludeReason,
             debug                   => false
         }
     }.
@@ -122,6 +159,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
         track_events            => null,
         debug_events_until_date => null,
         eval_reason             => Reason,
+        include_reason          => false,
         debug                   => false
     },
     new(feature_request, User, erlang:system_time(milli_seconds), EventData).
@@ -131,7 +169,7 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
     VariationValue :: eld_eval:result_value(),
     DefaultValue :: eld_eval:result_value(),
     User :: eld_user:user(),
-    Reason :: eld_eval:reason(),
+    Reason :: eld_eval:reason() | null,
     Flag :: eld_flag:flag()
 ) -> event().
 new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
@@ -139,7 +177,8 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
     version                 := Version,
     track_events            := TrackEvents,
     debug_events_until_date := DebugEventsUntilDate
-}) ->
+} = Flag) ->
+    IsExperiment = is_experiment(Reason, Flag),
     EventData = #{
         key                     => Key,
         variation               => VariationIndex,
@@ -147,9 +186,10 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         default                 => DefaultValue,
         version                 => Version,
         prereq_of               => null,
-        track_events            => TrackEvents,
+        track_events            => TrackEvents or IsExperiment,
         debug_events_until_date => DebugEventsUntilDate,
         eval_reason             => Reason,
+        include_reason          => IsExperiment,
         debug                   => false
     },
     new(feature_request, User, erlang:system_time(milli_seconds), EventData).
@@ -159,7 +199,7 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
     VariationValue :: eld_flag:variation_value(),
     PrerequisiteOf :: eld_flag:key(),
     User :: eld_user:user(),
-    Reason :: eld_eval:reason(),
+    Reason :: eld_eval:reason() | null,
     Flag :: eld_flag:flag()
 ) -> event().
 new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reason, #{
@@ -167,7 +207,8 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
     version                 := Version,
     track_events            := TrackEvents,
     debug_events_until_date := DebugEventsUntilDate
-}) ->
+} = Flag) ->
+    IsExperiment = is_experiment(Reason, Flag),
     EventData = #{
         key                     => Key,
         variation               => VariationIndex,
@@ -175,9 +216,10 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         default                 => null,
         version                 => Version,
         prereq_of               => PrerequisiteOf,
-        track_events            => TrackEvents,
+        track_events            => TrackEvents or IsExperiment,
         debug_events_until_date => DebugEventsUntilDate,
         eval_reason             => Reason,
+        include_reason          => IsExperiment,
         debug                   => false
     },
     new(feature_request, User, erlang:system_time(milli_seconds), EventData).
@@ -192,8 +234,36 @@ new_index(User, Timestamp) ->
 
 -spec new_custom(Key :: binary(), User :: eld_user:user(), Data :: map()) -> event().
 new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->
-    new(custom, Key, User, erlang:system_time(milli_seconds), Data).
+    #{
+        type      => custom,
+        timestamp => erlang:system_time(milli_seconds),
+        key       => Key,
+        user      => User,
+        data      => Data
+    }.
+
+-spec new_custom(Key :: binary(), User :: eld_user:user(), Data :: map(), MetricValue :: number()) -> event().
+new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_map(Data), is_number(MetricValue) ->
+    #{
+        type         => custom,
+        timestamp    => erlang:system_time(milli_seconds),
+        key          => Key,
+        user         => User,
+        data         => Data,
+        metric_value => MetricValue
+    }.
 
 -spec strip_eval_reason(eld_event:event()) -> eld_event:event().
 strip_eval_reason(#{type := feature_request, data := Data} = Event) ->
     Event#{data => maps:remove(eval_reason, Data)}.
+
+%%===================================================================
+%% Internal functions
+%%===================================================================
+
+-spec is_experiment(eld_eval:reason(), eld_flag:flag()) -> boolean().
+is_experiment(fallthrough, #{track_events_fallthrough := true}) -> true;
+is_experiment({rule_match, RuleIndex, _}, #{rules := Rules}) when RuleIndex >=0, RuleIndex < length(Rules) ->
+    Rule = lists:nth(RuleIndex + 1, Rules),
+    maps:get(track_events, Rule, false);
+is_experiment(_Reason, _Flag) -> false.

@@ -18,6 +18,7 @@
         "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
         "targets": [],
         "trackEvents": true,
+        "trackEventsFallthrough": false,
         "variations": [
           true,
           false
@@ -53,6 +54,7 @@
           }
         ],
         "trackEvents": true,
+        "trackEventsFallthrough": false,
         "variations": [
           true,
           false
@@ -83,6 +85,7 @@
               }
             ],
             "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+            "trackEvents": false,
             "variation": 1
           },
           {
@@ -97,6 +100,7 @@
               }
             ],
             "id": "489a185d-caaf-4db9-b192-e09e927d070c",
+            "trackEvents": false,
             "variation": 1
           }
         ],
@@ -104,6 +108,7 @@
         "sel": "45501b9314dc4641841af774cb038b96",
         "targets": [],
         "trackEvents": true,
+        "trackEventsFallthrough": false,
         "variations": [
           true,
           false
