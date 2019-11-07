@@ -175,14 +175,14 @@ format_event(#{type := index, timestamp := Timestamp, user := User}, {FormattedE
     },
     FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
-format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
+format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data} = Event, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
     Kind = <<"custom">>,
-    OutputEvent = #{
+    OutputEvent = maybe_set_metric_value(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
         <<"data">> => Data
-    },
+    }),
     FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
 
@@ -239,6 +239,12 @@ format_event_set_user(<<"custom">>, User, OutputEvent, true, GlobalPrivateAttrib
     };
 format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent, false, _) ->
     OutputEvent#{<<"userKey">> => UserKey}.
+
+-spec maybe_set_metric_value(eld_event:event(), map()) -> map().
+maybe_set_metric_value(#{metric_value := MetricValue}, OutputEvent) ->
+    OutputEvent#{<<"metricValue">> => MetricValue};
+maybe_set_metric_value(_, OutputEvent) ->
+    OutputEvent.
 
 -spec format_summary_event(eld_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};

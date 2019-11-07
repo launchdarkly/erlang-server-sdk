@@ -13,6 +13,8 @@
 -export([
     add_flag_eval_events_flush_with_track/1,
     add_flag_eval_events_flush_with_track_no_reasons/1,
+    add_flag_eval_events_flush_with_track_experimentation_rule/1,
+    add_flag_eval_events_flush_with_track_experimentation_fallthrough/1,
     add_flag_eval_events_flush_with_track_inline/1,
     add_flag_eval_events_flush_no_track/1,
     add_flag_eval_events_with_debug/1,
@@ -31,6 +33,8 @@ all() ->
     [
         add_flag_eval_events_flush_with_track,
         add_flag_eval_events_flush_with_track_no_reasons,
+        add_flag_eval_events_flush_with_track_experimentation_rule,
+        add_flag_eval_events_flush_with_track_experimentation_fallthrough,
         add_flag_eval_events_flush_with_track_inline,
         add_flag_eval_events_flush_no_track,
         add_flag_eval_events_with_debug,
@@ -89,6 +93,7 @@ get_simple_flag_track() ->
             <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
             <<"targets">> => [],
             <<"trackEvents">> => true,
+            <<"trackEventsFallthrough">> => false,
             <<"variations">> => [true,false],
             <<"version">> => 5
         }
@@ -111,6 +116,58 @@ get_simple_flag_no_track() ->
             <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
             <<"targets">> => [],
             <<"trackEvents">> => false,
+            <<"trackEventsFallthrough">> => false,
+            <<"variations">> => [true,false],
+            <<"version">> => 5
+        }
+    }.
+
+get_simple_flag_experimentation_rule() ->
+    {
+        <<"abc">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => false,
+            <<"fallthrough">> => #{<<"variation">> => 0},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [#{
+                <<"clauses">> => [],
+                <<"id">> => <<"12345">>,
+                <<"variation">> => 0,
+                <<"trackEvents">> => true
+            }],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => false,
+            <<"trackEventsFallthrough">> => false,
+            <<"variations">> => [true,false],
+            <<"version">> => 5
+        }
+    }.
+
+get_simple_flag_experimentation_fallthrough() ->
+    {
+        <<"abc">>,
+        #{
+            <<"clientSide">> => false,
+            <<"debugEventsUntilDate">> => null,
+            <<"deleted">> => false,
+            <<"fallthrough">> => #{<<"variation">> => 0},
+            <<"key">> => <<"abc">>,
+            <<"offVariation">> => 1,
+            <<"on">> => true,
+            <<"prerequisites">> => [],
+            <<"rules">> => [],
+            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+            <<"targets">> => [],
+            <<"trackEvents">> => false,
+            <<"trackEventsFallthrough">> => true,
             <<"variations">> => [true,false],
             <<"version">> => 5
         }
@@ -135,6 +192,7 @@ get_simple_flag_debug() ->
             <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
             <<"targets">> => [],
             <<"trackEvents">> => false,
+            <<"trackEventsFallthrough">> => false,
             <<"variations">> => [true,false],
             <<"version">> => 5
         }
@@ -260,6 +318,108 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"userKey">> := <<"12345-track-no-reasons">>,
+            <<"value">> := <<"variation-value-5">>,
+            <<"variation">> := 5,
+            <<"version">> := 5,
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
+    {FlagKey, FlagBin} = get_simple_flag_experimentation_rule(),
+    Flag = eld_flag:new(FlagKey, FlagBin),
+    Event = eld_event:new_flag_eval(
+        5,
+        <<"variation-value-5">>,
+        <<"default-value">>,
+        #{key => <<"12345-track-experimentation-rule">>},
+        {rule_match, 0, <<"12345">>},
+        Flag
+    ),
+    Events = [Event],
+    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => false}),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
+                            <<"unknown">> := false,
+                            <<"value">> := <<"variation-value-5">>,
+                            <<"variation">> := 5,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-rule">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"feature">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            <<"reason">> := #{<<"kind">> := <<"RULE_MATCH">>, <<"ruleId">> := <<"12345">>, <<"ruleIndex">> := 0},
+            <<"userKey">> := <<"12345-track-experimentation-rule">>,
+            <<"value">> := <<"variation-value-5">>,
+            <<"variation">> := 5,
+            <<"version">> := 5,
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
+    {FlagKey, FlagBin} = get_simple_flag_experimentation_fallthrough(),
+    Flag = eld_flag:new(FlagKey, FlagBin),
+    Event = eld_event:new_flag_eval(
+        5,
+        <<"variation-value-5">>,
+        <<"default-value">>,
+        #{key => <<"12345-track-experimentation-fallthrough">>},
+        fallthrough,
+        Flag
+    ),
+    Events = [Event],
+    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => false}),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
+                            <<"unknown">> := false,
+                            <<"value">> := <<"variation-value-5">>,
+                            <<"variation">> := 5,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-fallthrough">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"feature">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            <<"reason">> := #{<<"kind">> := <<"FALLTHROUGH">>},
+            <<"userKey">> := <<"12345-track-experimentation-fallthrough">>,
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
@@ -460,7 +620,8 @@ add_identify_events(_) ->
 add_custom_events(_) ->
     Event1 = eld_event:new_custom(<<"event-foo">>, #{key => <<"12345">>}, #{k1 => <<"v1">>}),
     Event2 = eld_event:new_custom(<<"event-bar">>, #{key => <<"abcde">>}, #{k2 => <<"v2">>}),
-    Events = [Event1, Event2],
+    Event3 = eld_event:new_custom(<<"event-baz">>, #{key => <<"98765">>}, #{k3 => <<"v3">>}, 123),
+    Events = [Event1, Event2, Event3],
     ActualEvents = send_await_events(Events, #{flush => true}),
     [
         #{
@@ -485,6 +646,19 @@ add_custom_events(_) ->
             <<"kind">> := <<"custom">>,
             <<"userKey">> := <<"abcde">>,
             <<"data">> := #{<<"k2">> := <<"v2">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"98765">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"key">> := <<"event-baz">>,
+            <<"kind">> := <<"custom">>,
+            <<"userKey">> := <<"98765">>,
+            <<"data">> := #{<<"k3">> := <<"v3">>},
+            <<"metricValue">> := 123,
             <<"creationDate">> := _
         }
     ] = ActualEvents.

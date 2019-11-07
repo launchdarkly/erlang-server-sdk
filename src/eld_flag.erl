@@ -12,20 +12,21 @@
 
 %% Types
 -type flag() :: #{
-    debug_events_until_date => pos_integer() | null,
-    deleted                 => boolean(),
-    fallthrough             => variation_or_rollout(),
-    key                     => key(),
-    off_variation           => variation(),
-    on                      => boolean(),
-    prerequisites           => [prerequisite()],
-    rules                   => [eld_rule:rule()],
-    salt                    => binary(),
-    sel                     => binary(),
-    targets                 => [target()],
-    track_events            => boolean(),
-    variations              => [variation_value()],
-    version                 => version()
+    debug_events_until_date  => pos_integer() | null,
+    deleted                  => boolean(),
+    fallthrough              => variation_or_rollout(),
+    key                      => key(),
+    off_variation            => variation(),
+    on                       => boolean(),
+    prerequisites            => [prerequisite()],
+    rules                    => [eld_rule:rule()],
+    salt                     => binary(),
+    sel                      => binary(),
+    targets                  => [target()],
+    track_events             => boolean(),
+    track_events_fallthrough => boolean(),
+    variations               => [variation_value()],
+    version                  => version()
 }.
 
 -type key() :: binary().
@@ -74,36 +75,38 @@
 
 -spec new(Key :: eld_flag:key(), Properties :: map()) -> flag().
 new(Key, #{
-    <<"debugEventsUntilDate">> := DebugEventsUntilDate,
-    <<"deleted">>              := Deleted,
-    <<"fallthrough">>          := Fallthrough,
-    <<"key">>                  := Key,
-    <<"offVariation">>         := OffVariation,
-    <<"on">>                   := On,
-    <<"prerequisites">>        := Prerequisites,
-    <<"rules">>                := Rules,
-    <<"salt">>                 := Salt,
-    <<"sel">>                  := Sel,
-    <<"targets">>              := Targets,
-    <<"trackEvents">>          := TrackEvents,
-    <<"variations">>           := Variations,
-    <<"version">>              := Version
+    <<"debugEventsUntilDate">>   := DebugEventsUntilDate,
+    <<"deleted">>                := Deleted,
+    <<"fallthrough">>            := Fallthrough,
+    <<"key">>                    := Key,
+    <<"offVariation">>           := OffVariation,
+    <<"on">>                     := On,
+    <<"prerequisites">>          := Prerequisites,
+    <<"rules">>                  := Rules,
+    <<"salt">>                   := Salt,
+    <<"sel">>                    := Sel,
+    <<"targets">>                := Targets,
+    <<"trackEvents">>            := TrackEvents,
+    <<"trackEventsFallthrough">> := TrackEventsFallthrough,
+    <<"variations">>             := Variations,
+    <<"version">>                := Version
 }) ->
     #{
-        debug_events_until_date => DebugEventsUntilDate,
-        deleted                 => Deleted,
-        fallthrough             => parse_variation_or_rollout(Fallthrough),
-        key                     => Key,
-        off_variation           => OffVariation,
-        on                      => On,
-        prerequisites           => parse_prerequisites(Prerequisites),
-        rules                   => parse_rules(Rules),
-        salt                    => Salt,
-        sel                     => Sel,
-        targets                 => parse_targets(Targets),
-        track_events            => TrackEvents,
-        variations              => Variations,
-        version                 => Version
+        debug_events_until_date  => DebugEventsUntilDate,
+        deleted                  => Deleted,
+        fallthrough              => parse_variation_or_rollout(Fallthrough),
+        key                      => Key,
+        off_variation            => OffVariation,
+        on                       => On,
+        prerequisites            => parse_prerequisites(Prerequisites),
+        rules                    => parse_rules(Rules),
+        salt                     => Salt,
+        sel                      => Sel,
+        targets                  => parse_targets(Targets),
+        track_events             => TrackEvents,
+        track_events_fallthrough => TrackEventsFallthrough,
+        variations               => Variations,
+        version                  => Version
     }.
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().

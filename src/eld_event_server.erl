@@ -239,6 +239,8 @@ should_add_full_event(_) -> false.
     [eld_event:event()].
 maybe_add_feature_request_full_fidelity(true, Event, #{include_reasons := true}, Events, Capacity) ->
     add_raw_event(Event, Events, Capacity);
+maybe_add_feature_request_full_fidelity(true, #{data := #{include_reason := true}} = Event, _Options, Events, Capacity) ->
+    add_raw_event(Event, Events, Capacity);
 maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity) ->
     add_raw_event(eld_event:strip_eval_reason(Event), Events, Capacity);
 maybe_add_feature_request_full_fidelity(false, _Event, _Options, Events, _Capacity) ->
