@@ -49,6 +49,9 @@
     rule_nomatch_in_negated_null_attribute/1,
     fallthrough_rollout/1,
     fallthrough_rollout_custom/1,
+    fallthrough_rollout_custom_integer/1,
+    fallthrough_rollout_custom_float/1,
+    fallthrough_rollout_custom_float_invalid/1,
     variation_out_of_range/1,
     extra_fields/1
 ]).
@@ -97,6 +100,9 @@ all() ->
         rule_nomatch_in_negated_null_attribute,
         fallthrough_rollout,
         fallthrough_rollout_custom,
+        fallthrough_rollout_custom_integer,
+        fallthrough_rollout_custom_float,
+        fallthrough_rollout_custom_float_invalid,
         variation_out_of_range,
         extra_fields
     ].
@@ -580,6 +586,54 @@ fallthrough_rollout_custom(_) ->
         eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_custom_integer(_) ->
+    ExpectedReason = fallthrough,
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"customProp">> => 514343
+        }
+    },
+    {{4, <<"e">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_custom_float(_) ->
+    ExpectedReason = fallthrough,
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"customProp">> => 514343.0
+        }
+    },
+    {{4, <<"e">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_custom_float_invalid(_) ->
+    ExpectedReason = fallthrough,
+    User = #{
+        key => <<"user-foo">>,
+        custom => #{
+            <<"customProp">> => 514343.05
+        }
+    },
+    {{0, <<"a">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-custom">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
