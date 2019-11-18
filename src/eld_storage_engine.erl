@@ -29,6 +29,7 @@
     | {error, already_exists, string()}.
 
 %% `empty' must delete all records from the specified bucket.
+%% If the bucket doesn't exist, it must return `bucket_not_found' error.
 -callback empty(Tag :: atom(), Bucket :: atom()) ->
     ok
     | {error, bucket_not_found, string()}.
@@ -49,6 +50,11 @@
 %% `put' must create or update key-value pair records in the given bucket.
 %% If the bucket doesn't exist, it must return `bucket_not_found' error.
 -callback put(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
+    ok
+    | {error, bucket_not_found, string()}.
+
+%% `put_clean' must perform `empty' and `put' atomically on a given bucket.
+-callback put_clean(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
     ok
     | {error, bucket_not_found, string()}.
 

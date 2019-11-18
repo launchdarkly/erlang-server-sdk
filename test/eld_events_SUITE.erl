@@ -47,20 +47,27 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    eld:start_instance("", #{start_stream => false, events_dispatcher => eld_event_dispatch_test}),
+    Options = #{
+        stream => false,
+        events_dispatcher => eld_event_dispatch_test,
+        polling_update_requestor => eld_update_requestor_test
+    },
+    eld:start_instance("", Options),
     Another1Options = #{
-        start_stream => false,
+        stream => false,
         events_capacity => 2,
         events_dispatcher => eld_event_dispatch_test,
-        events_flush_interval => 1000
+        events_flush_interval => 1000,
+        polling_update_requestor => eld_update_requestor_test
     },
     eld:start_instance("", another1, Another1Options),
-    InlinerOptions = #{
-        start_stream => false,
+    InlineOptions = #{
+        stream => false,
         events_dispatcher => eld_event_dispatch_test,
-        inline_users_in_events => true
+        inline_users_in_events => true,
+        polling_update_requestor => eld_update_requestor_test
     },
-    eld:start_instance("", inliner, InlinerOptions),
+    eld:start_instance("", inliner, InlineOptions),
     Config.
 
 end_per_suite(_) ->

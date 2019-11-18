@@ -1,36 +1,36 @@
 %%-------------------------------------------------------------------
-%% @doc Stream supervisor
+%% @doc Update processor supervisor
 %%
 %% @end
 %%-------------------------------------------------------------------
 
--module(eld_stream_sup).
+-module(eld_update_sup).
 
 -behaviour(supervisor).
 
 %% Supervision
--export([start_link/1, init/1]).
+-export([start_link/2, init/1]).
 
 %%===================================================================
 %% Supervision
 %%===================================================================
 
--spec start_link(StreamSupName :: atom()) ->
+-spec start_link(UpdateSupName :: atom(), UpdateWorkerModule :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
-start_link(StreamSupName) ->
-    supervisor:start_link({local, StreamSupName}, ?MODULE, []).
+start_link(UpdateSupName, UpdateWorkerModule) ->
+    supervisor:start_link({local, UpdateSupName}, ?MODULE, [UpdateWorkerModule]).
 
 -spec init(Args :: term()) ->
     {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
-init([]) ->
+init([UpdateWorkerModule]) ->
     MaxRestart = 10,
     MaxTime = 3600,
     ChildSpec = {
-        eld_stream_server,
-        {eld_stream_server, start_link, []},
+        UpdateWorkerModule,
+        {UpdateWorkerModule, start_link, []},
         permanent,
         5000, % shutdown time
         worker,
-        [eld_stream_server]
+        [UpdateWorkerModule]
     },
     {ok, {{simple_one_for_one, MaxRestart, MaxTime}, [ChildSpec]}}.

@@ -22,6 +22,7 @@
 -export([get/3]).
 -export([list/2]).
 -export([put/3]).
+-export([put_clean/3]).
 
 %% Types
 -type state() :: #{data => map()}.
@@ -77,7 +78,7 @@ get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
 list(ServerRef, Bucket) when is_atom(Bucket) ->
     gen_server:call(ServerRef, {list, Bucket}).
 
-%% @doc Put an item key value pair in an existing bucket
+%% @doc Put item key value pairs in an existing bucket
 %%
 %% @end
 -spec put(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
@@ -85,6 +86,15 @@ list(ServerRef, Bucket) when is_atom(Bucket) ->
     {error, bucket_not_found, string()}.
 put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
     ok = gen_server:call(ServerRef, {put, Bucket, Items}).
+
+%% @doc Perform an atomic empty and put
+%%
+%% @end
+-spec put_clean(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+    ok |
+    {error, bucket_not_found, string()}.
+put_clean(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    ok = gen_server:call(ServerRef, {put_clean, Bucket, Items}).
 
 %%===================================================================
 %% Behavior callbacks
@@ -116,7 +126,15 @@ handle_call({put, Bucket, Items}, _From, #{data := Data} = State) ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
+    end;
+handle_call({put_clean, Bucket, Items}, _From, #{data := Data} = State) ->
+    case put_clean_items(Items, Bucket, Data) of
+        {error, bucket_not_found, Error} ->
+            {reply, {error, bucket_not_found, Error}, State};
+        {ok, NewData} ->
+            {reply, ok, maps:update(data, NewData, State)}
     end.
+
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
@@ -207,7 +225,7 @@ lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
             end
     end.
 
-%% @doc Put a key value pair in bucket
+%% @doc Put key value pairs in bucket
 %% @private
 %%
 %% @end
@@ -222,4 +240,19 @@ put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
             BucketData = maps:get(Bucket, Data),
             NewBucketData = maps:merge(BucketData, Items),
             {ok, maps:update(Bucket, NewBucketData, Data)}
+    end.
+
+%% @doc Empty bucket and put key value pairs
+%% @private
+%%
+%% @end
+-spec put_clean_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
+    {ok, NewData :: map()} |
+    {error, bucket_not_found, string()}.
+put_clean_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
+    case bucket_exists(Bucket, Data) of
+        false ->
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
+        _ ->
+            {ok, maps:update(Bucket, Items, Data)}
     end.

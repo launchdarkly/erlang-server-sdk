@@ -4,9 +4,10 @@
 %% @end
 %%-------------------------------------------------------------------
 
--module(eld_stream_server).
+-module(eld_update_stream_server).
 
 -behaviour(gen_server).
+-behaviour(eld_update_server).
 
 %% Supervision
 -export([start_link/1, init/1]).
@@ -18,14 +19,13 @@
 -export([listen/1]).
 
 -type state() :: #{
-    key => atom(),
-    conn => pid() | undefined,
-    backoff => backoff:backoff(),
-    last_attempted => non_neg_integer(),
-    sdk_key => string(),
-    storage_backend => atom(),
-    storage_tag => atom(),
-    stream_uri => string()
+    conn := pid() | undefined,
+    backoff := backoff:backoff(),
+    last_attempted := non_neg_integer(),
+    sdk_key := string(),
+    storage_backend := atom(),
+    storage_tag := atom(),
+    stream_uri := string()
 }.
 
 -ifdef(TEST).
@@ -54,6 +54,7 @@ listen(Pid) ->
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
+    error_logger:info_msg("Starting streaming update server for ~p", [Tag]),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -111,7 +112,7 @@ terminate(Reason, #{conn := undefined} = _State) ->
     error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
     ok;
 terminate(Reason, #{conn := ShotgunPid} = _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid ~p~n", [Reason, ShotgunPid]),
+    error_logger:info_msg("Terminating streaming connection, reason: ~p; Pid ~p~n", [Reason, ShotgunPid]),
     ok = shotgun:close(ShotgunPid).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -211,8 +212,8 @@ get_event_operation(<<"patch">>) -> patch.
 process_items(put, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
-    ok = StorageBackend:put(Tag, flags, Flags),
-    ok = StorageBackend:put(Tag, segments, Segments);
+    ok = StorageBackend:put_clean(Tag, flags, Flags),
+    ok = StorageBackend:put_clean(Tag, segments, Segments);
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Key, Item} = get_patch_item(Data),
     ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
