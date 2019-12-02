@@ -61,7 +61,7 @@ init([Tag]) ->
     Dispatcher = eld_settings:get_value(Tag, events_dispatcher),
     InlineUsers = eld_settings:get_value(Tag, inline_users_in_events),
     GlobalPrivateAttributes = eld_settings:get_value(Tag, private_attributes),
-    EventsUri = eld_settings:get_value(Tag, events_uri),
+    EventsUri = eld_settings:get_value(Tag, events_uri) ++ "/api/events/bulk",
     State = #{
         sdk_key => SdkKey,
         dispatcher => Dispatcher,

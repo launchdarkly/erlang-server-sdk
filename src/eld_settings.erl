@@ -42,8 +42,8 @@
 
 %% Constants
 -define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
--define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com/api/events/bulk").
--define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
+-define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
+-define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).

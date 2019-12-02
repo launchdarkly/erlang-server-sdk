@@ -62,7 +62,7 @@ start_link(Tag) ->
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
     SdkKey = eld_settings:get_value(Tag, sdk_key),
-    StreamUri = eld_settings:get_value(Tag, stream_uri),
+    StreamUri = eld_settings:get_value(Tag, stream_uri) ++ "/all",
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     Backoff = backoff:type(backoff:init(100, 30000, self(), listen), jitter),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
