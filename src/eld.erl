@@ -25,6 +25,8 @@
 -export([identify/2]).
 -export([track/3]).
 -export([track/4]).
+-export([track_with_metric/4]).
+-export([track_with_metric/5]).
 
 %% Types
 -type feature_flags_state() :: #{
@@ -203,4 +205,27 @@ track(Key, User, Data) when is_binary(Key), is_map(Data) ->
 -spec track(Key :: binary(), User :: eld_user:user(), Data :: map(), Tag :: atom()) -> ok.
 track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key), is_map(Data) ->
     Event = eld_event:new_custom(Key, User, Data),
+    eld_event_server:add_event(Tag, Event, #{}).
+
+%% @doc Reports that a user has performed an event, and associates it with a numeric value.
+%%
+%% This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
+%% be returned as part of the custom event for Data Export.
+%%
+%% Custom data can also be attached to the event.
+%% @end
+-spec track_with_metric(Key :: binary(), User :: eld_user:user(), Data :: map(), Metric :: number()) -> ok.
+track_with_metric(Key, User, Data, Metric) ->
+    track_with_metric(Key, User, Data, Metric, ?DEFAULT_INSTANCE_NAME).
+
+%% @doc Reports that a user has performed an event, and associates it with a numeric value.
+%%
+%% This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
+%% be returned as part of the custom event for Data Export.
+%%
+%% Custom data can also be attached to the event.
+%% @end
+-spec track_with_metric(Key :: binary(), User :: eld_user:user(), Data :: map(), Metric :: number(), Tag :: atom()) -> ok.
+track_with_metric(Key, User, Data, Metric, Tag) ->
+    Event = eld_event:new_custom(Key, User, Data, Metric),
     eld_event_server:add_event(Tag, Event, #{}).
