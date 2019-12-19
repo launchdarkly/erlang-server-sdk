@@ -15,9 +15,15 @@
     base_uri => string(),
     stream_uri => string(),
     storage_backend => atom(),
+    events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
+    events_dispatcher => atom(),
     user_keys_capacity => pos_integer(),
-    start_stream => boolean()
+    inline_users_in_events => boolean(),
+    private_attributes => eld_settings:private_attributes(),
+    stream => boolean(),
+    polling_interval => pos_integer(),
+    polling_update_requestor => atom()
 }.
 %% Options for starting an SDK instance
 
@@ -39,15 +45,16 @@ start(Tag, SdkKey, Options) ->
     ok = eld_settings:register(Tag, Settings),
     % Start instance supervisor
     SupName = get_ref_from_tag(instance, Tag),
-    StreamSupName = get_ref_from_tag(instance_stream, Tag),
+    StartStream = maps:get(stream, Settings),
+    UpdateSupName = get_ref_from_tag(instance_stream, Tag),
+    UpdateWorkerModule = get_update_processor(StartStream),
     EventsSupName = get_ref_from_tag(instance_events, Tag),
-    {ok, _} = supervisor:start_child(eld_sup, [SupName, StreamSupName, EventsSupName, Tag]),
+    {ok, _} = supervisor:start_child(eld_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
     StorageBackend = maps:get(storage_backend, Settings),
     ok = StorageBackend:init(SupName, Tag, []),
     % Start stream client
-    StartStream = maps:get(start_stream, Options, true),
-    ok = start_stream(StartStream, Tag, SupName).
+    ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
 
 %% @doc Stop a client instance
 %%
@@ -57,7 +64,7 @@ stop(Tag) when is_atom(Tag) ->
     % TODO only stop stream instance if it's running
     % Terminate stream
     StreamSupName = get_ref_from_tag(instance_stream, Tag),
-    ok = eld_stream:stop(StreamSupName),
+    ok = eld_updater:stop(StreamSupName),
     % Terminate storage
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     ok = StorageBackend:terminate(Tag),
@@ -91,14 +98,19 @@ get_ref_from_tag(instance_stream, Tag) when is_atom(Tag) ->
 get_ref_from_tag(instance_events, Tag) when is_atom(Tag) ->
     list_to_atom("eld_instance_events_" ++ atom_to_list(Tag)).
 
-%% @doc Initialize streamer client and start listening
+%% @doc Initialize update processor client and start listening
 %% @private
 %%
 %% @end
--spec start_stream(StartStream :: boolean(), Tag :: atom(), SupName :: atom()) ->
+-spec start_updater(atom(), atom(), atom()) ->
     ok.
-start_stream(false, _, _) -> ok;
-start_stream(true, Tag, _SupName) ->
-    StreamSupName = get_ref_from_tag(instance_stream, Tag),
-    %{ok, _Pid} = supervisor:start_child(eld_sup, [SupName, StreamSupName]),
-    ok = eld_stream:start(StreamSupName, Tag).
+start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
+    ok = eld_updater:start(UpdateSupName, UpdateWorkerModule, Tag).
+
+%% @doc Get update processor module name depending on settings
+%% @private
+%%
+%% @end
+-spec get_update_processor(Stream :: boolean()) -> atom().
+get_update_processor(true) -> eld_update_stream_server;
+get_update_processor(false) -> eld_update_poll_server.

@@ -14,6 +14,7 @@
 -type rule() :: #{
     id                   => binary(),
     clauses              => [eld_clause:clause()],
+    track_events         => boolean(),
     variation_or_rollout => eld_flag:variation_or_rollout()
 }.
 %% Expresses a set of AND-ed matching conditions for a user, along with either
@@ -26,10 +27,15 @@
 %%===================================================================
 
 -spec new(map()) -> rule().
-new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"variation">> := Variation}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => Variation};
-new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"rollout">> := Rollout}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), variation_or_rollout => parse_rollout(Rollout)}.
+new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"variation">> := Variation}) ->
+    #{id => Id, clauses => parse_clauses(Clauses), track_events => TrackEvents, variation_or_rollout => Variation};
+new(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"rollout">> := Rollout}) ->
+    #{
+        id => Id,
+        clauses => parse_clauses(Clauses),
+        track_events => TrackEvents,
+        variation_or_rollout => parse_rollout(Rollout)
+    }.
 
 %% @doc Match all clauses to user, includes segment_match
 %%

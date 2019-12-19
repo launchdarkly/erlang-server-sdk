@@ -1,14 +1,14 @@
 %%-------------------------------------------------------------------
-%% @doc `eld_stream' module
+%% @doc `eld_updater' module
 %%
 %% Used to start and stop client stream listener.
 %% @end
 %%-------------------------------------------------------------------
 
--module(eld_stream).
+-module(eld_updater).
 
 %% API
--export([start/2]).
+-export([start/3]).
 -export([stop/1]).
 
 %% Constants
@@ -21,14 +21,14 @@
 %% @doc Start client stream listener
 %%
 %% @end
--spec start(StreamSupName :: atom(), Tag :: atom()) ->
+-spec start(UpdateSupName :: atom(), UpdateWorkerModule :: atom(), Tag :: atom()) ->
     ok
     | {error, gun_open_failed, term()}
     | {error, gun_open_timeout, term()}
     | {error, get_request_failed, term()}.
-start(StreamSupName, Tag) when is_atom(StreamSupName) ->
-    {ok, Pid} = supervisor:start_child(StreamSupName, [Tag]),
-    eld_stream_server:listen(Pid).
+start(UpdateSupName, UpdateWorkerModule, Tag) when is_atom(UpdateSupName), is_atom(UpdateWorkerModule) ->
+    {ok, Pid} = supervisor:start_child(UpdateSupName, [Tag]),
+    UpdateWorkerModule:listen(Pid).
 
 %% @doc Stop client stream listener
 %%

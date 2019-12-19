@@ -101,6 +101,8 @@ init([Tag]) ->
     Capacity = eld_settings:get_value(Tag, events_capacity),
     InlineUsers = eld_settings:get_value(Tag, inline_users_in_events),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    % Need to trap exit so supervisor:terminate_child calls terminate callback
+    process_flag(trap_exit, true),
     State = #{
         events => [],
         summary_event => #{},
@@ -140,6 +142,10 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
+terminate(Reason, #{timer_ref := TimerRef} = _State) ->
+    error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
+    _ = erlang:cancel_timer(TimerRef),
+    ok;
 terminate(_Reason, _State) ->
     ok.
 
@@ -238,6 +244,8 @@ should_add_full_event(_) -> false.
 -spec maybe_add_feature_request_full_fidelity(boolean(), eld_event:event(), options(), [eld_event:event()], pos_integer()) ->
     [eld_event:event()].
 maybe_add_feature_request_full_fidelity(true, Event, #{include_reasons := true}, Events, Capacity) ->
+    add_raw_event(Event, Events, Capacity);
+maybe_add_feature_request_full_fidelity(true, #{data := #{include_reason := true}} = Event, _Options, Events, Capacity) ->
     add_raw_event(Event, Events, Capacity);
 maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity) ->
     add_raw_event(eld_event:strip_eval_reason(Event), Events, Capacity);

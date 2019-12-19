@@ -29,7 +29,10 @@
     events_dispatcher => atom(),
     user_keys_capacity => pos_integer(),
     inline_users_in_events => boolean(),
-    private_attributes => private_attributes()
+    private_attributes => private_attributes(),
+    stream => boolean(),
+    polling_interval => pos_integer(),
+    polling_update_requestor => atom()
 }.
 % Settings stored for each running SDK instance
 
@@ -37,11 +40,10 @@
 
 -export_type([private_attributes/0]).
 
-
 %% Constants
 -define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
--define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com/api/events/bulk").
--define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com/all").
+-define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
+-define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com").
 -define(DEFAULT_STORAGE_BACKEND, eld_storage_ets).
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
@@ -49,8 +51,11 @@
 -define(DEFAULT_USER_KEYS_CAPACITY, 1000).
 -define(DEFAULT_INLINE_USERS_IN_EVENTS, false).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
+-define(DEFAULT_STREAM, true).
+-define(DEFAULT_POLLING_UPDATE_REQUESTOR, eld_update_requestor_httpc).
+-define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.0.0-alpha3").
+-define(VERSION, "1.0.0-alpha4").
 -define(EVENT_SCHEMA, "3").
 
 %%===================================================================
@@ -81,6 +86,12 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
     InlineUsersInEvents = maps:get(inline_users_in_events, Options, ?DEFAULT_INLINE_USERS_IN_EVENTS),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
+    Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
+    PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
+    PollingInterval = lists:max([
+        ?MINIMUM_POLLING_INTERVAL,
+        maps:get(polling_interval, Options, ?MINIMUM_POLLING_INTERVAL)
+    ]),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -92,7 +103,10 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_dispatcher => EventsDispatcher,
         user_keys_capacity => UserKeysCapacity,
         inline_users_in_events => InlineUsersInEvents,
-        private_attributes => PrivateAttributes
+        private_attributes => PrivateAttributes,
+        stream => Stream,
+        polling_update_requestor => PollingUpdateRequestor,
+        polling_interval => PollingInterval
     }.
 
 %% @doc Get all registered tags

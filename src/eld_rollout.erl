@@ -54,7 +54,7 @@ rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key :
 bucket_user(Key, Salt, User, BucketBy) ->
     UserValue = eld_user:get(BucketBy, User),
     UserSecondary = eld_user:get(secondary, User),
-    bucket_user_value(Key, Salt, UserValue, UserSecondary).
+    bucket_user_value(Key, Salt, bucketable_value(UserValue), UserSecondary).
 
 %%===================================================================
 %% Internal functions
@@ -90,3 +90,9 @@ bucket_hash(Hash) ->
     Sha1_15 = string:substr(Sha1Hex, 1, 15),
     Int = list_to_integer(Sha1_15, 16),
     Int / 1152921504606846975.
+
+-spec bucketable_value(any()) -> binary() | null.
+bucketable_value(V) when is_binary(V) -> V;
+bucketable_value(V) when is_integer(V) -> list_to_binary(integer_to_list(V));
+bucketable_value(V) when is_float(V) -> if V == trunc(V) -> list_to_binary(integer_to_list(trunc(V))); true -> null end;
+bucketable_value(_) -> null.

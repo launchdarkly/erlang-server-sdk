@@ -33,7 +33,11 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    eld:start_instance("", #{start_stream => false}),
+    Options = #{
+        stream => false,
+        polling_update_requestor => eld_update_requestor_test
+    },
+    eld:start_instance("", Options),
     Config.
 
 end_per_suite(_) ->
@@ -247,7 +251,6 @@ get_flag_with_extra_property() ->
         }
     }.
 
-
 %%====================================================================
 %% Tests
 %%====================================================================
@@ -262,12 +265,12 @@ server_process_event_put_patch(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
     [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(default, flags),
     ok.
 
@@ -281,12 +284,12 @@ server_process_event_put_patch_flag_with_extra_property(_) ->
         "\"segments\":{}",
         "}",
         "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
     [{FlagSimpleKey, FlagPatchMap}] = eld_storage_ets:list(default, flags),
     ok.
 
@@ -300,12 +303,12 @@ server_process_event_put_patch_old_version(_) ->
         "\"segments\":{}",
         "}",
         "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     {FlagSimpleKey, FlagPatchBin, _FlagPatchMap} = get_simple_flag_patch_old(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, eld_storage_ets, default),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     ok.
 
@@ -319,10 +322,10 @@ server_process_event_put_delete(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
-    ok = eld_stream_server:process_event(#{event => <<"delete">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"delete">>, data => PutData}, eld_storage_ets, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
     [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
     ok.
@@ -337,11 +340,11 @@ server_process_event_put_delete_single(_) ->
         "\"segments\":{}",
         "}",
         "}">>,
-    ok = eld_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, eld_storage_ets, default),
     [] = eld_storage_ets:list(default, segments),
     [{FlagSimpleKey, FlagSimpleMap}] = eld_storage_ets:list(default, flags),
     DeleteData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\"}">>,
-    ok = eld_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, eld_storage_ets, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
     [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
     ok.

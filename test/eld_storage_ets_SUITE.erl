@@ -14,6 +14,7 @@
     server_init/1,
     server_bucket_exists/1,
     server_get_put/1,
+    server_put_clean/1,
     server_list/1,
     server_process_events_put/1,
     server_process_events_patch/1
@@ -28,6 +29,7 @@ all() ->
         server_init,
         server_bucket_exists,
         server_get_put,
+        server_put_clean,
         server_list,
         server_process_events_put,
         server_process_events_patch
@@ -35,8 +37,12 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(eld),
-    eld:start_instance("", #{start_stream => false}),
-    eld:start_instance("", another1, #{start_stream => false}),
+    Options = #{
+        stream => false,
+        polling_update_requestor => eld_update_requestor_test
+    },
+    eld:start_instance("", Options),
+    eld:start_instance("", another1, Options),
     Config.
 
 end_per_suite(_) ->
@@ -80,13 +86,16 @@ server_get_put(_) ->
     [{<<"flag1">>, [{<<"valueA">>, 0.9}]}] = eld_storage_ets:get(another1, flags, <<"flag1">>),
     [{<<"flag1">>, [{<<"value1">>, 0.5}]}] = eld_storage_ets:get(default, flags, <<"flag1">>).
 
+server_put_clean(_) ->
+    ok = eld_storage_ets:put(default, flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
+    ok = eld_storage_ets:put_clean(default, flags, #{<<"flag2">> => [{<<"value2">>, 0.9}]}),
+    [{<<"flag2">>, [{<<"value2">>, 0.9}]}] = eld_storage_ets:list(default, flags).
+
 server_list(_) ->
     [] = eld_storage_ets:list(default, flags),
     [] = eld_storage_ets:list(another1, flags),
-    ok = eld_storage_ets:put(default, flags, #{<<"flag1">> => [{<<"value1">>, 0.5}]}),
-    ok = eld_storage_ets:put(default, flags, #{<<"flag2">> => [{<<"value2">>, 0.7}]}),
-    ok = eld_storage_ets:put(another1, flags, #{<<"flag1">> => [{<<"value1">>, 0.9}]}),
-    ok = eld_storage_ets:put(another1, flags, #{<<"flag5">> => [{<<"value2">>, 0.77}]}),
+    ok = eld_storage_ets:put(default, flags, #{<<"flag1">> => [{<<"value1">>, 0.5}], <<"flag2">> => [{<<"value2">>, 0.7}]}),
+    ok = eld_storage_ets:put(another1, flags, #{<<"flag1">> => [{<<"value1">>, 0.9}], <<"flag5">> => [{<<"value2">>, 0.77}]}),
     [
         {<<"flag1">>, [{<<"value1">>, 0.5}]},
         {<<"flag2">>, [{<<"value2">>, 0.7}]}
@@ -111,7 +120,7 @@ server_process_events_put(_) ->
             }
         }
     },
-    ok = eld_stream_server:process_items(put, Event, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_items(put, Event, eld_storage_ets, default),
     [
         {<<"flag-key-1">>, <<"flag-value-1">>},
         {<<"flag-key-2">>, <<"flag-value-2">>},
@@ -133,12 +142,12 @@ server_process_events_patch(_) ->
             <<"segments">> => #{}
         }
     },
-    ok = eld_stream_server:process_items(put, PutEvent, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_items(put, PutEvent, eld_storage_ets, default),
     PatchEvent = #{
         <<"path">> => <<"/flags/flag-key-2">>,
         <<"data">> => #{<<"key">> => <<"flag-key-2">>, <<"on">> => false}
     },
-    ok = eld_stream_server:process_items(patch, PatchEvent, eld_storage_ets, default),
+    ok = eld_update_stream_server:process_items(patch, PatchEvent, eld_storage_ets, default),
     [
         {<<"flag-key-1">>, #{<<"key">> := <<"flag-key-1">>, <<"on">> := true}},
         {<<"flag-key-2">>, #{<<"key">> := <<"flag-key-2">>, <<"on">> := false}}
