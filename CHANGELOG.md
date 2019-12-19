@@ -2,6 +2,17 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-alpha4] - 2019-12-19
+
+### Added
+
+- Support for experimentation features. See `eld:track_with_metric/4-5`.
+
+### Fixed
+
+- Custom URI configuration is now consistent with other SDKs
+- Bucketing logic for custom non-string attributes is brought in line with the other SDKs
+
 ## [1.0.0-alpha3] - 2019-10-29
 
 ### Fixed

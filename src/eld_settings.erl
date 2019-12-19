@@ -55,7 +55,7 @@
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, eld_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.0.0-alpha3").
+-define(VERSION, "1.0.0-alpha4").
 -define(EVENT_SCHEMA, "3").
 
 %%===================================================================
