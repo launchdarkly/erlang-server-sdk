@@ -11,6 +11,7 @@
 
 %% Tests
 -export([
+    sdk_offline/1,
     unknown_flag/1,
     unknown_flag_another/1,
     user_with_no_key/1,
@@ -62,6 +63,7 @@
 
 all() ->
     [
+        sdk_offline,
         unknown_flag,
         unknown_flag_another,
         user_with_no_key,
@@ -113,8 +115,13 @@ init_per_suite(Config) ->
         stream => false,
         polling_update_requestor => eld_update_requestor_test
     },
+    OfflineOptions = #{
+        polling_update_requestor => eld_update_requestor_test,
+        offline => true
+    },
     eld:start_instance("", Options),
     eld:start_instance("", another1, Options),
+    eld:start_instance("", offline, OfflineOptions),
     ok = create_flags(),
     Config.
 
@@ -158,6 +165,10 @@ extract_events(Events) ->
 %%====================================================================
 %% Tests
 %%====================================================================
+
+sdk_offline(_) ->
+    {{null, "foo", {error, client_not_ready}}, []} =
+        eld_eval:flag_key_for_user(offline, <<"keep-it-off">>, #{key => <<"some-user">>}, "foo").
 
 unknown_flag(_) ->
     {{null, "foo", {error, flag_not_found}}, Events} =

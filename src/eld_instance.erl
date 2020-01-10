@@ -47,7 +47,7 @@ start(Tag, SdkKey, Options) ->
     SupName = get_ref_from_tag(instance, Tag),
     StartStream = maps:get(stream, Settings),
     UpdateSupName = get_ref_from_tag(instance_stream, Tag),
-    UpdateWorkerModule = get_update_processor(StartStream),
+    UpdateWorkerModule = get_update_processor(StartStream, maps:get(offline, Settings)),
     EventsSupName = get_ref_from_tag(instance_events, Tag),
     {ok, _} = supervisor:start_child(eld_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
@@ -111,6 +111,7 @@ start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
 %% @private
 %%
 %% @end
--spec get_update_processor(Stream :: boolean()) -> atom().
-get_update_processor(true) -> eld_update_stream_server;
-get_update_processor(false) -> eld_update_poll_server.
+-spec get_update_processor(Stream :: boolean(), Offline :: boolean()) -> atom().
+get_update_processor(_Stream, true) -> eld_update_null_server;
+get_update_processor(true, _Offline) -> eld_update_stream_server;
+get_update_processor(false, _Offline) -> eld_update_poll_server.

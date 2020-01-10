@@ -15,6 +15,7 @@
 -export([stop_all_instances/0]).
 -export([stop_instance/0]).
 -export([stop_instance/1]).
+-export([is_offline/1]).
 -export([variation/3]).
 -export([variation/4]).
 -export([variation_detail/3]).
@@ -27,13 +28,6 @@
 -export([track/4]).
 -export([track_with_metric/4]).
 -export([track_with_metric/5]).
-
-%% Types
--type feature_flags_state() :: #{
-    flag_values => #{binary() => any()}
-}.
-
--export_type([feature_flags_state/0]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -95,6 +89,16 @@ stop_instance() ->
 stop_instance(Tag) when is_atom(Tag) ->
     eld_instance:stop(Tag).
 
+%% @doc Returns whether the LaunchDarkly client is in offline mode.
+%%
+%% In some situations, you might want to stop making remote calls to LaunchDarkly and 
+%% fall back to default values for your feature flags, this tells you whether only default 
+%% values will be returned.
+%% @end
+-spec is_offline(Tag :: atom()) -> boolean().
+is_offline(Tag) ->
+    eld_settings:get_value(Tag, offline).
+
 %% @doc Evaluate given flag key for given user
 %%
 %% Evaluates the flag and returns the resulting variation value. The default
@@ -154,7 +158,7 @@ variation_detail(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_m
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(User :: eld_user:user()) -> feature_flags_state().
+-spec all_flags_state(User :: eld_user:user()) -> eld_eval:feature_flags_state().
 all_flags_state(User) ->
     all_flags_state(User, ?DEFAULT_INSTANCE_NAME).
 
@@ -163,15 +167,9 @@ all_flags_state(User) ->
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(User :: eld_user:user(), Tag :: atom()) -> feature_flags_state().
+-spec all_flags_state(User :: eld_user:user(), Tag :: atom()) -> eld_eval:feature_flags_state().
 all_flags_state(User, Tag) ->
-    StorageBackend = eld_settings:get_value(Tag, storage_backend),
-    AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(Tag, flags)],
-    EvalFun = fun(FlagKey, Acc) ->
-        {{_, V, _}, _Events} = eld_eval:flag_key_for_user(Tag, FlagKey, User, null),
-        Acc#{FlagKey => V}
-    end,
-    #{flag_values => lists:foldl(EvalFun, #{}, AllFlags)}.
+    eld_eval:all_flags_eval(User, Tag).
 
 %% @doc Identify reports details about a user
 %%
