@@ -18,5 +18,8 @@ rel: all
 run:
 	@$(REBAR3) shell
 
+doc:
+	@$(REBAR3) edoc
+
 tests:
 	@$(REBAR3) ct --logdir logs/ct
