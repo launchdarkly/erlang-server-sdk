@@ -23,6 +23,7 @@
     storage_backend := atom(),
     storage_tag := atom(),
     requestor := atom(),
+    requestor_state := any(),
     poll_uri := string(),
     poll_interval := pos_integer(),
     last_response_hash := binary(),
@@ -77,6 +78,7 @@ init([Tag]) ->
         storage_backend => StorageBackend,
         storage_tag => Tag,
         requestor => Requestor,
+        requestor_state => Requestor:init(),
         poll_uri => PollUri,
         poll_interval => PollInterval,
         last_response_hash => <<>>
@@ -97,13 +99,14 @@ handle_call({listen}, _From,
         storage_backend := StorageBackend,
         storage_tag := Tag,
         requestor := Requestor,
+        requestor_state := RequestorState,
         poll_uri := Uri,
         poll_interval := PollInterval,
         last_response_hash := LastHash
     } = State) ->
-    {ok, NewHash} = poll(SdkKey, StorageBackend, Requestor, Uri, LastHash, Tag),
+    {{ok, NewHash}, NewRequestorState} = poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag),
     TimerRef = erlang:send_after(PollInterval, self(), {poll}),
-    NewState = State#{timer_ref => TimerRef, last_response_hash := NewHash},
+    NewState = State#{timer_ref => TimerRef, last_response_hash := NewHash, requestor_state := NewRequestorState},
     {reply, ok, NewState}.
 
 handle_cast(_Request, State) ->
@@ -115,13 +118,14 @@ handle_info({poll},
         storage_backend := StorageBackend,
         storage_tag := Tag,
         requestor := Requestor,
+        requestor_state := RequestorState,
         poll_uri := Uri,
         poll_interval := PollInterval,
         last_response_hash := LastHash
     } = State) ->
-    {ok, NewHash} = poll(SdkKey, StorageBackend, Requestor, Uri, LastHash, Tag),
+    {{ok, NewHash}, NewRequestorState} = poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag),
     TimerRef = erlang:send_after(PollInterval, self(), {poll}),
-    {noreply, State#{timer_ref := TimerRef, last_response_hash := NewHash}};
+    {noreply, State#{timer_ref := TimerRef, last_response_hash := NewHash, requestor_state := NewRequestorState}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -141,9 +145,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec poll(string(), atom(), atom(), string(), binary(), atom()) -> {ok, binary()}.
-poll(SdkKey, StorageBackend, Requestor, Uri, LastHash, Tag) ->
-    process_response(Requestor:all(Uri, SdkKey), StorageBackend, LastHash, Tag, Uri).
+-spec poll(string(), atom(), atom(), any(), string(), binary(), atom()) -> {{ok, binary()}, any()}.
+poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag) ->
+    {Result, NewRequestorState} = Requestor:all(Uri, SdkKey, RequestorState),
+    Processed = process_response(Result, StorageBackend, LastHash, Tag, Uri),
+    {Processed, NewRequestorState}.
 
 -spec process_response(eld_update_requestor:response(), atom(), binary(), atom(), string()) -> {ok, binary()}.
 process_response({error, 401, _Reason}, _, LastHash, _, Uri) ->
@@ -155,6 +161,7 @@ process_response({error, 404, _Reason}, _, LastHash, _, Uri) ->
 process_response({error, StatusCode, Reason}, _, LastHash, _, Uri) when StatusCode >= 300 ->
     error_logger:warning_msg("Unexpected response code: ~p when polling for updates at URL ~p: ~p.", [StatusCode, Uri, Reason]),
     {ok, LastHash};
+process_response({ok, not_modified}, _, LastHash, _, _) -> {ok, LastHash};
 process_response({ok, ResponseBody}, StorageBackend, LastHash, Tag, _) ->
     NewHash = crypto:hash(sha, ResponseBody),
     process_response_body_last_hash(ResponseBody, StorageBackend, LastHash, NewHash, Tag).

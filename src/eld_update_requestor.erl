@@ -8,10 +8,15 @@
 
 -module(eld_update_requestor).
 
--type response() :: {ok, binary()} | {error, httpc:status_code(), string()}.
+-type response() :: {ok, binary() | not_modified} | {error, httpc:status_code(), string()}.
 
 -export_type([response/0]).
 
-%% `all' must request and return all flags and segments. It takes the
-%% destination URI and SDK key.
--callback all(Uri :: string(), SdkKey :: string()) -> response().
+%% `all' must request and return all flags and segments, along with an updated
+%% state value. It takes the destination URI, the SDK key, along with a state
+%% value from `init' or the previous invocation of `all' to allow for features
+%% such as ETag caching.
+-callback all(Uri :: string(), SdkKey :: string(), State :: any()) -> {response(), any()}.
+
+%% `init' should return an initial value for the `State' argument to `all'
+-callback init() -> any().

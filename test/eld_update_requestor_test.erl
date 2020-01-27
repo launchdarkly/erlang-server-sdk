@@ -13,7 +13,7 @@
 -export([get_simple_segment/0]).
 
 %% Behavior callbacks
--export([all/2]).
+-export([init/0, all/3]).
 
 %%===================================================================
 %% API
@@ -85,12 +85,16 @@ get_simple_segment() ->
 %% Behavior callbacks
 %%===================================================================
 
+%% Empty state for test update requestor
+-spec init() -> atom().
+init() -> ok.
+
 %% @doc Return static values mocking the polling service
 %%
 %% @end
--spec all(Uri :: string(), SdkKey :: string()) -> eld_update_requestor:response().
-all(_Uri, SdkKey) ->
-    case SdkKey of
+-spec all(Uri :: string(), SdkKey :: string(), State :: any()) -> eld_update_requestor:response().
+all(_Uri, SdkKey, State) ->
+    Result = case SdkKey of
         "sdk-key-unauthorized" ->
             {error, 401, ""};
         "sdk-key-not-found" ->
@@ -103,4 +107,5 @@ all(_Uri, SdkKey) ->
             {ok, <<"{\"flags\":{",FlagBin/binary,"},\"segments\":{",SegmentBin/binary,"}}">>};
         "" ->
             {ok, <<"{\"flags\":{},\"segments\":{}}">>}
-    end.
+    end,
+    {Result, State}.
