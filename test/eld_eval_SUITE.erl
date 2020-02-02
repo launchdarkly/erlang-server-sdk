@@ -53,6 +53,7 @@
     fallthrough_rollout_custom_integer/1,
     fallthrough_rollout_custom_float/1,
     fallthrough_rollout_custom_float_invalid/1,
+    fallthrough_rollout_invalid_last_variation/1,
     variation_out_of_range/1,
     extra_fields/1
 ]).
@@ -105,6 +106,7 @@ all() ->
         fallthrough_rollout_custom_integer,
         fallthrough_rollout_custom_float,
         fallthrough_rollout_custom_float_invalid,
+        fallthrough_rollout_invalid_last_variation,
         variation_out_of_range,
         extra_fields
     ].
@@ -649,6 +651,16 @@ fallthrough_rollout_custom_float_invalid(_) ->
         eld_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_invalid_last_variation(_) ->
+    ExpectedReason = fallthrough,
+    {{1, <<"b">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-invalid">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

@@ -768,6 +768,40 @@
                 ],
                 "version": 5
             },
+            "roll-me-invalid": {
+                "clientSide": false,
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                    "rollout": {
+                        "variations": [
+                            {
+                                "variation": 0,
+                                "weight": 1000
+                            },
+                            {
+                                "variation": 1,
+                                "weight": 0
+                            }
+                        ]
+                    }
+                },
+                "key": "roll-me-invalid",
+                "offVariation": 0,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "cddf5788bb73402b9d19c5a6618b5d3a",
+                "sel": "f676aa9c13974a77af814e7da26902e0",
+                "targets": [],
+                "trackEvents": true,
+                "trackEventsFallthrough": false,
+                "variations": [
+                    "a",
+                    "b"
+                ],
+                "version": 5
+            },
             "extra-fields": {
                 "clientSide": false,
                 "debugEventsUntilDate": null,
