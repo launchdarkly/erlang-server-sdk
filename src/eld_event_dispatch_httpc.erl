@@ -9,7 +9,7 @@
 -behaviour(eld_event_dispatch).
 
 %% Behavior callbacks
--export([send/3]).
+-export([send/4]).
 
 %%===================================================================
 %% Behavior callbacks
@@ -18,12 +18,13 @@
 %% @doc Send events to LaunchDarkly event server
 %%
 %% @end
--spec send(JsonEvents :: binary(), Uri :: string(), SdkKey :: string()) -> ok.
-send(JsonEvents, Uri, SdkKey) ->
+-spec send(JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string()) -> ok.
+send(JsonEvents, PayloadId, Uri, SdkKey) ->
     Headers = [
         {"Authorization", SdkKey},
         {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
-        {"User-Agent", eld_settings:get_user_agent()}
+        {"User-Agent", eld_settings:get_user_agent()},
+        {"X-LaunchDarkly-Payload-ID", PayloadId}
     ],
     {ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}} =
         httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),

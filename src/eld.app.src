@@ -15,7 +15,8 @@
     jsx,
     lru,
     backoff,
-    verl
+    verl,
+    uuid
    ]},
   {env,[]},
   {modules, []},

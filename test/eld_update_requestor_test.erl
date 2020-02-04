@@ -105,6 +105,8 @@ all(_Uri, SdkKey, State) ->
             {_, FlagBin, _} = get_simple_flag(),
             {_, SegmentBin, _} = get_simple_segment(),
             {ok, <<"{\"flags\":{",FlagBin/binary,"},\"segments\":{",SegmentBin/binary,"}}">>};
+        "sdk-key-events-fail" ->
+            {ok, <<"{\"flags\":{},\"segments\":{}}">>};
         "" ->
             {ok, <<"{\"flags\":{},\"segments\":{}}">>}
     end,

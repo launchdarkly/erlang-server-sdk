@@ -93,11 +93,12 @@ handle_cast({send_events, Events, SummaryEvent},
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events, InlineUsers, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
-    _ = case send(OutputEvents, Dispatcher, Uri, SdkKey) of
+    PayloadId = uuid:get_v4(),
+    _ = case send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey) of
         ok ->
             ok;
         {error, temporary, _Reason} ->
-            erlang:send_after(1000, self(), {send, OutputEvents});
+            erlang:send_after(1000, self(), {send, OutputEvents, PayloadId});
         {error, permanent, Reason} ->
             error_logger:error_msg("Permanent error sending events ~p", [Reason])
     end,
@@ -105,8 +106,8 @@ handle_cast({send_events, Events, SummaryEvent},
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
-    _ = send(OutputEvents, Dispatcher, Uri, SdkKey),
+handle_info({send, OutputEvents, PayloadId}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
+    _ = send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -291,13 +292,13 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec send(OutputEvents :: list(), Dispatcher :: atom(), string(), string()) ->
+-spec send(OutputEvents :: list(), PayloadId :: uuid:uuid(), Dispatcher :: atom(), string(), string()) ->
     ok | {error, temporary, string()} | {error, permanent, string()}.
-send([], _, _, _) ->
+send([], _, _, _, _) ->
     ok;
-send(OutputEvents, Dispatcher, Uri, SdkKey) ->
+send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey) ->
     JsonEvents = jsx:encode(OutputEvents),
-    Dispatcher:send(JsonEvents, Uri, SdkKey).
+    Dispatcher:send(JsonEvents, PayloadId, Uri, SdkKey).
 
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->
