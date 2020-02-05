@@ -92,19 +92,25 @@ init() -> ok.
 %% @doc Return static values mocking the polling service
 %%
 %% @end
--spec all(Uri :: string(), SdkKey :: string(), State :: any()) -> eld_update_requestor:response().
+-spec all(Uri :: string(), SdkKey :: string(), State :: any()) -> {eld_update_requestor:response(), any()}.
 all(_Uri, SdkKey, State) ->
     Result = case SdkKey of
         "sdk-key-unauthorized" ->
-            {error, 401, ""};
+            {error, {bad_status, 401, ""}};
         "sdk-key-not-found" ->
-            {error, 404, ""};
+            {error, {bad_status, 404, ""}};
         "sdk-key-internal-error" ->
-            {error, 500, ""};
+            {error, {bad_status, 500, ""}};
+        "sdk-key-network-error" ->
+            {error, network_error};
         "sdk-key-flags-segments" ->
             {_, FlagBin, _} = get_simple_flag(),
             {_, SegmentBin, _} = get_simple_segment(),
             {ok, <<"{\"flags\":{",FlagBin/binary,"},\"segments\":{",SegmentBin/binary,"}}">>};
+        "sdk-key-not-modified" ->
+            {ok, not_modified};
+        "sdk-key-empty-payload" ->
+            {ok, <<"{\"flags\":{},\"segments\":{}}">>};
         "sdk-key-events-fail" ->
             {ok, <<"{\"flags\":{},\"segments\":{}}">>};
         "" ->

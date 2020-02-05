@@ -37,25 +37,27 @@ all(Uri, SdkKey, State) ->
         error -> Headers;
         {ok, Etag} -> [{"If-None-Match", Etag}|Headers]
     end,
-    {ok, {{Version, StatusCode, ReasonPhrase}, ResponseHeaders, Body}} =
-        httpc:request(get, {Uri, ETagHeaders}, [], [{body_format, binary}]),
-    if
-        StatusCode =:= 304 -> {{ok, not_modified}, State};
-        StatusCode < 300 ->
-            case proplists:lookup("etag", [{string:casefold(K), V} || {K, V} <- ResponseHeaders]) of
-                none -> {{ok, Body}, State};
-                {_, ETag} ->  {{ok, Body}, State#{Uri => ETag}}
+    HTTPOptions = [{connect_timeout, 2000}],
+    Result = httpc:request(get, {Uri, ETagHeaders}, HTTPOptions, [{body_format, binary}]),
+    case Result of
+        {ok, {StatusLine = {_, StatusCode, _}, ResponseHeaders, Body}} ->
+            if
+                StatusCode =:= 304 -> {{ok, not_modified}, State};
+                StatusCode < 300 ->
+                    case proplists:lookup("etag", [{string:casefold(K), V} || {K, V} <- ResponseHeaders]) of
+                        none -> {{ok, Body}, State};
+                        {_, ETag} -> {{ok, Body}, State#{Uri => ETag}}
+                    end;
+                StatusCode < 400 -> {{ok, Body}, State};
+                true -> {{error, bad_status_error(StatusLine)}, State}
             end;
-        StatusCode < 400 ->
-            {{ok, Body}, State};
-        true -> {{error, StatusCode, format_response(Version, StatusCode, ReasonPhrase)}, State}
+        _ -> {{error, network_error}, State}
     end.
 
 %%===================================================================
 %% Internal functions
 %%===================================================================
 
--spec format_response(Version :: string(), StatusCode :: integer(), ReasonPhrase :: string()) ->
-    string().
-format_response(Version, StatusCode, ReasonPhrase) ->
-    io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase]).
+-spec bad_status_error(StatusLine :: httpc:status_line()) -> eld_update_requestor:errors().
+bad_status_error({Version, StatusCode, ReasonPhrase}) ->
+    {bad_status, StatusCode, io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase])}.

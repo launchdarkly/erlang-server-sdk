@@ -26,8 +26,7 @@
     requestor_state := any(),
     poll_uri := string(),
     poll_interval := pos_integer(),
-    last_response_hash := binary(),
-    timer_ref => reference()
+    timer_ref => timer:tref()
 }.
 
 %% Constants
@@ -80,8 +79,7 @@ init([Tag]) ->
         requestor => Requestor,
         requestor_state => Requestor:init(),
         poll_uri => PollUri,
-        poll_interval => PollInterval,
-        last_response_hash => <<>>
+        poll_interval => PollInterval
     },
     {ok, State}.
 
@@ -93,39 +91,20 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen}, _From,
-    #{
-        sdk_key := SdkKey,
-        storage_backend := StorageBackend,
-        storage_tag := Tag,
-        requestor := Requestor,
-        requestor_state := RequestorState,
-        poll_uri := Uri,
-        poll_interval := PollInterval,
-        last_response_hash := LastHash
-    } = State) ->
-    {{ok, NewHash}, NewRequestorState} = poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag),
-    TimerRef = erlang:send_after(PollInterval, self(), {poll}),
-    NewState = State#{timer_ref => TimerRef, last_response_hash := NewHash, requestor_state := NewRequestorState},
-    {reply, ok, NewState}.
+handle_call({listen}, _From, #{poll_interval := PollInterval} = State) ->
+    case maps:find(timer_ref, State) of
+        {ok, _ExistingTimer} -> {reply, ok, State};
+        error -> {ok, TimerRef} = timer:send_interval(PollInterval, {poll}),
+                 {reply, ok, poll(State#{timer_ref => TimerRef})}
+    end;
+handle_call({poll}, _From, State) ->
+    {reply, ok, poll(State)}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({poll},
-    #{
-        sdk_key := SdkKey,
-        storage_backend := StorageBackend,
-        storage_tag := Tag,
-        requestor := Requestor,
-        requestor_state := RequestorState,
-        poll_uri := Uri,
-        poll_interval := PollInterval,
-        last_response_hash := LastHash
-    } = State) ->
-    {{ok, NewHash}, NewRequestorState} = poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag),
-    TimerRef = erlang:send_after(PollInterval, self(), {poll}),
-    {noreply, State#{timer_ref := TimerRef, last_response_hash := NewHash, requestor_state := NewRequestorState}};
+handle_info({poll}, State) ->
+    {noreply, poll(State)};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -145,39 +124,41 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec poll(string(), atom(), atom(), any(), string(), binary(), atom()) -> {{ok, binary()}, any()}.
-poll(SdkKey, StorageBackend, Requestor, RequestorState, Uri, LastHash, Tag) ->
+-spec poll(state()) -> state().
+poll(#{ sdk_key := SdkKey,
+        storage_backend := StorageBackend,
+        requestor := Requestor,
+        requestor_state := RequestorState,
+        poll_uri := Uri,
+        storage_tag := Tag } = State) ->
     {Result, NewRequestorState} = Requestor:all(Uri, SdkKey, RequestorState),
-    Processed = process_response(Result, StorageBackend, LastHash, Tag, Uri),
-    {Processed, NewRequestorState}.
+    ok = process_response(Result, StorageBackend, Tag, Uri),
+    State#{requestor_state := NewRequestorState}.
 
--spec process_response(eld_update_requestor:response(), atom(), binary(), atom(), string()) -> {ok, binary()}.
-process_response({error, 401, _Reason}, _, LastHash, _, Uri) ->
+-spec process_response(eld_update_requestor:response(), atom(), atom(), string()) -> ok.
+process_response({error, {bad_status, 401, _Reason}}, _, _, Uri) ->
     error_logger:warning_msg("Invalid SDK key when when polling for updates at URL ~p. Verify that your SDK key is correct.", [Uri]),
-    {ok, LastHash};
-process_response({error, 404, _Reason}, _, LastHash, _, Uri) ->
+    ok;
+process_response({error, {bad_status, 404, _Reason}}, _, _, Uri) ->
     error_logger:warning_msg("Resource not found when polling for updates at URL ~p.", [Uri]),
-    {ok, LastHash};
-process_response({error, StatusCode, Reason}, _, LastHash, _, Uri) when StatusCode >= 300 ->
+    ok;
+process_response({error, {bad_status, StatusCode, Reason}}, _, _, Uri) when StatusCode >= 300 ->
     error_logger:warning_msg("Unexpected response code: ~p when polling for updates at URL ~p: ~p.", [StatusCode, Uri, Reason]),
-    {ok, LastHash};
-process_response({ok, not_modified}, _, LastHash, _, _) -> {ok, LastHash};
-process_response({ok, ResponseBody}, StorageBackend, LastHash, Tag, _) ->
-    NewHash = crypto:hash(sha, ResponseBody),
-    process_response_body_last_hash(ResponseBody, StorageBackend, LastHash, NewHash, Tag).
+    ok;
+process_response({error, network_error}, _, _, Uri) ->
+    error_logger:warning_msg("Failed to connect to update server at: %p", [Uri]),
+    ok;
+process_response({ok, not_modified}, _, _, _) -> ok;
+process_response({ok, ResponseBody}, StorageBackend, Tag, _) ->
+    process_response_body(ResponseBody, StorageBackend, Tag).
 
--spec process_response_body_last_hash(binary(), atom(), binary(), binary(), atom()) -> {ok, binary()}.
-process_response_body_last_hash(_ResponseBody, _StorageBackend, Hash, Hash, _Tag) -> {ok, Hash};
-process_response_body_last_hash(ResponseBody, StorageBackend, _, NewHash, Tag) ->
-    process_response_body(ResponseBody, StorageBackend, NewHash, Tag).
-
--spec process_response_body(binary(), atom(), binary(), atom()) -> {ok, binary()}.
-process_response_body(ResponseBody, StorageBackend, NewHash, Tag) ->
+-spec process_response_body(binary(), atom(), atom()) -> ok.
+process_response_body(ResponseBody, StorageBackend, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),
-    ok = StorageBackend:put(Tag, flags, Flags),
-    ok = StorageBackend:put(Tag, segments, Segments),
-    {ok, NewHash}.
+    ok = StorageBackend:put_clean(Tag, flags, Flags),
+    ok = StorageBackend:put_clean(Tag, segments, Segments),
+    ok.
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"flags">> := Flags, <<"segments">> := Segments}) ->
