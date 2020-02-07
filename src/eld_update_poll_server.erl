@@ -112,7 +112,7 @@ handle_info(_Info, State) ->
     State :: state()) -> term().
 terminate(Reason, #{timer_ref := TimerRef} = _State) ->
     error_logger:info_msg("Terminating polling, reason: ~p", [Reason]),
-    _ = erlang:cancel_timer(TimerRef),
+    _ = timer:cancel(TimerRef),
     ok;
 terminate(_Reason, _State) ->
     ok.
