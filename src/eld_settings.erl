@@ -70,6 +70,7 @@
 %% @end
 -spec init() -> ok.
 init() ->
+    ok = eld_update_processor_state:init(),
     application:set_env(eld, instances, #{}).
 
 %% @doc Parses given map of options

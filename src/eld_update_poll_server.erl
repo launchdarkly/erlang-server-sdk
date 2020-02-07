@@ -133,6 +133,7 @@ poll(#{ sdk_key := SdkKey,
         storage_tag := Tag } = State) ->
     {Result, NewRequestorState} = Requestor:all(Uri, SdkKey, RequestorState),
     ok = process_response(Result, StorageBackend, Tag, Uri),
+    true = eld_update_processor_state:set_initialized_state(Tag, true),
     State#{requestor_state := NewRequestorState}.
 
 -spec process_response(eld_update_requestor:response(), atom(), atom(), string()) -> ok.

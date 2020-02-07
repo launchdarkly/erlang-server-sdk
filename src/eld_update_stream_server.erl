@@ -197,7 +197,9 @@ process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
     % Return data as maps because it's a preferred storage method for flags and segments
     DecodedData = jsx:decode(Data, [return_maps]),
     EventOperation = get_event_operation(Event),
-    ok = process_items(EventOperation, DecodedData, StorageBackend, Tag).
+    ProcessResult = process_items(EventOperation, DecodedData, StorageBackend, Tag),
+    true = eld_update_processor_state:set_initialized_state(Tag, true),
+    ProcessResult.
 
 -spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation().
 get_event_operation(<<"put">>) -> put;

@@ -16,6 +16,7 @@
 -export([stop_instance/0]).
 -export([stop_instance/1]).
 -export([is_offline/1]).
+-export([initialized/1]).
 -export([variation/3]).
 -export([variation/4]).
 -export([variation_detail/3]).
@@ -98,6 +99,18 @@ stop_instance(Tag) when is_atom(Tag) ->
 -spec is_offline(Tag :: atom()) -> boolean().
 is_offline(Tag) ->
     eld_settings:get_value(Tag, offline).
+
+%% @doc Returns whether the LaunchDarkly client is in offline mode.
+%%
+%% In some situations, you might want to stop making remote calls to LaunchDarkly and 
+%% fall back to default values for your feature flags, this tells you whether only default 
+%% values will be returned.
+%% @end
+-spec initialized(Tag :: atom()) -> boolean().
+initialized(Tag) ->
+    OfflineMode = not is_offline(Tag),
+    UpdateProcessorInitialized = eld_instance:update_processor_initialized(Tag),
+    OfflineMode or UpdateProcessorInitialized.
 
 %% @doc Evaluate given flag key for given user
 %%
