@@ -53,18 +53,21 @@
     User :: eld_user:user(),
     DefaultValue :: result_value()
 ) -> result().
-flag_key_for_user(Tag, FlagKey, User, DefaultValue) -> flag_key_for_user(Tag, FlagKey, User, DefaultValue, get_state(Tag)).
+flag_key_for_user(Tag, FlagKey, User, DefaultValue) -> flag_key_for_user(Tag, FlagKey, User, DefaultValue, get_state(Tag), get_initialization_state(Tag)).
 
 -spec flag_key_for_user(
     Tag :: atom(),
     FlagKey :: eld_flag:key(),
     User :: eld_user:user(),
     DefaultValue :: result_value(),
-    Offline :: atom()
+    Offline :: atom(),
+    Initialized :: atom()
 ) -> result().
-flag_key_for_user(_Tag, _FlagKey, _User, DefaultValue, offline) ->
+flag_key_for_user(_Tag, _FlagKey, _User, DefaultValue, offline, _) ->
     {{null, DefaultValue, {error, client_not_ready}}, []};
-flag_key_for_user(Tag, FlagKey, User, DefaultValue, online) ->
+flag_key_for_user(_Tag, _FlagKey, _User, DefaultValue, _, not_initialized) ->
+    {{null, DefaultValue, {error, client_not_ready}}, []};
+flag_key_for_user(Tag, FlagKey, User, DefaultValue, online, initialized) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     FlagRecs = StorageBackend:get(Tag, flags, FlagKey),
     flag_recs_for_user(FlagKey, FlagRecs, User, StorageBackend, Tag, DefaultValue).
@@ -76,17 +79,21 @@ flag_key_for_user(Tag, FlagKey, User, DefaultValue, online) ->
     User :: eld_user:user(),
     Tag :: atom()
 ) -> feature_flags_state().
-all_flags_eval(User, Tag) -> all_flags_eval(User, Tag, get_state(Tag)).
+all_flags_eval(User, Tag) -> all_flags_eval(User, Tag, get_state(Tag), get_initialization_state(Tag)).
 
 -spec all_flags_eval(
     User :: eld_user:user(),
     Tag :: atom(),
-    Offline :: atom()
+    Offline :: atom(),
+    Initialized :: atom()
 ) -> feature_flags_state().
-all_flags_eval(_User, _Tag, offline) ->
+all_flags_eval(_User, _Tag, offline, _) ->
     error_logger:warning_msg("Called all_flags_state in offline mode. Returning empty state"),
     #{flag_values => #{}};
-all_flags_eval(User, Tag, online) ->
+all_flags_eval(_User, _Tag, _, not_initialized) ->
+    error_logger:warning_msg("Called all_flags_state before client initialization. Returning empty state"),
+    #{flag_values => #{}};
+all_flags_eval(User, Tag, online, initialized) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(Tag, flags)],
     EvalFun = fun(FlagKey, Acc) ->
@@ -105,6 +112,13 @@ get_state(Tag) -> get_state(Tag, eld:is_offline(Tag)).
 -spec get_state(Tag :: atom(), Offline :: boolean()) -> atom().
 get_state(_Tag, true) -> offline;
 get_state(_Tag, false) -> online.
+
+-spec get_initialization_state(Tag :: atom()) -> atom().
+get_initialization_state(Tag) -> get_initialization_state(Tag, eld:initialized(Tag)).
+
+-spec get_initialization_state(Tag :: atom(), Initialized :: boolean()) -> atom().
+get_initialization_state(_Tag, true) -> initialized;
+get_initialization_state(_Tag, false) -> not_initialized.
 
 -spec flag_recs_for_user(
     FlagKey :: eld_flag:key(),
