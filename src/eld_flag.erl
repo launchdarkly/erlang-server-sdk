@@ -7,7 +7,7 @@
 -module(eld_flag).
 
 %% API
--export([new/2]).
+-export([new/1]).
 -export([get_variation/2]).
 
 %% Types
@@ -21,7 +21,6 @@
     prerequisites            => [prerequisite()],
     rules                    => [eld_rule:rule()],
     salt                     => binary(),
-    sel                      => binary(),
     targets                  => [target()],
     track_events             => boolean(),
     track_events_fallthrough => boolean(),
@@ -58,7 +57,7 @@
     | list()
     | map().
 
--type version() :: pos_integer().
+-type version() :: non_neg_integer().
 
 -export_type([flag/0]).
 -export_type([key/0]).
@@ -73,8 +72,41 @@
 %% API
 %%===================================================================
 
--spec new(Key :: eld_flag:key(), Properties :: map()) -> flag().
-new(Key, #{
+-spec new(RawFlagMap :: map()) -> flag().
+new(RawFlagMap) ->
+    FlagTemplate = #{
+        <<"debugEventsUntilDate">>   => null,
+        <<"deleted">>                => false,
+        <<"fallthrough">>            => #{},
+        <<"key">>                    => <<>>,
+        <<"offVariation">>           => 0,
+        <<"on">>                     => false,
+        <<"prerequisites">>          => [],
+        <<"rules">>                  => [],
+        <<"salt">>                   => <<>>,
+        <<"targets">>                => [],
+        <<"trackEvents">>            => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">>             => [],
+        <<"version">>                => 0
+    },
+    FlagMap = maps:merge(FlagTemplate, RawFlagMap),
+    new_from_template(FlagMap).
+
+-spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().
+get_variation(_Flag, null) -> null;
+get_variation(_Flag, Variation) when is_integer(Variation), Variation < 0 -> null;
+get_variation(#{variations := Variations}, VariationIndex)
+    when is_integer(VariationIndex), VariationIndex + 1 > length(Variations) -> null;
+get_variation(#{variations := Variations}, VariationIndex) when is_integer(VariationIndex) ->
+    lists:nth(VariationIndex + 1, Variations).
+
+%%===================================================================
+%% Internal functions
+%%===================================================================
+
+-spec new_from_template(FlagMap :: map()) -> flag().
+new_from_template(#{
     <<"debugEventsUntilDate">>   := DebugEventsUntilDate,
     <<"deleted">>                := Deleted,
     <<"fallthrough">>            := Fallthrough,
@@ -84,7 +116,6 @@ new(Key, #{
     <<"prerequisites">>          := Prerequisites,
     <<"rules">>                  := Rules,
     <<"salt">>                   := Salt,
-    <<"sel">>                    := Sel,
     <<"targets">>                := Targets,
     <<"trackEvents">>            := TrackEvents,
     <<"trackEventsFallthrough">> := TrackEventsFallthrough,
@@ -101,7 +132,6 @@ new(Key, #{
         prerequisites            => parse_prerequisites(Prerequisites),
         rules                    => parse_rules(Rules),
         salt                     => Salt,
-        sel                      => Sel,
         targets                  => parse_targets(Targets),
         track_events             => TrackEvents,
         track_events_fallthrough => TrackEventsFallthrough,
@@ -109,39 +139,35 @@ new(Key, #{
         version                  => Version
     }.
 
--spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().
-get_variation(_Flag, null) -> null;
-get_variation(_Flag, Variation) when is_integer(Variation), Variation < 0 -> null;
-get_variation(#{variations := Variations}, VariationIndex)
-    when is_integer(VariationIndex), VariationIndex + 1 > length(Variations) -> null;
-get_variation(#{variations := Variations}, VariationIndex) when is_integer(VariationIndex) ->
-    lists:nth(VariationIndex + 1, Variations).
-
-%%===================================================================
-%% Internal functions
-%%===================================================================
-
 -spec parse_prerequisites([map()]) -> [prerequisite()].
 parse_prerequisites(Prerequisites) ->
-    F = fun(#{<<"key">> := Key, <<"variation">> := Variation}) ->
-            #{key => Key, variation => Variation}
+    F = fun(#{<<"key">> := Key, <<"variation">> := Variation}, Acc) ->
+            [#{key => Key, variation => Variation}|Acc];
+        (_, Acc) ->
+            Acc
         end,
-    lists:map(F, Prerequisites).
+    lists:foldr(F, [], Prerequisites).
 
 -spec parse_rules([map()]) -> [eld_rule:rule()].
 parse_rules(Rules) ->
-    F = fun(Rule) -> eld_rule:new(Rule) end,
-    lists:map(F, Rules).
+    F = fun(#{<<"clauses">> := Clauses} = Rule, Acc) when is_list(Clauses) ->
+            [eld_rule:new(Rule)|Acc];
+        (_, Acc) ->
+            Acc
+        end,
+    lists:foldr(F, [], Rules).
 
 -spec parse_targets([map()]) -> [target()].
 parse_targets(Targets) ->
-    F = fun(#{<<"values">> := Values, <<"variation">> := Variation}) ->
-            #{values => Values, variation => Variation}
+    F = fun(#{<<"values">> := Values, <<"variation">> := Variation}, Acc) ->
+            [#{values => Values, variation => Variation}|Acc];
+        (_, Acc) ->
+            Acc
         end,
-    lists:map(F, Targets).
+    lists:foldr(F, [], Targets).
 
 -spec parse_variation_or_rollout(map()) -> variation_or_rollout().
-parse_variation_or_rollout(#{<<"variation">> := Variation}) when is_integer(Variation) ->
-    Variation;
-parse_variation_or_rollout(#{<<"rollout">> := Rollout}) when is_map(Rollout) ->
-    eld_rollout:new(Rollout).
+parse_variation_or_rollout(#{<<"variation">> := Variation}) when is_integer(Variation) -> Variation;
+parse_variation_or_rollout(#{<<"rollout">> := #{<<"variations">> := Variations} = Rollout}) when is_list(Variations) ->
+    eld_rollout:new(Rollout);
+parse_variation_or_rollout(_) -> eld_rollout:new(#{<<"variations">> => []}).

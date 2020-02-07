@@ -55,7 +55,9 @@
     fallthrough_rollout_custom_float_invalid/1,
     fallthrough_rollout_invalid_last_variation/1,
     variation_out_of_range/1,
-    extra_fields/1
+    extra_fields/1,
+    missing_some_fields/1,
+    missing_all_fields/1
 ]).
 
 %%====================================================================
@@ -108,7 +110,9 @@ all() ->
         fallthrough_rollout_custom_float_invalid,
         fallthrough_rollout_invalid_last_variation,
         variation_out_of_range,
-        extra_fields
+        extra_fields,
+        missing_some_fields,
+        missing_all_fields
     ].
 
 init_per_suite(Config) ->
@@ -680,6 +684,26 @@ extra_fields(_) ->
         eld_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>, secondary => <<"bar">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"extra-fields">>, feature_request, 1, false, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_some_fields(_) ->
+    ExpectedReason = fallthrough,
+    {{0, true, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"missing-some-fields">>, #{key => <<"user-msf">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"missing-some-fields">>, feature_request, 0, true, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_all_fields(_) ->
+    ExpectedReason = {error, malformed_flag},
+    {{null, null, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"missing-all-fields">>, #{key => <<"user-maf">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"missing-all-fields">>, feature_request, null, null, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

@@ -62,10 +62,14 @@ bucket_user(Key, Salt, User, BucketBy) ->
 
 -spec parse_variations([map()]) -> [weighted_variation()].
 parse_variations(Variations) ->
-    F = fun(#{<<"variation">> := Variation, <<"weight">> := Weight}) ->
-            #{variation => Variation, weight => Weight}
+    F = fun(#{<<"variation">> := Variation, <<"weight">> := Weight}, Acc) ->
+            [#{variation => Variation, weight => Weight}|Acc];
+        (#{<<"variation">> := Variation}, Acc) ->
+            [#{variation => Variation, weight => 0}|Acc];
+        (_, Acc)  ->
+            Acc
         end,
-    lists:map(F, Variations).
+    lists:foldr(F, [], Variations).
 
 -spec match_weighted_variations(float(), [weighted_variation()]) -> eld_flag:variation().
 match_weighted_variations(_, []) -> null;

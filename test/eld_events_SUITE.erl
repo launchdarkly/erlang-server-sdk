@@ -84,125 +84,110 @@ end_per_testcase(_, Config) ->
 %%====================================================================
 
 get_simple_flag_track() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => true,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => true,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_no_track() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_experimentation_rule() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [#{
-                <<"clauses">> => [],
-                <<"id">> => <<"12345">>,
-                <<"variation">> => 0,
-                <<"trackEvents">> => true
-            }],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [#{
+            <<"clauses">> => [],
+            <<"id">> => <<"12345">>,
+            <<"variation">> => 0,
+            <<"trackEvents">> => true
+        }],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_experimentation_fallthrough() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => true,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => true,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_debug() ->
     % Now + 30 secs
     DebugDate = erlang:system_time(milli_seconds) + 30000,
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => DebugDate,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => DebugDate,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 send_await_events(Events, Options) ->
@@ -246,8 +231,8 @@ register_event_forwarding_process() ->
 %%====================================================================
 
 add_flag_eval_events_flush_with_track(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -297,8 +282,8 @@ add_flag_eval_events_flush_with_track(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_no_reasons(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -347,8 +332,8 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_experimentation_rule(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_experimentation_rule(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -398,8 +383,8 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_experimentation_fallthrough(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_experimentation_fallthrough(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -449,8 +434,8 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_inline(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -495,8 +480,8 @@ add_flag_eval_events_flush_with_track_inline(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_no_track(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_no_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_no_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -568,8 +553,8 @@ add_flag_eval_events_flush_no_track(_) ->
     ] = ActualEvents2.
 
 add_flag_eval_events_with_debug(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_debug(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_debug(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,

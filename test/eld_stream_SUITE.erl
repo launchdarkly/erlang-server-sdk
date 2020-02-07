@@ -15,7 +15,8 @@
     server_process_event_put_patch_flag_with_extra_property/1,
     server_process_event_put_patch_old_version/1,
     server_process_event_put_delete/1,
-    server_process_event_put_delete_single/1
+    server_process_event_put_delete_single/1,
+    server_process_event_other/1
 ]).
 
 %%====================================================================
@@ -28,7 +29,8 @@ all() ->
         server_process_event_put_patch_flag_with_extra_property,
         server_process_event_put_patch_old_version,
         server_process_event_put_delete,
-        server_process_event_put_delete_single
+        server_process_event_put_delete_single,
+        server_process_event_other
     ].
 
 init_per_suite(Config) ->
@@ -347,4 +349,10 @@ server_process_event_put_delete_single(_) ->
     ok = eld_update_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, eld_storage_ets, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = get_simple_flag_delete(),
     [{FlagSimpleKey, FlagDeleteMap}] = eld_storage_ets:list(default, flags),
+    ok.
+
+server_process_event_other(_) ->
+    ok = eld_update_stream_server:process_event(#{event => <<"unsupported-event">>, data => <<"foo">>}, eld_storage_ets, default),
+    [] = eld_storage_ets:list(default, flags),
+    [] = eld_storage_ets:list(default, segments),
     ok.

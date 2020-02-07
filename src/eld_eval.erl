@@ -142,7 +142,7 @@ flag_recs_for_user(FlagKey, [{FlagKey, #{<<"deleted">> := true}}|_], User, _Stor
     {{null, DefaultValue, Reason}, Events};
 flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend, Tag, DefaultValue) ->
     % Flag found
-    Flag = eld_flag:new(FlagKey, FlagProperties),
+    Flag = eld_flag:new(FlagProperties),
     flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue).
 
 -spec flag_for_user_check_empty_key(eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) -> result().
@@ -196,7 +196,7 @@ check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key :
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
     flag_for_user_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, User, StorageBackend, Tag, DefaultValue, Events);
 check_prerequisite_recs([{PrerequisiteKey, PrerequisiteProperties}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
-    PrerequisiteFlag = eld_flag:new(PrerequisiteKey, PrerequisiteProperties),
+    PrerequisiteFlag = eld_flag:new(PrerequisiteProperties),
     check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
 check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->

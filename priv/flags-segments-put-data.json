@@ -843,6 +843,23 @@
                 "foo": "bar",
                 "bar": 2,
                 "baz": null
+            },
+            "missing-some-fields": {
+                "deleted": false,
+                "fallthrough": {
+                    "variation": 0
+                },
+                "key": "missing-some-fields",
+                "offVariation": 1,
+                "on": true,
+                "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                "variations": [
+                    true,
+                    false
+                ]
+            },
+            "missing-all-fields": {
+                "key": "missing-all-fields"
             }
         },
         "segments": {

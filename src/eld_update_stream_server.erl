@@ -194,17 +194,21 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
 %% @end
 -spec process_event(shotgun:event(), StorageBackend :: atom(), Tag :: atom()) -> ok.
 process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
-    % Return data as maps because it's a preferred storage method for flags and segments
-    DecodedData = jsx:decode(Data, [return_maps]),
     EventOperation = get_event_operation(Event),
+    DecodedData = decode_data(EventOperation, Data),
     ProcessResult = process_items(EventOperation, DecodedData, StorageBackend, Tag),
     true = eld_update_processor_state:set_initialized_state(Tag, true),
     ProcessResult.
 
--spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation().
+-spec get_event_operation(Event :: binary()) -> eld_storage_engine:event_operation() | other.
 get_event_operation(<<"put">>) -> put;
 get_event_operation(<<"delete">>) -> delete;
-get_event_operation(<<"patch">>) -> patch.
+get_event_operation(<<"patch">>) -> patch;
+get_event_operation(_) -> other.
+
+-spec decode_data(eld_storage_engine:event_operation() | other, binary()) -> map() | binary().
+decode_data(other, Data) -> Data;
+decode_data(_, Data) -> jsx:decode(Data, [return_maps]).
 
 %% @doc Process a list of put, patch or delete items
 %% @private
@@ -220,7 +224,9 @@ process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Key, Item} = get_patch_item(Data),
     ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
 process_items(delete, Data, StorageBackend, Tag) ->
-    delete_items(Data, StorageBackend, Tag).
+    delete_items(Data, StorageBackend, Tag);
+process_items(other, _, _, _) ->
+    ok.
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->

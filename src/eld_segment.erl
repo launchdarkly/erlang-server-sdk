@@ -7,7 +7,7 @@
 -module(eld_segment).
 
 %% API
--export([new/2]).
+-export([new/1]).
 -export([match_user/2]).
 
 %% Types
@@ -35,8 +35,30 @@
 %% API
 %%===================================================================
 
--spec new(binary(), map()) -> segment().
-new(Key, #{
+-spec new(map()) -> segment().
+new(RawSegmentMap) ->
+    SegmentTemplate = #{
+        <<"key">> => <<>>,
+        <<"deleted">> => false,
+        <<"excluded">> => [],
+        <<"included">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<>>,
+        <<"version">> => 0
+    },
+    SegmentMap = maps:merge(SegmentTemplate, RawSegmentMap),
+    new_from_template(SegmentMap).
+
+-spec match_user(segment(), eld_user:user()) -> match | no_match.
+match_user(Segment, User) ->
+    check_user_in_segment(Segment, User).
+
+%%===================================================================
+%% Internal functions
+%%===================================================================
+
+-spec new_from_template(map()) -> segment().
+new_from_template(#{
     <<"key">>      := Key,
     <<"deleted">>  := Deleted,
     <<"excluded">> := Excluded,
@@ -55,25 +77,19 @@ new(Key, #{
         version  => Version
     }.
 
--spec match_user(segment(), eld_user:user()) -> match | no_match.
-match_user(Segment, User) ->
-    check_user_in_segment(Segment, User).
-
-%%===================================================================
-%% Internal functions
-%%===================================================================
-
 -spec parse_rules(binary(), binary(), [map()]) -> [rule()].
 parse_rules(SegmentKey, SegmentSalt, Rules) ->
-    F = fun(#{<<"clauses">> := Clauses} = RuleRaw) ->
+    F = fun(#{<<"clauses">> := Clauses} = RuleRaw, Acc) ->
             Rule = #{
                 segment_key  => SegmentKey,
                 segment_salt => SegmentSalt,
                 clauses      => parse_clauses(Clauses)
             },
-            parse_rule_optional_attributes(Rule, RuleRaw)
+            [parse_rule_optional_attributes(Rule, RuleRaw)|Acc];
+        (_, Acc) ->
+            Acc
         end,
-    lists:map(F, Rules).
+    lists:foldr(F, [], Rules).
 
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
 parse_rule_optional_attributes(Rule, RuleRaw) ->
@@ -143,4 +159,4 @@ check_user_bucket(#{segment_key := SegmentKey, segment_salt := SegmentSalt, buck
     check_user_bucket_result(Bucket, Weight).
 
 check_user_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;
-check_user_bucket_result(_, _) -> no_mtch.
+check_user_bucket_result(_, _) -> no_match.

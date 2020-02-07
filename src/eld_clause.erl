@@ -23,7 +23,7 @@
 -type operator() :: in | ends_with | starts_with | matches | contains
     | less_than | less_than_or_equal | greater_than | greater_than_or_equal
     | before | 'after' | segment_match | semver_equal | semver_less_than
-    | semver_greater_than.
+    | semver_greater_than | none.
 %% List of available operators
 
 -export_type([clause/0]).
@@ -37,8 +37,16 @@
 %%===================================================================
 
 -spec new(map()) -> clause().
-new(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"values">> := Values}) ->
-    #{attribute => Attribute, negate => Negate, op => parse_operator(Op), values => Values}.
+new(RawClauseMap) ->
+    ClauseTemplate = #{
+        <<"attribute">> => <<>>,
+        <<"negate">> => false,
+        <<"op">> => <<>>,
+        <<"values">> => []
+    },
+    ClauseMap = maps:merge(ClauseTemplate, RawClauseMap),
+    new_from_template(ClauseMap).
+
 
 %% @doc Match clauses to user, no segment_match allowed
 %%
@@ -58,6 +66,10 @@ match_user(Clause, User, StorageBackend, Tag) ->
 %% Internal functions
 %%===================================================================
 
+-spec new_from_template(map()) -> clause().
+new_from_template(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op">> := Op, <<"values">> := Values}) ->
+    #{attribute => Attribute, negate => Negate, op => parse_operator(Op), values => Values}.
+
 -spec parse_operator(binary()) -> operator().
 parse_operator(<<"in">>) -> in;
 parse_operator(<<"endsWith">>) -> ends_with;
@@ -73,11 +85,13 @@ parse_operator(<<"after">>) -> 'after';
 parse_operator(<<"segmentMatch">>) -> segment_match;
 parse_operator(<<"semVerEqual">>) -> semver_equal;
 parse_operator(<<"semVerLessThan">>) -> semver_less_than;
-parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than.
+parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than;
+parse_operator(_) -> none.
 
 -spec check_clause(clause(), eld_user:user(), atom(), atom()) -> match | no_match.
 check_clause(#{op := segment_match, values := SegmentKeys} = Clause, User, StorageBackend, Tag) ->
     maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, StorageBackend, Tag));
+check_clause(#{op := none}, _User, _StorageBackend, _Tag) -> no_match;
 check_clause(Clause, User, _StorageBackend, _Tag) ->
     check_clause(Clause, User).
 
@@ -224,8 +238,8 @@ check_segment_key_match(SegmentKey, User, StorageBackend, Tag) ->
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;
-check_segments_match([{SegmentKey, SegmentProperties}|_], User) ->
-    Segment = eld_segment:new(SegmentKey, SegmentProperties),
+check_segments_match([{_SegmentKey, SegmentProperties}|_], User) ->
+    Segment = eld_segment:new(SegmentProperties),
     eld_segment:match_user(Segment, User).
 
 -spec maybe_negate_match(clause(), match | no_match) -> match | no_match.
