@@ -2,6 +2,24 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-beta1] - 2020-02-12
+
+### Added
+
+- Added offline mode which stops the SDK making remote calls to LaunchDarkly and variation calls will then fall back to default values for your feature flags. You can do this by setting offline mode in the config map with the `offline` key.
+
+- Added ETag polling cache for If-None-Match on update requests.
+
+- The SDK now specifies a uniquely identifiable request header when sending events to LaunchDarkly to ensure that events are only processed once, even if the SDK sends them two times due to a failed initial attempt.
+
+- Added an initialized function which indicates whether the SDK is in offline mode or if the update processor has been initialized.
+
+### Changed
+
+- Return last variation when user bucket exceeds variation weight sum.
+
+- Client now checks initialization status when evaluating a variation or all flags.
+
 ## [1.0.0-alpha4] - 2019-12-19
 
 ### Added
