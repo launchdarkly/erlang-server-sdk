@@ -1,4 +1,4 @@
-# LaunchDarkly Server-side SDK for Erlang/Elixir
+# LaunchDarkly Server-Side SDK for Erlang/Elixir
 
 [![Circle CI](https://img.shields.io/circleci/project/launchdarkly/erlang-server-sdk.png)](https://circleci.com/gh/launchdarkly/erlang-server-sdk)
 

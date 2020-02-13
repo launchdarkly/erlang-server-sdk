@@ -11,6 +11,7 @@
 
 %% Tests
 -export([
+    sdk_offline/1,
     unknown_flag/1,
     unknown_flag_another/1,
     user_with_no_key/1,
@@ -52,8 +53,11 @@
     fallthrough_rollout_custom_integer/1,
     fallthrough_rollout_custom_float/1,
     fallthrough_rollout_custom_float_invalid/1,
+    fallthrough_rollout_invalid_last_variation/1,
     variation_out_of_range/1,
-    extra_fields/1
+    extra_fields/1,
+    missing_some_fields/1,
+    missing_all_fields/1
 ]).
 
 %%====================================================================
@@ -62,6 +66,7 @@
 
 all() ->
     [
+        sdk_offline,
         unknown_flag,
         unknown_flag_another,
         user_with_no_key,
@@ -103,8 +108,11 @@ all() ->
         fallthrough_rollout_custom_integer,
         fallthrough_rollout_custom_float,
         fallthrough_rollout_custom_float_invalid,
+        fallthrough_rollout_invalid_last_variation,
         variation_out_of_range,
-        extra_fields
+        extra_fields,
+        missing_some_fields,
+        missing_all_fields
     ].
 
 init_per_suite(Config) ->
@@ -113,8 +121,13 @@ init_per_suite(Config) ->
         stream => false,
         polling_update_requestor => eld_update_requestor_test
     },
+    OfflineOptions = #{
+        polling_update_requestor => eld_update_requestor_test,
+        offline => true
+    },
     eld:start_instance("", Options),
     eld:start_instance("", another1, Options),
+    eld:start_instance("", offline, OfflineOptions),
     ok = create_flags(),
     Config.
 
@@ -158,6 +171,10 @@ extract_events(Events) ->
 %%====================================================================
 %% Tests
 %%====================================================================
+
+sdk_offline(_) ->
+    {{null, "foo", {error, client_not_ready}}, []} =
+        eld_eval:flag_key_for_user(offline, <<"keep-it-off">>, #{key => <<"some-user">>}, "foo").
 
 unknown_flag(_) ->
     {{null, "foo", {error, flag_not_found}}, Events} =
@@ -642,6 +659,16 @@ fallthrough_rollout_custom_float_invalid(_) ->
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
+fallthrough_rollout_invalid_last_variation(_) ->
+    ExpectedReason = fallthrough,
+    {{1, <<"b">>, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"roll-me-invalid">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
 variation_out_of_range(_) ->
     {{null, null, {error, malformed_flag}}, Events} =
         eld_eval:flag_key_for_user(default, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
@@ -657,6 +684,26 @@ extra_fields(_) ->
         eld_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>, secondary => <<"bar">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"extra-fields">>, feature_request, 1, false, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_some_fields(_) ->
+    ExpectedReason = fallthrough,
+    {{0, true, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"missing-some-fields">>, #{key => <<"user-msf">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"missing-some-fields">>, feature_request, 0, true, "foo", ExpectedReason, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_all_fields(_) ->
+    ExpectedReason = {error, malformed_flag},
+    {{null, null, ExpectedReason}, Events} =
+        eld_eval:flag_key_for_user(default, <<"missing-all-fields">>, #{key => <<"user-maf">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"missing-all-fields">>, feature_request, null, null, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.

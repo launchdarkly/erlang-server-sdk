@@ -6,10 +6,13 @@
 
 -module(eld_instance).
 
+-include("eld_update_processor_state.hrl").
+
 %% API
 -export([start/3]).
 -export([stop/1]).
 -export([stop_all/0]).
+-export([update_processor_initialized/1]).
 
 -type options() :: #{
     base_uri => string(),
@@ -47,12 +50,13 @@ start(Tag, SdkKey, Options) ->
     SupName = get_ref_from_tag(instance, Tag),
     StartStream = maps:get(stream, Settings),
     UpdateSupName = get_ref_from_tag(instance_stream, Tag),
-    UpdateWorkerModule = get_update_processor(StartStream),
+    UpdateWorkerModule = get_update_processor(StartStream, maps:get(offline, Settings)),
     EventsSupName = get_ref_from_tag(instance_events, Tag),
     {ok, _} = supervisor:start_child(eld_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
     StorageBackend = maps:get(storage_backend, Settings),
     ok = StorageBackend:init(SupName, Tag, []),
+    _Result = ets:insert_new(?UPDATE_PROCESSOR_INITIALIZATION_TABLE, {Tag, false}),
     % Start stream client
     ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
 
@@ -81,6 +85,13 @@ stop(Tag) when is_atom(Tag) ->
 stop_all() ->
     Tags = eld_settings:get_registered_tags(),
     lists:foreach(fun stop/1, Tags).
+
+%% @doc Whether an instance's update processor has initialized
+%%
+%% @end
+-spec update_processor_initialized(Tag :: atom()) -> boolean().
+update_processor_initialized(Tag) ->
+    eld_update_processor_state:get_initialized_state(Tag).
 
 %%===================================================================
 %% Internal functions
@@ -111,6 +122,7 @@ start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
 %% @private
 %%
 %% @end
--spec get_update_processor(Stream :: boolean()) -> atom().
-get_update_processor(true) -> eld_update_stream_server;
-get_update_processor(false) -> eld_update_poll_server.
+-spec get_update_processor(Stream :: boolean(), Offline :: boolean()) -> atom().
+get_update_processor(_Stream, true) -> eld_update_null_server;
+get_update_processor(true, _Offline) -> eld_update_stream_server;
+get_update_processor(false, _Offline) -> eld_update_poll_server.

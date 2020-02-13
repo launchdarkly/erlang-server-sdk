@@ -22,7 +22,8 @@
     capacity := pos_integer(),
     inline_users => boolean(),
     flush_interval := pos_integer(),
-    timer_ref := reference()
+    timer_ref := reference(),
+    offline := boolean()
 }.
 
 -type summary_event() :: #{} | #{
@@ -101,6 +102,7 @@ init([Tag]) ->
     Capacity = eld_settings:get_value(Tag, events_capacity),
     InlineUsers = eld_settings:get_value(Tag, inline_users_in_events),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    OfflineMode = eld:is_offline(Tag),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -109,7 +111,8 @@ init([Tag]) ->
         capacity => Capacity,
         inline_users => InlineUsers,
         flush_interval => FlushInterval,
-        timer_ref => TimerRef
+        timer_ref => TimerRef,
+        offline => OfflineMode
     },
     {ok, State}.
 
@@ -121,6 +124,8 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
+handle_call(_Request, _From, #{offline := true} = State) ->
+    {reply, ok, State};
 handle_call({add_event, Event, Tag, Options}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity, inline_users := InlineUsers} = State) ->
     {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Options, Events, SummaryEvent, Capacity, InlineUsers),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};

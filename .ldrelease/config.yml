@@ -1,0 +1,14 @@
+repo:
+  public: erlang-server-sdk
+  private: erlang-server-sdk-private
+
+circleci:
+  linux:
+    image: circleci/erlang:22.0.1
+
+documentation:
+  title: LaunchDarkly Server-Side SDK for Erlang/Elixir
+  githubPages: true
+
+sdk:
+  displayName: "Erlang (server-side)"

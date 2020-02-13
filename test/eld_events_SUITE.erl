@@ -22,7 +22,9 @@
     add_custom_events/1,
     add_custom_events_inline/1,
     auto_flush/1,
-    exceed_capacity/1
+    exceed_capacity/1,
+    fail_and_retry/1,
+    payload_id_differs/1
 ]).
 
 %%====================================================================
@@ -42,7 +44,9 @@ all() ->
         add_custom_events,
         add_custom_events_inline,
         auto_flush,
-        exceed_capacity
+        exceed_capacity,
+        fail_and_retry,
+        payload_id_differs
     ].
 
 init_per_suite(Config) ->
@@ -53,19 +57,15 @@ init_per_suite(Config) ->
         polling_update_requestor => eld_update_requestor_test
     },
     eld:start_instance("", Options),
-    Another1Options = #{
-        stream => false,
+    Another1Options = Options#{
         events_capacity => 2,
-        events_dispatcher => eld_event_dispatch_test,
-        events_flush_interval => 1000,
-        polling_update_requestor => eld_update_requestor_test
+        events_flush_interval => 1000
     },
     eld:start_instance("", another1, Another1Options),
-    InlineOptions = #{
+    eld:start_instance("sdk-key-events-fail", failer, Another1Options),
+    InlineOptions = Options#{
         stream => false,
-        events_dispatcher => eld_event_dispatch_test,
-        inline_users_in_events => true,
-        polling_update_requestor => eld_update_requestor_test
+        inline_users_in_events => true
     },
     eld:start_instance("", inliner, InlineOptions),
     Config.
@@ -84,156 +84,155 @@ end_per_testcase(_, Config) ->
 %%====================================================================
 
 get_simple_flag_track() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => true,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => true,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_no_track() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_experimentation_rule() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [#{
-                <<"clauses">> => [],
-                <<"id">> => <<"12345">>,
-                <<"variation">> => 0,
-                <<"trackEvents">> => true
-            }],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [#{
+            <<"clauses">> => [],
+            <<"id">> => <<"12345">>,
+            <<"variation">> => 0,
+            <<"trackEvents">> => true
+        }],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_experimentation_fallthrough() ->
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => null,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => true,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => true,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 get_simple_flag_debug() ->
     % Now + 30 secs
     DebugDate = erlang:system_time(milli_seconds) + 30000,
-    {
-        <<"abc">>,
-        #{
-            <<"clientSide">> => false,
-            <<"debugEventsUntilDate">> => DebugDate,
-            <<"deleted">> => false,
-            <<"fallthrough">> => #{<<"variation">> => 0},
-            <<"key">> => <<"abc">>,
-            <<"offVariation">> => 1,
-            <<"on">> => true,
-            <<"prerequisites">> => [],
-            <<"rules">> => [],
-            <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
-            <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
-            <<"targets">> => [],
-            <<"trackEvents">> => false,
-            <<"trackEventsFallthrough">> => false,
-            <<"variations">> => [true,false],
-            <<"version">> => 5
-        }
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => DebugDate,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
     }.
 
 send_await_events(Events, Options) ->
     send_await_events(Events, Options, default).
 
 send_await_events(Events, Options, Tag) ->
-    TestPid = self(),
-    ErPid = spawn(fun() -> receive ErEvents -> TestPid ! ErEvents end end),
-    true = register(eld_test_events, ErPid),
+    register_event_forwarding_process(),
     IncludeReasons = maps:get(include_reasons, Options, false),
     Flush = maps:get(flush, Options, false),
     [ok = eld_event_server:add_event(Tag, E, #{include_reasons => IncludeReasons}) || E <- Events],
     ok = if Flush -> eld_event_server:flush(Tag); true -> ok end,
-    ActualEventsBin = receive
-        EventsReceived ->
-            EventsReceived
+    receive_events().
+
+await_events() ->
+    register_event_forwarding_process(),
+    receive_events().
+
+receive_events() ->
+    {Ok, ActualEventsBin, PayloadId} = receive
+        {EventsReceived, PayloadIdReceived} ->
+            {ok, EventsReceived, PayloadIdReceived}
         after 2000 ->
-            error
+            {error, <<>>, <<>>}
     end,
+    Ok = ok,
     true = is_binary(ActualEventsBin),
+    true = is_binary(PayloadId),
+    true = uuid:is_v4(PayloadId),
     ActualEvents = jsx:decode(ActualEventsBin, [return_maps]),
     true = is_list(ActualEvents),
-    ActualEvents.
+    {ActualEvents, PayloadId}.
+
+register_event_forwarding_process() ->
+    TestPid = self(),
+    ErPid = spawn(fun() -> receive ErEvents -> TestPid ! ErEvents end end),
+    true = register(eld_test_events, ErPid).
+
 
 %%====================================================================
 %% Tests
 %%====================================================================
 
 add_flag_eval_events_flush_with_track(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -243,7 +242,7 @@ add_flag_eval_events_flush_with_track(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => true}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}),
     [
         #{
             <<"features">> := #{
@@ -283,8 +282,8 @@ add_flag_eval_events_flush_with_track(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_no_reasons(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -294,7 +293,7 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => false}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => false}),
     [
         #{
             <<"features">> := #{
@@ -333,8 +332,8 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_experimentation_rule(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_experimentation_rule(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -344,7 +343,7 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => false}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => false}),
     [
         #{
             <<"features">> := #{
@@ -384,8 +383,8 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_experimentation_fallthrough(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_experimentation_fallthrough(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -395,7 +394,7 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => false}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => false}),
     [
         #{
             <<"features">> := #{
@@ -435,8 +434,8 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_with_track_inline(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -446,7 +445,7 @@ add_flag_eval_events_flush_with_track_inline(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => true}, inliner),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}, inliner),
     [
         #{
             <<"features">> := #{
@@ -481,8 +480,8 @@ add_flag_eval_events_flush_with_track_inline(_) ->
     ] = ActualEvents.
 
 add_flag_eval_events_flush_no_track(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_no_track(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_no_track(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -492,7 +491,7 @@ add_flag_eval_events_flush_no_track(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true, include_reasons => true}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}),
     [
         #{
             <<"features">> := #{
@@ -529,7 +528,7 @@ add_flag_eval_events_flush_no_track(_) ->
         Flag
     ),
     Events2 = [Event2],
-    ActualEvents2 = send_await_events(Events2, #{flush => true}),
+    {ActualEvents2, _} = send_await_events(Events2, #{flush => true}),
     % No index event this time due to users LRU cache
     [
         #{
@@ -554,8 +553,8 @@ add_flag_eval_events_flush_no_track(_) ->
     ] = ActualEvents2.
 
 add_flag_eval_events_with_debug(_) ->
-    {FlagKey, FlagBin} = get_simple_flag_debug(),
-    Flag = eld_flag:new(FlagKey, FlagBin),
+    FlagBin = get_simple_flag_debug(),
+    Flag = eld_flag:new(FlagBin),
     Event = eld_event:new_flag_eval(
         5,
         <<"variation-value-5">>,
@@ -565,7 +564,7 @@ add_flag_eval_events_with_debug(_) ->
         Flag
     ),
     Events = [Event],
-    ActualEvents = send_await_events(Events, #{flush => true}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"features">> := #{
@@ -608,7 +607,7 @@ add_identify_events(_) ->
     Event1 = eld_event:new_identify(#{key => <<"12345">>}),
     Event2 = eld_event:new_identify(#{key => <<"abcde">>}),
     Events = [Event1, Event2],
-    ActualEvents = send_await_events(Events, #{flush => true}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"key">> := <<"12345">>,
@@ -629,7 +628,7 @@ add_custom_events(_) ->
     Event2 = eld_event:new_custom(<<"event-bar">>, #{key => <<"abcde">>}, #{k2 => <<"v2">>}),
     Event3 = eld_event:new_custom(<<"event-baz">>, #{key => <<"98765">>}, #{k3 => <<"v3">>}, 123),
     Events = [Event1, Event2, Event3],
-    ActualEvents = send_await_events(Events, #{flush => true}),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"kind">> := <<"index">>,
@@ -674,7 +673,7 @@ add_custom_events_inline(_) ->
     Event1 = eld_event:new_custom(<<"event-foo">>, #{key => <<"12345-custom-inline">>}, #{k1 => <<"v1">>}),
     Event2 = eld_event:new_custom(<<"event-bar">>, #{key => <<"abcde-custom-inline">>}, #{k2 => <<"v2">>}),
     Events = [Event1, Event2],
-    ActualEvents = send_await_events(Events, #{flush => true}, inliner),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}, inliner),
     [
         #{
             <<"key">> := <<"event-foo">>,
@@ -696,7 +695,7 @@ auto_flush(_) ->
     Event1 = eld_event:new_identify(#{key => <<"12345">>}),
     Event2 = eld_event:new_identify(#{key => <<"abcde">>}),
     Events = [Event1, Event2],
-    ActualEvents = send_await_events(Events, #{flush => false}, another1),
+    {ActualEvents, _} = send_await_events(Events, #{flush => false}, another1),
     [
         #{
             <<"key">> := <<"12345">>,
@@ -717,7 +716,7 @@ exceed_capacity(_) ->
     Event2 = eld_event:new_identify(#{key => <<"bar">>}),
     Event3 = eld_event:new_identify(#{key => <<"baz">>}),
     Events = [Event1, Event2, Event3],
-    ActualEvents = send_await_events(Events, #{flush => false}, another1),
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}, another1),
     [
         #{
             <<"key">> := <<"foo">>,
@@ -732,3 +731,50 @@ exceed_capacity(_) ->
             <<"creationDate">> := _
         }
     ] = ActualEvents.
+
+fail_and_retry(_) ->
+    Event1 = eld_event:new_identify(#{key => <<"foo">>}),
+    Event2 = eld_event:new_identify(#{key => <<"bar">>}),
+    Events = [Event1, Event2],
+    % Await and match events and payload ID (first try)
+    {ActualEvents, PayloadId} = send_await_events(Events, #{flush => true}, failer),
+    [
+        #{
+            <<"key">> := <<"foo">>,
+            <<"kind">> := <<"identify">>,
+            <<"user">> := #{<<"key">> := <<"foo">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"key">> := <<"bar">>,
+            <<"kind">> := <<"identify">>,
+            <<"user">> := #{<<"key">> := <<"bar">>},
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents,
+    % Await and match same events and payload ID the 2nd time (on retry)
+    {ActualEvents, PayloadId} = await_events().
+
+payload_id_differs(_) ->
+    Event1 = eld_event:new_identify(#{key => <<"foo">>}),
+    % Await and match events and payload ID (first try)
+    {ActualEvents1, PayloadId1} = send_await_events([Event1], #{flush => true}),
+    [
+        #{
+            <<"key">> := <<"foo">>,
+            <<"kind">> := <<"identify">>,
+            <<"user">> := #{<<"key">> := <<"foo">>},
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents1,
+    Event2 = eld_event:new_identify(#{key => <<"bar">>}),
+    {ActualEvents2, PayloadId2} = send_await_events([Event2], #{flush => true}),
+    [
+        #{
+            <<"key">> := <<"bar">>,
+            <<"kind">> := <<"identify">>,
+            <<"user">> := #{<<"key">> := <<"bar">>},
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents2,
+    false = PayloadId1 =:= PayloadId2.

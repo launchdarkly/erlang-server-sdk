@@ -8,6 +8,7 @@
 
 %% API
 -export([flag_key_for_user/4]).
+-export([all_flags_eval/2]).
 
 %% Types
 -type result() :: {
@@ -28,13 +29,16 @@
     | {error, error_type()}
     | fallthrough
     | off.
-
 -type error_type() :: client_not_ready | flag_not_found | malformed_flag
     | user_not_specified | wrong_type | exception.
+-type feature_flags_state() :: #{
+    flag_values => #{binary() => any()}
+}.
 
 -export_type([detail/0]).
 -export_type([reason/0]).
 -export_type([result_value/0]).
+-export_type([feature_flags_state/0]).
 
 %%===================================================================
 %% API
@@ -49,14 +53,72 @@
     User :: eld_user:user(),
     DefaultValue :: result_value()
 ) -> result().
-flag_key_for_user(Tag, FlagKey, User, DefaultValue) ->
+flag_key_for_user(Tag, FlagKey, User, DefaultValue) -> flag_key_for_user(Tag, FlagKey, User, DefaultValue, get_state(Tag), get_initialization_state(Tag)).
+
+-spec flag_key_for_user(
+    Tag :: atom(),
+    FlagKey :: eld_flag:key(),
+    User :: eld_user:user(),
+    DefaultValue :: result_value(),
+    Offline :: atom(),
+    Initialized :: atom()
+) -> result().
+flag_key_for_user(_Tag, _FlagKey, _User, DefaultValue, offline, _) ->
+    {{null, DefaultValue, {error, client_not_ready}}, []};
+flag_key_for_user(_Tag, _FlagKey, _User, DefaultValue, _, not_initialized) ->
+    {{null, DefaultValue, {error, client_not_ready}}, []};
+flag_key_for_user(Tag, FlagKey, User, DefaultValue, online, initialized) ->
     StorageBackend = eld_settings:get_value(Tag, storage_backend),
     FlagRecs = StorageBackend:get(Tag, flags, FlagKey),
     flag_recs_for_user(FlagKey, FlagRecs, User, StorageBackend, Tag, DefaultValue).
 
+%% @doc Returns all flags for a given user
+%%
+%% @end
+-spec all_flags_eval(
+    User :: eld_user:user(),
+    Tag :: atom()
+) -> feature_flags_state().
+all_flags_eval(User, Tag) -> all_flags_eval(User, Tag, get_state(Tag), get_initialization_state(Tag)).
+
+-spec all_flags_eval(
+    User :: eld_user:user(),
+    Tag :: atom(),
+    Offline :: atom(),
+    Initialized :: atom()
+) -> feature_flags_state().
+all_flags_eval(_User, _Tag, offline, _) ->
+    error_logger:warning_msg("Called all_flags_state in offline mode. Returning empty state"),
+    #{flag_values => #{}};
+all_flags_eval(_User, _Tag, _, not_initialized) ->
+    error_logger:warning_msg("Called all_flags_state before client initialization. Returning empty state"),
+    #{flag_values => #{}};
+all_flags_eval(User, Tag, online, initialized) ->
+    StorageBackend = eld_settings:get_value(Tag, storage_backend),
+    AllFlags = [FlagKey || {FlagKey, _} <- StorageBackend:list(Tag, flags)],
+    EvalFun = fun(FlagKey, Acc) ->
+        {{_, V, _}, _Events} = flag_key_for_user(Tag, FlagKey, User, null),
+        Acc#{FlagKey => V}
+    end,
+    #{flag_values => lists:foldl(EvalFun, #{}, AllFlags)}.
+
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec get_state(Tag :: atom()) -> atom().
+get_state(Tag) -> get_state(Tag, eld:is_offline(Tag)).
+
+-spec get_state(Tag :: atom(), Offline :: boolean()) -> atom().
+get_state(_Tag, true) -> offline;
+get_state(_Tag, false) -> online.
+
+-spec get_initialization_state(Tag :: atom()) -> atom().
+get_initialization_state(Tag) -> get_initialization_state(Tag, eld:initialized(Tag)).
+
+-spec get_initialization_state(Tag :: atom(), Initialized :: boolean()) -> atom().
+get_initialization_state(_Tag, true) -> initialized;
+get_initialization_state(_Tag, false) -> not_initialized.
 
 -spec flag_recs_for_user(
     FlagKey :: eld_flag:key(),
@@ -80,7 +142,7 @@ flag_recs_for_user(FlagKey, [{FlagKey, #{<<"deleted">> := true}}|_], User, _Stor
     {{null, DefaultValue, Reason}, Events};
 flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend, Tag, DefaultValue) ->
     % Flag found
-    Flag = eld_flag:new(FlagKey, FlagProperties),
+    Flag = eld_flag:new(FlagProperties),
     flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue).
 
 -spec flag_for_user_check_empty_key(eld_flag:flag(), eld_user:user(), atom(), atom(), result_value()) -> result().
@@ -134,7 +196,7 @@ check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key :
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
     flag_for_user_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, User, StorageBackend, Tag, DefaultValue, Events);
 check_prerequisite_recs([{PrerequisiteKey, PrerequisiteProperties}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
-    PrerequisiteFlag = eld_flag:new(PrerequisiteKey, PrerequisiteProperties),
+    PrerequisiteFlag = eld_flag:new(PrerequisiteProperties),
     check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
 check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->

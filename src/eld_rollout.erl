@@ -62,28 +62,37 @@ bucket_user(Key, Salt, User, BucketBy) ->
 
 -spec parse_variations([map()]) -> [weighted_variation()].
 parse_variations(Variations) ->
-    F = fun(#{<<"variation">> := Variation, <<"weight">> := Weight}) ->
-            #{variation => Variation, weight => Weight}
+    F = fun(#{<<"variation">> := Variation, <<"weight">> := Weight}, Acc) ->
+            [#{variation => Variation, weight => Weight}|Acc];
+        (#{<<"variation">> := Variation}, Acc) ->
+            [#{variation => Variation, weight => 0}|Acc];
+        (_, Acc)  ->
+            Acc
         end,
-    lists:map(F, Variations).
+    lists:foldr(F, [], Variations).
 
+-spec match_weighted_variations(float(), [weighted_variation()]) -> eld_flag:variation().
 match_weighted_variations(_, []) -> null;
 match_weighted_variations(Bucket, WeightedVariations) ->
-    match_weighted_variations(Bucket, WeightedVariations, 0).
+    match_weighted_variations(Bucket, WeightedVariations, 0.0).
 
+-spec match_weighted_variations(float(), [weighted_variation()], float()) -> eld_flag:variation().
 match_weighted_variations(_Bucket, [], _Sum) -> null;
+match_weighted_variations(_Bucket, [#{variation := Variation}|[]], _Sum) -> Variation;
 match_weighted_variations(Bucket, [#{variation := Variation, weight := Weight}|_], Sum)
     when Bucket < Sum + Weight / 100000 ->
     Variation;
 match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
     match_weighted_variations(Bucket, Rest, Sum + Weight / 100000).
 
-bucket_user_value(_Key, _Salt, null, _Secondary) -> 0;
+-spec bucket_user_value(eld_flag:key(), binary(), binary() | null, binary()) -> float().
+bucket_user_value(_Key, _Salt, null, _Secondary) -> 0.0;
 bucket_user_value(Key, Salt, UserAttribute, null) ->
     bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary>>);
 bucket_user_value(Key, Salt, UserAttribute, Secondary) ->
     bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary, $., Secondary/binary>>).
 
+-spec bucket_hash(binary()) -> float().
 bucket_hash(Hash) ->
     Sha1 = crypto:hash(sha, Hash),
     Sha1Hex = lists:flatten([[io_lib:format("~2.16.0B",[X]) || <<X:8>> <= Sha1 ]]),

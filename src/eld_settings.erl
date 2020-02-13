@@ -32,7 +32,8 @@
     private_attributes => private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
-    polling_update_requestor => atom()
+    polling_update_requestor => atom(),
+    offline => boolean()
 }.
 % Settings stored for each running SDK instance
 
@@ -57,6 +58,7 @@
 -define(USER_AGENT, "ErlangClient").
 -define(VERSION, "1.0.0-alpha4").
 -define(EVENT_SCHEMA, "3").
+-define(DEFAULT_OFFLINE, false).
 
 %%===================================================================
 %% API
@@ -68,6 +70,7 @@
 %% @end
 -spec init() -> ok.
 init() ->
+    ok = eld_update_processor_state:init(),
     application:set_env(eld, instances, #{}).
 
 %% @doc Parses given map of options
@@ -88,6 +91,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
+    OfflineMode = maps:get(offline, Options, ?DEFAULT_OFFLINE),
     PollingInterval = lists:max([
         ?MINIMUM_POLLING_INTERVAL,
         maps:get(polling_interval, Options, ?MINIMUM_POLLING_INTERVAL)
@@ -106,6 +110,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         private_attributes => PrivateAttributes,
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
+        offline => OfflineMode,
         polling_interval => PollingInterval
     }.
 

@@ -9,35 +9,55 @@
 -behaviour(eld_update_requestor).
 
 %% Behavior callbacks
--export([all/2]).
+-export([init/0, all/3]).
+
+%% Internal type for ETag cache state
+-type state() :: #{string() => binary()}.
 
 %%===================================================================
 %% Behavior callbacks
 %%===================================================================
 
+%% Initializes ETag cache to empty map
+-spec init() -> state().
+init() -> #{}.
+
 %% @doc Send events to LaunchDarkly event server
 %%
 %% @end
--spec all(Uri :: string(), SdkKey :: string()) -> eld_update_requestor:response().
-all(Uri, SdkKey) ->
+-spec all(Uri :: string(), SdkKey :: string(), State :: state()) ->
+                 {eld_update_requestor:response(), state()}.
+all(Uri, SdkKey, State) ->
     Headers = [
         {"Authorization", SdkKey},
         {"X-LaunchDarkly-Event-Schema", eld_settings:get_event_schema()},
         {"User-Agent", eld_settings:get_user_agent()}
     ],
-    {ok, {{Version, StatusCode, ReasonPhrase}, _Headers, Body}} =
-        httpc:request(get, {Uri, Headers}, [], [{body_format, binary}]),
-    Result = if
-        StatusCode < 400 -> {ok, Body};
-        true -> {error, StatusCode, format_response(Version, StatusCode, ReasonPhrase)}
+    ETagHeaders = case maps:find(Uri, State) of
+        error -> Headers;
+        {ok, Etag} -> [{"If-None-Match", Etag}|Headers]
     end,
-    Result.
+    HTTPOptions = [{connect_timeout, 2000}],
+    Result = httpc:request(get, {Uri, ETagHeaders}, HTTPOptions, [{body_format, binary}]),
+    case Result of
+        {ok, {StatusLine = {_, StatusCode, _}, ResponseHeaders, Body}} ->
+            if
+                StatusCode =:= 304 -> {{ok, not_modified}, State};
+                StatusCode < 300 ->
+                    case proplists:lookup("etag", [{string:casefold(K), V} || {K, V} <- ResponseHeaders]) of
+                        none -> {{ok, Body}, State};
+                        {_, ETag} -> {{ok, Body}, State#{Uri => ETag}}
+                    end;
+                StatusCode < 400 -> {{ok, Body}, State};
+                true -> {{error, bad_status_error(StatusLine)}, State}
+            end;
+        _ -> {{error, network_error}, State}
+    end.
 
 %%===================================================================
 %% Internal functions
 %%===================================================================
 
--spec format_response(Version :: string(), StatusCode :: integer(), ReasonPhrase :: string()) ->
-    string().
-format_response(Version, StatusCode, ReasonPhrase) ->
-    io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase]).
+-spec bad_status_error(StatusLine :: httpc:status_line()) -> eld_update_requestor:errors().
+bad_status_error({Version, StatusCode, ReasonPhrase}) ->
+    {bad_status, StatusCode, io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase])}.
