@@ -12,7 +12,7 @@ ebin
 erl_crash.dump
 logs
 test/*.beam
-eld.d
+ldclient.d
 .DS_Store
 _build/
 rebar.lock

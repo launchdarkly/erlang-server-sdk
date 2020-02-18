@@ -11,29 +11,29 @@ workflows:
 erlang-docker-template: &erlang-docker-template
   steps:
     - checkout:
-        path: ~/eld
+        path: ~/ldclient
     - run:
         name: install dependencies and compile
         command: make compile
-        working_directory: ~/eld
+        working_directory: ~/ldclient
     - run:
         name: run tests
         command: make tests
-        working_directory: ~/eld
+        working_directory: ~/ldclient
     - run:
         name: run dialyzer
         command: make dialyze
-        working_directory: ~/eld
+        working_directory: ~/ldclient
     - run:
         name: create test-results directory
         command: mkdir test-results
-        working_directory: ~/eld
+        working_directory: ~/ldclient
     - run:
         name: copy test results
         command: cp logs/ct/*/junit_report.xml test-results/
-        working_directory: ~/eld
+        working_directory: ~/ldclient
     - store_test_results:
-        path: ~/eld/test-results
+        path: ~/ldclient/test-results
 
 jobs:
   test-elixir-otp21:

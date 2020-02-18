@@ -23,3 +23,5 @@ doc:
 
 tests:
 	@$(REBAR3) ct --logdir logs/ct
+
+.PHONY: all compile dialyze deps rel run doc tests
