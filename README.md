@@ -2,7 +2,7 @@
 
 [![Circle CI](https://img.shields.io/circleci/project/launchdarkly/erlang-server-sdk.png)](https://circleci.com/gh/launchdarkly/erlang-server-sdk)
 
-*This version of the SDK is an **alpha** version and should not be considered ready for production use while this message is visible.*
+*This version of the SDK is a **beta** version and should not be considered ready for production use while this message is visible.*
 
 ## LaunchDarkly overview
 
