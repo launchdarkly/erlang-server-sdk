@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-beta2] - 2020-02-20
+
+### Changed
+
+- Renamed `eld` to `ldclient` to better adhere to LaunchDarkly SDK naming conventions.
+- Changed the `pkg_name` to `launchdarkly_server_sdk`
+
 ## [1.0.0-beta1] - 2020-02-12
 
 ### Added

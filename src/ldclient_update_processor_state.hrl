@@ -1,0 +1,2 @@
+% Constants
+-define(UPDATE_PROCESSOR_INITIALIZATION_TABLE, ldclient_update_processor_initialization).
