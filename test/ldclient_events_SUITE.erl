@@ -237,7 +237,7 @@ add_flag_eval_events_flush_with_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track">>},
+        #{key => <<"12345-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -265,7 +265,7 @@ add_flag_eval_events_flush_with_track(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track">>},
+            <<"user">> := #{<<"key">> := <<"12345-track">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -288,7 +288,7 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-no-reasons">>},
+        #{key => <<"12345-track-no-reasons">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -316,7 +316,7 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-no-reasons">>},
+            <<"user">> := #{<<"key">> := <<"12345-track-no-reasons">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -338,7 +338,7 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-experimentation-rule">>},
+        #{key => <<"12345-track-experimentation-rule">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         {rule_match, 0, <<"12345">>},
         Flag
     ),
@@ -366,7 +366,7 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-rule">>},
+            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-rule">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -389,7 +389,7 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-experimentation-fallthrough">>},
+        #{key => <<"12345-track-experimentation-fallthrough">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         fallthrough,
         Flag
     ),
@@ -417,7 +417,7 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-fallthrough">>},
+            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-fallthrough">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -440,7 +440,7 @@ add_flag_eval_events_flush_with_track_inline(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-inline">>},
+        #{key => <<"12345-track-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -471,7 +471,7 @@ add_flag_eval_events_flush_with_track_inline(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
-            <<"user">> := #{<<"key">> := <<"12345-track-inline">>},
+            <<"user">> := #{<<"key">> := <<"12345-track-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
@@ -486,7 +486,7 @@ add_flag_eval_events_flush_no_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-no-track">>},
+        #{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -514,7 +514,7 @@ add_flag_eval_events_flush_no_track(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-no-track">>},
+            <<"user">> := #{<<"key">> := <<"12345-no-track">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents,
@@ -523,7 +523,7 @@ add_flag_eval_events_flush_no_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-no-track">>},
+        #{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -559,7 +559,7 @@ add_flag_eval_events_with_debug(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-debug">>},
+        #{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
         target_match,
         Flag
     ),
@@ -587,7 +587,7 @@ add_flag_eval_events_with_debug(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-debug">>},
+            <<"user">> := #{<<"key">> := <<"12345-debug">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -604,35 +604,35 @@ add_flag_eval_events_with_debug(_) ->
     ] = ActualEvents.
 
 add_identify_events(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"12345">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>}),
+    Event1 = ldclient_event:new_identify(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"key">> := <<"12345">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"12345">>},
+            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"abcde">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>},
+            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 add_custom_events(_) ->
-    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345">>}, #{k1 => <<"v1">>}),
-    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde">>}, #{k2 => <<"v2">>}),
-    Event3 = ldclient_event:new_custom(<<"event-baz">>, #{key => <<"98765">>}, #{k3 => <<"v3">>}, 123),
+    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
+    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
+    Event3 = ldclient_event:new_custom(<<"event-baz">>, #{key => <<"98765">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k3 => <<"v3">>}, 123),
     Events = [Event1, Event2, Event3],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345">>},
+            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -644,7 +644,7 @@ add_custom_events(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>},
+            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -656,7 +656,7 @@ add_custom_events(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"98765">>},
+            <<"user">> := #{<<"key">> := <<"98765">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
@@ -670,71 +670,71 @@ add_custom_events(_) ->
     ] = ActualEvents.
 
 add_custom_events_inline(_) ->
-    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345-custom-inline">>}, #{k1 => <<"v1">>}),
-    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde-custom-inline">>}, #{k2 => <<"v2">>}),
+    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345-custom-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
+    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde-custom-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}, inliner),
     [
         #{
             <<"key">> := <<"event-foo">>,
             <<"kind">> := <<"custom">>,
-            <<"user">> := #{<<"key">> := <<"12345-custom-inline">>},
+            <<"user">> := #{<<"key">> := <<"12345-custom-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"data">> := #{<<"k1">> := <<"v1">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-bar">>,
             <<"kind">> := <<"custom">>,
-            <<"user">> := #{<<"key">> := <<"abcde-custom-inline">>},
+            <<"user">> := #{<<"key">> := <<"abcde-custom-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"data">> := #{<<"k2">> := <<"v2">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 auto_flush(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"12345">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>}),
+    Event1 = ldclient_event:new_identify(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => false}, another1),
     [
         #{
             <<"key">> := <<"12345">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"12345">>},
+            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"abcde">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>},
+            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 exceed_capacity(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>}),
-    Event3 = ldclient_event:new_identify(#{key => <<"baz">>}),
+    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event3 = ldclient_event:new_identify(#{key => <<"baz">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     Events = [Event1, Event2, Event3],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}, another1),
     [
         #{
             <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>},
+            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>},
+            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 fail_and_retry(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>}),
+    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     Events = [Event1, Event2],
     % Await and match events and payload ID (first try)
     {ActualEvents, PayloadId} = send_await_events(Events, #{flush => true}, failer),
@@ -742,13 +742,13 @@ fail_and_retry(_) ->
         #{
             <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>},
+            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>},
+            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents,
@@ -756,24 +756,24 @@ fail_and_retry(_) ->
     {ActualEvents, PayloadId} = await_events().
 
 payload_id_differs(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>}),
+    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     % Await and match events and payload ID (first try)
     {ActualEvents1, PayloadId1} = send_await_events([Event1], #{flush => true}),
     [
         #{
             <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>},
+            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents1,
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>}),
+    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     {ActualEvents2, PayloadId2} = send_await_events([Event2], #{flush => true}),
     [
         #{
             <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>},
+            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents2,
