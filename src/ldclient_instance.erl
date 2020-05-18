@@ -26,7 +26,8 @@
     private_attributes => ldclient_settings:private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
-    polling_update_requestor => atom()
+    polling_update_requestor => atom(),
+    offline => boolean()
 }.
 %% Options for starting an SDK instance
 
