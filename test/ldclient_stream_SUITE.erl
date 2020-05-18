@@ -16,7 +16,9 @@
     server_process_event_put_patch_old_version/1,
     server_process_event_put_delete/1,
     server_process_event_put_delete_single/1,
-    server_process_event_other/1
+    server_process_event_other/1,
+    parse_shotgun_event/1,
+    parse_shotgun_event_optional_spaces/1
 ]).
 
 %%====================================================================
@@ -30,7 +32,9 @@ all() ->
         server_process_event_put_patch_old_version,
         server_process_event_put_delete,
         server_process_event_put_delete_single,
-        server_process_event_other
+        server_process_event_other,
+        parse_shotgun_event,
+        parse_shotgun_event_optional_spaces
     ].
 
 init_per_suite(Config) ->
@@ -356,3 +360,13 @@ server_process_event_other(_) ->
     [] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments),
     ok.
+
+parse_shotgun_event(_) ->
+    EventBin = <<"event:put\ndata:foo">>,
+    ExpectedEvent = #{event => <<"put">>, data => <<"foo\n">>},
+    ExpectedEvent = ldclient_update_stream_server:parse_shotgun_event(EventBin).
+
+parse_shotgun_event_optional_spaces(_) ->
+    EventBin = <<"event: put\ndata: foo">>,
+    ExpectedEvent = #{event => <<"put">>, data => <<"foo\n">>},
+    ExpectedEvent = ldclient_update_stream_server:parse_shotgun_event(EventBin).
