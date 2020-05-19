@@ -8,7 +8,7 @@ All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in 
 
 - Added Erlang/OTP 23 image to CircleCI tests
 
-### Changed
+### Fixed
 
 - Fixed a bug preventing user first name and last name attibutes from properly being set
 - Fixed dates in tests to be RFC3339 compliant
