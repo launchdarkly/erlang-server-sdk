@@ -2,6 +2,19 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-beta3] - 2020-05-18
+
+### Added
+
+- Added Erlang/OTP 23 image to CircleCI tests
+
+### Changed
+
+- Fixed a bug preventing user first name and last name attibutes from properly being set
+- Fixed dates in tests to be RFC3339 compliant
+- Fixed dialyzer warning when application was started with `offline` option
+- Fixed SSE parsing bug in shotgun library with a workaround
+
 ## [1.0.0-beta2] - 2020-02-20
 
 ### Changed
