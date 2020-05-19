@@ -56,7 +56,7 @@
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.0.0-beta2").
+-define(VERSION, "1.0.0-beta3").
 -define(EVENT_SCHEMA, "3").
 -define(DEFAULT_OFFLINE, false).
 
