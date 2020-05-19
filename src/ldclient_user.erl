@@ -13,6 +13,7 @@
 -export([set/3]).
 -export([set_private_attribute_names/2]).
 -export([scrub/2]).
+-export([event_format/1]).
 
 %% Types
 -type user() :: #{
@@ -103,6 +104,16 @@ scrub(User, GlobalPrivateAttributes) when is_list(GlobalPrivateAttributes) ->
     scrub(User#{private_attribute_names => AllPrivateAttributes});
 scrub(User, []) ->
     scrub(User).
+
+%% @doc Formats a user for use in an event.
+%%
+%% Returns the user with first_name and last_name attributes changed to firstName and 
+%% lastName so that LaunchDarkly can properly record user data.
+%% @end
+-spec event_format(user()) -> user().
+event_format(User) ->
+    UserFirstName = key_replace(first_name, firstName, User),
+    key_replace(last_name, lastName, UserFirstName).
 
 %%===================================================================
 %% Internal functions
@@ -203,3 +214,11 @@ set_custom_attributes(User, CustomAttributes) when map_size(CustomAttributes) ==
     maps:remove(custom, User);
 set_custom_attributes(User, CustomAttributes) ->
     User#{custom => CustomAttributes}.
+
+-spec key_replace(attribute(), attribute(), map()) -> map().
+key_replace(Key1, Key2, Map) ->
+    case maps:take(Key1, Map) of
+        {Value, Map2} ->
+            maps:put(Key2, Value, Map2);
+        error -> Map
+    end.

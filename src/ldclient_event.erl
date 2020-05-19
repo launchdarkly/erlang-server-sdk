@@ -87,13 +87,13 @@ new(identify, User, Timestamp, #{}) ->
     #{
         type      => identify,
         timestamp => Timestamp,
-        user      => User
+        user      => ldclient_user:event_format(User)
     };
 new(index, User, Timestamp, #{}) ->
     #{
         type      => index,
         timestamp => Timestamp,
-        user      => User
+        user      => ldclient_user:event_format(User)
     };
 new(feature_request, User, Timestamp, #{
     key                     := Key,                  % ldclient_flag:key()
@@ -110,7 +110,7 @@ new(feature_request, User, Timestamp, #{
     #{
         type      => feature_request,
         timestamp => Timestamp,
-        user      => User,
+        user      => ldclient_user:event_format(User),
         data      => #{
             key                     => Key,
             variation               => Variation,
@@ -138,7 +138,7 @@ new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
         type      => custom,
         timestamp => Timestamp,
         key       => Key,
-        user      => User,
+        user      => ldclient_user:event_format(User),
         data      => Data
     }.
 
@@ -238,7 +238,7 @@ new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->
         type      => custom,
         timestamp => erlang:system_time(milli_seconds),
         key       => Key,
-        user      => User,
+        user      => ldclient_user:event_format(User),
         data      => Data
     }.
 
@@ -248,7 +248,7 @@ new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_map(Data), is_n
         type         => custom,
         timestamp    => erlang:system_time(milli_seconds),
         key          => Key,
-        user         => User,
+        user         => ldclient_user:event_format(User),
         data         => Data,
         metric_value => MetricValue
     }.

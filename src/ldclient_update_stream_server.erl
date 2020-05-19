@@ -168,7 +168,7 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
         {ok, Pid} ->
             _ = monitor(process, Pid),
             F = fun(nofin, _Ref, Bin) ->
-                    process_event(shotgun:parse_event(Bin), StorageBackend, Tag);
+                    process_event(parse_shotgun_event(Bin), StorageBackend, Tag);
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
@@ -286,3 +286,35 @@ maybe_delete_item(StorageBackend, Tag, Bucket, Key, NewVersion) ->
                     ok
             end
     end.
+
+%% @doc Fixed version of shotgun:parse_event/1
+%% @private
+%%
+%% @end
+-spec parse_shotgun_event(binary()) -> shotgun:event().
+parse_shotgun_event(EventBin) ->
+    Lines = binary:split(EventBin, <<"\n">>, [global]),
+    FoldFun =
+        fun(Line, #{data := Data} = Event) ->
+            case Line of
+                <<"data:", NewData/binary>> ->
+                    TrimmedNewData = binary_ltrim(NewData),
+                    Event#{
+                        data => <<Data/binary, TrimmedNewData/binary, "\n">>
+                    };
+                <<"id:", Id/binary>> ->
+                    Event#{id => binary_ltrim(Id)};
+                <<"event:", EventName/binary>> ->
+                    Event#{event => binary_ltrim(EventName)};
+                <<_Comment/binary>> ->
+                    Event
+            end
+        end,
+    lists:foldl(FoldFun, #{data => <<>>}, Lines).
+
+%% @private
+-spec binary_ltrim(binary()) -> binary().
+binary_ltrim(<<32, Bin/binary>>) ->
+    binary_ltrim(Bin);
+binary_ltrim(Bin) ->
+    Bin.

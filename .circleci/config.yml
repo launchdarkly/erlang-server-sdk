@@ -5,8 +5,10 @@ workflows:
   test:
     jobs:
       - test-elixir-otp21
+      - test-elixir-otp22
       - test-21
       - test-22
+      - test-23
 
 erlang-docker-template: &erlang-docker-template
   steps:
@@ -40,6 +42,10 @@ jobs:
     <<: *erlang-docker-template
     docker:
       - image: circleci/elixir:otp-21
+  test-elixir-otp22:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/elixir:otp-22
   test-21:
     <<: *erlang-docker-template
     docker:
@@ -47,4 +53,8 @@ jobs:
   test-22:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/erlang:22.0.1
+      - image: circleci/erlang:22.3.4
+  test-23:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/erlang:23.0

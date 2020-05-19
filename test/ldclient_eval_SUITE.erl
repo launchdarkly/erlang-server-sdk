@@ -547,7 +547,7 @@ rule_match_before_date(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"beforeDate">> => <<"2018-01-01T11:59:59">>
+            <<"beforeDate">> => <<"2018-01-01T11:59:59Z">>
         }
     },
     ExpectedReason = {rule_match, 14, <<"b6c5ceec-364d-4c23-a041-7865f4f136d3">>},
@@ -563,7 +563,7 @@ rule_match_after_date(_) ->
     User = #{
         key => <<"user-foo">>,
         custom => #{
-            <<"afterDate">> => <<"2018-01-01T12:00:01">>
+            <<"afterDate">> => <<"2018-01-01T12:00:01Z">>
         }
     },
     ExpectedReason = {rule_match, 15, <<"764c5346-6478-4d34-83e7-59c0afc7a15b">>},
