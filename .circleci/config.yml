@@ -4,7 +4,6 @@ workflows:
   version: 2
   test:
     jobs:
-      - test-elixir-otp21
       - test-elixir-otp22
       - test-21
       - test-22
@@ -38,10 +37,6 @@ erlang-docker-template: &erlang-docker-template
         path: ~/ldclient/test-results
 
 jobs:
-  test-elixir-otp21:
-    <<: *erlang-docker-template
-    docker:
-      - image: circleci/elixir:otp-21
   test-elixir-otp22:
     <<: *erlang-docker-template
     docker:

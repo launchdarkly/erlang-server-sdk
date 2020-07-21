@@ -42,7 +42,7 @@
 -spec listen(Pid :: pid()) ->
     ok.
 listen(Pid) ->
-    gen_server:call(Pid, {listen}).
+    gen_server:call(Pid, {listen}, infinity).
 
 %%===================================================================
 %% Supervision
