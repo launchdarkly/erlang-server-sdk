@@ -18,7 +18,8 @@
 %% @doc Send events to LaunchDarkly event server
 %%
 %% @end
--spec send(JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string()) -> ok.
+-spec send(JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string()) -> 
+    ok | {error, temporary, string()} | {error, permanent, string()}.
 send(JsonEvents, PayloadId, Uri, SdkKey) ->
     Headers = [
         {"Authorization", SdkKey},
@@ -26,32 +27,34 @@ send(JsonEvents, PayloadId, Uri, SdkKey) ->
         {"User-Agent", ldclient_settings:get_user_agent()},
         {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)}
     ],
-    {ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}} =
-        httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),
-    Result = if
-        StatusCode < 400 -> ok;
-        true ->
-            case is_http_error_code_recoverable(StatusCode) of
-                true ->
-                    {error, temporary, format_response(Version, StatusCode, ReasonPhrase)};
-                _ ->
-                    {error, permanent, format_response(Version, StatusCode, ReasonPhrase)}
-            end
-    end,
-    Result.
+    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),
+    process_request(Request).
 
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
+
+-spec process_request({error, term()} | http_request()) 
+    -> ok | {error, temporary, string()} | {error, permanent, string()}.
+process_request({error, Reason}) ->
+    {error, temporary, Reason};
+process_request({ok, {{_Version, StatusCode, _ReasonPhrase}, _Headers, _Body}}) when StatusCode < 400 ->
+    ok;
+process_request({ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}}) ->
+    Reason = format_response(Version, StatusCode, ReasonPhrase),
+    HttpErrorType = is_http_error_code_recoverable(StatusCode),
+    {error, HttpErrorType, Reason}.
 
 -spec format_response(Version :: string(), StatusCode :: integer(), ReasonPhrase :: string()) ->
     string().
 format_response(Version, StatusCode, ReasonPhrase) ->
     io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase]).
 
--spec is_http_error_code_recoverable(StatusCode :: integer()) -> boolean().
-is_http_error_code_recoverable(400) -> true;
-is_http_error_code_recoverable(408) -> true;
-is_http_error_code_recoverable(429) -> true;
-is_http_error_code_recoverable(StatusCode) when StatusCode >= 500 -> true;
-is_http_error_code_recoverable(_) -> false.
+-spec is_http_error_code_recoverable(StatusCode :: integer()) -> temporary | permanent.
+is_http_error_code_recoverable(400) -> temporary;
+is_http_error_code_recoverable(408) -> temporary;
+is_http_error_code_recoverable(429) -> temporary;
+is_http_error_code_recoverable(StatusCode) when StatusCode >= 500 -> temporary;
+is_http_error_code_recoverable(_) -> permanent.
