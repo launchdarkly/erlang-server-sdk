@@ -117,7 +117,8 @@ get_ref_from_tag(instance_events, Tag) when is_atom(Tag) ->
 -spec start_updater(atom(), atom(), atom()) ->
     ok.
 start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
-    ok = ldclient_updater:start(UpdateSupName, UpdateWorkerModule, Tag).
+    {ok, _Pid} = ldclient_updater:start(UpdateSupName, UpdateWorkerModule, Tag),
+    ok.
 
 %% @doc Get update processor module name depending on settings
 %% @private

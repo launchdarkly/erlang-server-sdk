@@ -110,6 +110,7 @@ response_error_network(_) ->
 
 response_flags_segments(_) ->
     ok = ldclient:start_instance("sdk-key-flags-segments", instance_options()),
+    timer:sleep(500),
     check_storage_simple(),
     ok = ldclient:stop_instance().
 

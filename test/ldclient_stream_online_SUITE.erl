@@ -78,7 +78,7 @@ stream_sse_simple_flag(_) ->
 stream_sse_timeout(_) ->
     ok = ldclient:start_instance("sdk-timeout", sdk_options()),
     % Wait for SDK to initialize and process initial payload from server
-    timer:sleep(500),
+    timer:sleep(5500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
     [{FlagSimpleKey, FlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments),

@@ -7,16 +7,12 @@
 -module(ldclient_update_stream_server).
 
 -behaviour(gen_server).
--behaviour(ldclient_update_server).
 
 %% Supervision
 -export([start_link/1, init/1]).
 
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
-
-%% API
--export([listen/1]).
 
 -type state() :: #{
     conn := pid() | undefined,
@@ -31,18 +27,6 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
-
-%%===================================================================
-%% API
-%%===================================================================
-
-%% @doc Start listening to streaming events
-%%
-%% @end
--spec listen(Pid :: pid()) ->
-    ok.
-listen(Pid) ->
-    gen_server:call(Pid, {listen}, infinity).
 
 %%===================================================================
 %% Supervision
@@ -76,6 +60,7 @@ init([Tag]) ->
         storage_tag => Tag,
         stream_uri => StreamUri
     },
+    self() ! {listen},
     {ok, State}.
 
 %%===================================================================
@@ -86,14 +71,16 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen}, _From, #{stream_uri := Uri} = State) ->
-    error_logger:info_msg("Starting streaming connection to URL: ~p", [Uri]),
-    NewState = do_listen(State),
-    {reply, ok, NewState}.
+handle_call(_Request, _From, State) ->
+    {reply, ok, State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
+handle_info({listen}, #{stream_uri := Uri} = State) ->
+    error_logger:info_msg("Starting streaming connection to URL: ~p", [Uri]),
+    NewState = do_listen(State),
+    {noreply, NewState};
 handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff} = State) ->
     _ = backoff:fire(Backoff),
     {_, NewBackoff} = backoff:fail(Backoff),

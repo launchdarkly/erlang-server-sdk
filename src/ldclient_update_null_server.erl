@@ -7,7 +7,6 @@
 -module(ldclient_update_null_server).
 
 -behaviour(gen_server).
--behaviour(ldclient_update_server).
 
 %% Supervision
 -export([start_link/1, init/1]).
@@ -15,26 +14,11 @@
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
-%% API
--export([listen/1]).
-
 -type state() :: #{}.
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
-
-%%===================================================================
-%% API
-%%===================================================================
-
-%% @doc Returns ok
-%%
-%% @end
--spec listen(Pid :: pid()) ->
-    ok.
-listen(_Pid) ->
-    ok.
 
 %%===================================================================
 %% Supervision
@@ -66,7 +50,7 @@ init([_Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen}, _From, State) ->
+handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast(_Request, State) ->

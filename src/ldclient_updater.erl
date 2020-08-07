@@ -22,13 +22,9 @@
 %%
 %% @end
 -spec start(UpdateSupName :: atom(), UpdateWorkerModule :: atom(), Tag :: atom()) ->
-    ok
-    | {error, gun_open_failed, term()}
-    | {error, gun_open_timeout, term()}
-    | {error, get_request_failed, term()}.
+    {ok, pid()}.
 start(UpdateSupName, UpdateWorkerModule, Tag) when is_atom(UpdateSupName), is_atom(UpdateWorkerModule) ->
-    {ok, Pid} = supervisor:start_child(UpdateSupName, [Tag]),
-    UpdateWorkerModule:listen(Pid).
+    {ok, _Pid} = supervisor:start_child(UpdateSupName, [Tag]).
 
 %% @doc Stop client stream listener
 %%
