@@ -64,7 +64,8 @@ set_storage_simple() ->
 
 trigger_poll() ->
     [{_,Pid,_,_}] = supervisor:which_children(ldclient_instance_stream_default),
-    gen_server:call(Pid, {poll}).
+    Pid ! {poll},
+    timer:sleep(500).
 
 check_storage_simple() ->
     {FlagKey, _, FlagMap} = ldclient_update_requestor_test:get_simple_flag(),
@@ -82,6 +83,7 @@ check_storage_empty() ->
 
 response_error_unauthorized(_) ->
     ok = ldclient:start_instance("sdk-key-unauthorized", instance_options()),
+    timer:sleep(500),
     set_storage_simple(),
     trigger_poll(),
     check_storage_simple(),
@@ -89,6 +91,7 @@ response_error_unauthorized(_) ->
 
 response_error_not_found(_) ->
     ok = ldclient:start_instance("sdk-key-not-found", instance_options()),
+    timer:sleep(500),
     set_storage_simple(),
     trigger_poll(),
     check_storage_simple(),
@@ -96,6 +99,7 @@ response_error_not_found(_) ->
 
 response_error_internal(_) ->
     ok = ldclient:start_instance("sdk-key-internal-error", instance_options()),
+    timer:sleep(500),
     set_storage_simple(),
     trigger_poll(),
     check_storage_simple(),
@@ -103,6 +107,7 @@ response_error_internal(_) ->
 
 response_error_network(_) ->
     ok = ldclient:start_instance("sdk-key-network-error", instance_options()),
+    timer:sleep(500),
     set_storage_simple(),
     trigger_poll(),
     check_storage_simple(),
@@ -116,6 +121,7 @@ response_flags_segments(_) ->
 
 successful_response_override_existing_flags(_) ->
     ok = ldclient:start_instance("sdk-key-empty-payload", instance_options()),
+    timer:sleep(500),
     set_storage_simple(),
     trigger_poll(),
     check_storage_empty(),
