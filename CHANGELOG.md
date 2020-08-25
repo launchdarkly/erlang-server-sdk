@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0-beta4] - 2020-08-24
+
+### Changed
+
+- Updaters now initialize asynchronously.
+- Updated `shotgun` from 0.4.0 to 0.5.0.
+
+### Fixed
+
+- Fixed `GenServer` crash on socket close in `handle_cast` in `ldclient_event_dispatch_httpc.erl`.
+- Fixed network timeout on initial connection.
+- Fixed restarting updates after a crash.
+- Fixed updater initialization state bugs.
+
 ## [1.0.0-beta3] - 2020-05-18
 
 ### Added
