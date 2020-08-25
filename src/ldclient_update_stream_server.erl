@@ -280,28 +280,4 @@ maybe_delete_item(StorageBackend, Tag, Bucket, Key, NewVersion) ->
 %% @end
 -spec parse_shotgun_event(binary()) -> shotgun:event().
 parse_shotgun_event(EventBin) ->
-    Lines = binary:split(EventBin, <<"\n">>, [global]),
-    FoldFun =
-        fun(Line, #{data := Data} = Event) ->
-            case Line of
-                <<"data:", NewData/binary>> ->
-                    TrimmedNewData = binary_ltrim(NewData),
-                    Event#{
-                        data => <<Data/binary, TrimmedNewData/binary, "\n">>
-                    };
-                <<"id:", Id/binary>> ->
-                    Event#{id => binary_ltrim(Id)};
-                <<"event:", EventName/binary>> ->
-                    Event#{event => binary_ltrim(EventName)};
-                <<_Comment/binary>> ->
-                    Event
-            end
-        end,
-    lists:foldl(FoldFun, #{data => <<>>}, Lines).
-
-%% @private
--spec binary_ltrim(binary()) -> binary().
-binary_ltrim(<<32, Bin/binary>>) ->
-    binary_ltrim(Bin);
-binary_ltrim(Bin) ->
-    Bin.
+    shotgun:parse_event(EventBin).
