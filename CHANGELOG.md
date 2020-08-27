@@ -2,7 +2,7 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
-## [1.0.0-beta4] - 2020-08-24
+## [1.0.0-beta4] - 2020-08-27
 
 ### Changed
 
