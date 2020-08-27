@@ -100,17 +100,21 @@ stop_instance(Tag) when is_atom(Tag) ->
 is_offline(Tag) ->
     ldclient_settings:get_value(Tag, offline).
 
-%% @doc Returns whether the LaunchDarkly client is in offline mode.
+%% @doc Returns whether the LaunchDarkly client has initialized.
 %%
-%% In some situations, you might want to stop making remote calls to LaunchDarkly and 
-%% fall back to default values for your feature flags, this tells you whether only default 
-%% values will be returned.
+%% If this value is true, it means the client has succeeded at some point in connecting to LaunchDarkly and
+%% has received feature flag data. It could still have encountered a connection problem after that point, so
+%% this does not guarantee that the flags are up to date. Alternatively, it could also mean that the client
+%% is in offline mode.
+%%
+%% If this value is false, it means the client has not yet connected to LaunchDarkly, or has permanently
+%% failed. In this state, feature flag evaluations will always return default values.
 %% @end
 -spec initialized(Tag :: atom()) -> boolean().
 initialized(Tag) ->
-    OfflineMode = not is_offline(Tag),
+    IsOffline = is_offline(Tag),
     UpdateProcessorInitialized = ldclient_instance:update_processor_initialized(Tag),
-    OfflineMode or UpdateProcessorInitialized.
+    IsOffline or UpdateProcessorInitialized.
 
 %% @doc Evaluate given flag key for given user
 %%

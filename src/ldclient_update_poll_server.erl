@@ -7,16 +7,12 @@
 -module(ldclient_update_poll_server).
 
 -behaviour(gen_server).
--behaviour(ldclient_update_server).
 
 %% Supervision
 -export([start_link/1, init/1]).
 
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
-
-%% API
--export([listen/1]).
 
 -type state() :: #{
     sdk_key := string(),
@@ -35,18 +31,6 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
-
-%%===================================================================
-%% API
-%%===================================================================
-
-%% @doc Start listening to streaming events
-%%
-%% @end
--spec listen(Pid :: pid()) ->
-    ok.
-listen(Pid) ->
-    gen_server:call(Pid, {listen}).
 
 %%===================================================================
 %% Supervision
@@ -81,6 +65,7 @@ init([Tag]) ->
         poll_uri => PollUri,
         poll_interval => PollInterval
     },
+    self() ! {listen},
     {ok, State}.
 
 %%===================================================================
@@ -91,18 +76,20 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
-handle_call({listen}, _From, #{poll_interval := PollInterval} = State) ->
-    case maps:find(timer_ref, State) of
-        {ok, _ExistingTimer} -> {reply, ok, State};
-        error -> {ok, TimerRef} = timer:send_interval(PollInterval, {poll}),
-                 {reply, ok, poll(State#{timer_ref => TimerRef})}
-    end;
-handle_call({poll}, _From, State) ->
-    {reply, ok, poll(State)}.
+handle_call(_Request, _From, State) ->
+    {reply, ok, State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
+handle_info({listen}, #{poll_interval := PollInterval} = State) ->
+    case maps:find(timer_ref, State) of
+        {ok, _ExistingTimer} ->
+            {noreply, ok, State};
+        error ->
+            {ok, TimerRef} = timer:send_interval(PollInterval, {poll}),
+            {noreply, poll(State#{timer_ref => TimerRef})}
+    end;
 handle_info({poll}, State) ->
     {noreply, poll(State)};
 handle_info(_Info, State) ->

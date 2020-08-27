@@ -6,8 +6,6 @@
 
 -module(ldclient_instance).
 
--include("ldclient_update_processor_state.hrl").
-
 %% API
 -export([start/3]).
 -export([stop/1]).
@@ -57,7 +55,7 @@ start(Tag, SdkKey, Options) ->
     % Start storage backend
     StorageBackend = maps:get(storage_backend, Settings),
     ok = StorageBackend:init(SupName, Tag, []),
-    _Result = ets:insert_new(?UPDATE_PROCESSOR_INITIALIZATION_TABLE, {Tag, false}),
+    true = ldclient_update_processor_state:create_initialized_state(Tag, false),
     % Start stream client
     ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
 
@@ -77,6 +75,7 @@ stop(Tag) when is_atom(Tag) ->
     SupName = get_ref_from_tag(instance, Tag),
     SupPid = erlang:whereis(SupName),
     ok = supervisor:terminate_child(ldclient_sup, SupPid),
+    ldclient_update_processor_state:delete_initialized_state(Tag),
     ldclient_settings:unregister(Tag).
 
 %% @doc Stop all client instances
@@ -117,7 +116,8 @@ get_ref_from_tag(instance_events, Tag) when is_atom(Tag) ->
 -spec start_updater(atom(), atom(), atom()) ->
     ok.
 start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
-    ok = ldclient_updater:start(UpdateSupName, UpdateWorkerModule, Tag).
+    {ok, _Pid} = ldclient_updater:start(UpdateSupName, UpdateWorkerModule, Tag),
+    ok.
 
 %% @doc Get update processor module name depending on settings
 %% @private
