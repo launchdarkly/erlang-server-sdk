@@ -13,6 +13,7 @@
 -export([
     stream_sse_empty/1,
     stream_sse_simple_flag/1,
+    stream_sse_put_no_path/1,
     stream_sse_timeout/1
 ]).
 
@@ -24,6 +25,7 @@ all() ->
     [
         stream_sse_empty,
         stream_sse_simple_flag,
+        stream_sse_put_no_path,
         stream_sse_timeout
     ].
 
@@ -69,6 +71,16 @@ stream_sse_empty(_) ->
 
 stream_sse_simple_flag(_) ->
     ok = ldclient:start_instance("sdk-simple-flag", sdk_options()),
+    % Wait for SDK to initialize and process initial payload from server
+    timer:sleep(500),
+    {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
+    [{FlagSimpleKey, FlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
+    [] = ldclient_storage_ets:list(default, segments),
+    ok = ldclient:stop_instance(),
+    ok.
+
+stream_sse_put_no_path(_) ->
+    ok = ldclient:start_instance("sdk-put-no-path", sdk_options()),
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),

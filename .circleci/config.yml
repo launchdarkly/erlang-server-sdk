@@ -31,7 +31,7 @@ erlang-docker-template: &erlang-docker-template
         working_directory: ~/ldclient
     - run:
         name: copy test results
-        command: cp logs/ct/*/junit_report.xml test-results/
+        command: cp logs/ct/ct_run.*/junit_report.xml test-results/
         working_directory: ~/ldclient
     - store_test_results:
         path: ~/ldclient/test-results

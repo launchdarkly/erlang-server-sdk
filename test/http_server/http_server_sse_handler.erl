@@ -19,6 +19,7 @@ init(Req0, Opts) ->
 
 sse_data(<<"sdk-empty">>) -> sse_empty();
 sse_data(<<"sdk-simple-flag">>) -> sse_simple_flag();
+sse_data(<<"sdk-put-no-path">>) ->sse_put_no_path();
 sse_data(<<"sdk-timeout">>) -> sse_timeout_delayed_reponse();
 sse_data(_SdkKey) -> sse_empty().
 
@@ -35,6 +36,17 @@ sse_simple_flag() ->
     FlagBin = simple_flag(),
     <<"{",
         "\"path\":\"/\",",
+        "\"data\":{",
+            "\"flags\":{",
+                FlagBin/binary,
+            "},",
+            "\"segments\":{}",
+        "}",
+    "}">>.
+
+sse_put_no_path() ->
+    FlagBin = simple_flag(),
+    <<"{",
         "\"data\":{",
             "\"flags\":{",
                 FlagBin/binary,

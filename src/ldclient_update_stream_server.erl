@@ -216,7 +216,7 @@ process_items(other, _, _, _) ->
     ok.
 
 -spec get_put_items(Data :: map()) -> [map()].
-get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
+get_put_items(#{<<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
 -spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}}.
