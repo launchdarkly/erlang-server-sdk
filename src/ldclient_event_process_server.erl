@@ -61,7 +61,7 @@ init([Tag]) ->
     Dispatcher = ldclient_settings:get_value(Tag, events_dispatcher),
     InlineUsers = ldclient_settings:get_value(Tag, inline_users_in_events),
     GlobalPrivateAttributes = ldclient_settings:get_value(Tag, private_attributes),
-    EventsUri = ldclient_settings:get_value(Tag, events_uri) ++ "/api/events/bulk",
+    EventsUri = ldclient_settings:get_value(Tag, events_uri) ++ "/bulk",
     State = #{
         sdk_key => SdkKey,
         dispatcher => Dispatcher,
