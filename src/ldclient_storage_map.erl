@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_map' module
-%%
+%% @private
 %% Provides implementation of storage backend using Erlang map.
 %% @end
 %%-------------------------------------------------------------------

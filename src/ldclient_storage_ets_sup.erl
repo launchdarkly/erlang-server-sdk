@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_ets_sup' module
-%%
+%% @private
 %% This is a supervisor for ETS storage worker.
 %% @end
 %%-------------------------------------------------------------------

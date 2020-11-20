@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_map_server' module
-%%
+%% @private
 %% This is a simple in-memory implementation of an storage server using Erlang
 %% map.
 %% @end

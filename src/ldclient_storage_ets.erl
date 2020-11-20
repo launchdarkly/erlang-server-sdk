@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_ets' module
-%%
+%% @private
 %% Provides implementation of ETS storage backend behavior.
 %% @end
 %%-------------------------------------------------------------------

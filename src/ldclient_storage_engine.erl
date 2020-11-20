@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_engine' module
-%%
+%% @private
 %% This is a behavior that all storage engines must implement. It works with
 %% the concept of buckets and keys.
 %% @end

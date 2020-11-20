@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_event_dispatch' module
-%%
+%% @private
 %% This is a behavior that event dispatchers must implement. It is used to send
 %% event batches to LaunchDarkly.
 %% @end

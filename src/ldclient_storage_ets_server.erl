@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_ets_server' module
-%%
+%% @private
 %% This is a simple in-memory implementation of an storage server using ETS.
 %% @end
 %%-------------------------------------------------------------------
