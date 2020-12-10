@@ -31,11 +31,16 @@
 init(SupRef, Tag, _) ->
     SupRegName = get_local_reg_name(supervisor, Tag),
     WorkerRegName = get_local_reg_name(worker, Tag),
-    StorageMapSup = ?CHILD(ldclient_storage_map_sup, ldclient_storage_map_sup, [SupRegName, WorkerRegName], supervisor),
-    {ok, _} = supervisor:start_child(SupRef, StorageMapSup),
+    StorageSup = ?CHILD(ldclient_storage_map_sup, ldclient_storage_map_sup, [SupRegName, WorkerRegName, Tag], supervisor),
+    {ok, _} = supervisor:start_child(SupRef, StorageSup),
     % Pre-create flags and segments buckets
     ok = create(Tag, flags),
-    ok = create(Tag, segments).
+    ok = create(Tag, segments),
+    Reload = ldclient_update_processor_state:get_storage_initialized_state(Tag),
+    case Reload of
+        reload -> ok = ldclient_updater:stop(list_to_atom("ldclient_instance_stream_" ++ atom_to_list(Tag)));
+        _ -> ok
+    end.
 
 -spec create(Tag :: atom(), Bucket :: atom()) ->
     ok |

@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% Supervision
--export([start_link/1, init/1]).
+-export([start_link/2, init/1]).
 
 %% Behavior callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
@@ -25,18 +25,21 @@
 -export([put_clean/3]).
 
 %% Types
--type state() :: #{data => map()}.
+-type state() :: #{
+    data => map(),
+    tag => atom()
+}.
 
 %%===================================================================
 %% Supervision
 %%===================================================================
 
-start_link(WorkerRegName) ->
+start_link(WorkerRegName, Tag) ->
     error_logger:info_msg("Starting map server with name ~p", [WorkerRegName]),
-    gen_server:start_link({local, WorkerRegName}, ?MODULE, [], []).
+    gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
-init([]) ->
-    {ok, #{data => #{}}}.
+init([Tag]) ->
+    {ok, #{data => #{}, tag => Tag}}.
 
 %%===================================================================
 %% API
@@ -140,7 +143,9 @@ handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Msg, State) -> {noreply, State}.
 
-terminate(_Reason, _State) -> ok.
+terminate(_Reason, #{tag := Tag} = _State) ->
+    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, reload),
+    ok.
 
 code_change(_OldVersion, State, _Extra) -> {ok, State}.
 

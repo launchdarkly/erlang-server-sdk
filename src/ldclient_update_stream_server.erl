@@ -181,6 +181,11 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
 %% @end
 -spec process_event(shotgun:event(), StorageBackend :: atom(), Tag :: atom()) -> ok.
 process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
+    StorageDown = ldclient_update_processor_state:get_storage_initialized_state(Tag),
+    case StorageDown of
+        false -> ldclient_update_processor_state:set_storage_initialized_state(Tag, reload);
+        _ -> ok
+    end,
     EventOperation = get_event_operation(Event),
     DecodedData = decode_data(EventOperation, Data),
     ProcessResult = process_items(EventOperation, DecodedData, StorageBackend, Tag),

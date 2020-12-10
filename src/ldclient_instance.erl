@@ -53,10 +53,11 @@ start(Tag, SdkKey, Options) ->
     EventsSupName = get_ref_from_tag(instance_events, Tag),
     {ok, _} = supervisor:start_child(ldclient_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
+    true = ldclient_update_processor_state:create_storage_initialized_state(Tag, false),
     StorageBackend = maps:get(storage_backend, Settings),
     ok = StorageBackend:init(SupName, Tag, []),
-    true = ldclient_update_processor_state:create_initialized_state(Tag, false),
     % Start stream client
+    true = ldclient_update_processor_state:create_initialized_state(Tag, false),
     ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
 
 %% @doc Stop a client instance
@@ -76,6 +77,7 @@ stop(Tag) when is_atom(Tag) ->
     SupPid = erlang:whereis(SupName),
     ok = supervisor:terminate_child(ldclient_sup, SupPid),
     ldclient_update_processor_state:delete_initialized_state(Tag),
+    ldclient_update_processor_state:delete_storage_initialized_state(Tag),
     ldclient_settings:unregister(Tag).
 
 %% @doc Stop all client instances

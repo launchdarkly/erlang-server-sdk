@@ -138,6 +138,11 @@ process_response({error, network_error}, _, _, Uri) ->
     ok;
 process_response({ok, not_modified}, _, _, _) -> ok;
 process_response({ok, ResponseBody}, StorageBackend, Tag, _) ->
+    StorageDown = ldclient_update_processor_state:get_storage_initialized_state(Tag),
+    case StorageDown of
+        false -> ldclient_update_processor_state:set_storage_initialized_state(Tag, reload);
+        _ -> ok
+    end,
     process_response_body(ResponseBody, StorageBackend, Tag).
 
 -spec process_response_body(binary(), atom(), atom()) -> ok.
