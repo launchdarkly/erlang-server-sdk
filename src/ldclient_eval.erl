@@ -122,7 +122,7 @@ get_initialization_state(_Tag, false) -> not_initialized.
 
 -spec flag_recs_for_user(
     FlagKey :: ldclient_flag:key(),
-    FlagRecs :: [{ldclient_flag:key(), map()}],
+    FlagRecs :: [{ldclient_flag:key(), ldclient_flag:flag()}],
     User :: ldclient_user:user(),
     StorageBackend :: atom(),
     Tag :: atom(),
@@ -134,15 +134,14 @@ flag_recs_for_user(FlagKey, [], User, _StorageBackend, _Tag, DefaultValue) ->
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
-flag_recs_for_user(FlagKey, [{FlagKey, #{<<"deleted">> := true}}|_], User, _StorageBackend, _Tag, DefaultValue) ->
+flag_recs_for_user(FlagKey, [{FlagKey, #{deleted := true}}|_], User, _StorageBackend, _Tag, DefaultValue) ->
     % Flag found, but it's deleted
     error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
-flag_recs_for_user(FlagKey, [{FlagKey, FlagProperties}|_], User, StorageBackend, Tag, DefaultValue) ->
+flag_recs_for_user(FlagKey, [{FlagKey, Flag}|_], User, StorageBackend, Tag, DefaultValue) ->
     % Flag found
-    Flag = ldclient_flag:new(FlagProperties),
     flag_for_user_check_empty_key(Flag, User, StorageBackend, Tag, DefaultValue).
 
 -spec flag_for_user_check_empty_key(ldclient_flag:flag(), ldclient_user:user(), atom(), atom(), result_value()) -> result().
@@ -195,8 +194,7 @@ check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key :
     % Short circuit if prerequisite flag is not found
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
     flag_for_user_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, User, StorageBackend, Tag, DefaultValue, Events);
-check_prerequisite_recs([{PrerequisiteKey, PrerequisiteProperties}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
-    PrerequisiteFlag = ldclient_flag:new(PrerequisiteProperties),
+check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag}|_], PrerequisiteKey, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->
     check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, User, StorageBackend, Tag, DefaultValue, Events).
 
 check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, User, StorageBackend, Tag, DefaultValue, Events) ->

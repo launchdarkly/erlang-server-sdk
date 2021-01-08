@@ -238,8 +238,7 @@ check_segment_key_match(SegmentKey, User, StorageBackend, Tag) ->
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;
-check_segments_match([{_SegmentKey, SegmentProperties}|_], User) ->
-    Segment = ldclient_segment:new(SegmentProperties),
+check_segments_match([{_SegmentKey, Segment}|_], User) ->
     ldclient_segment:match_user(Segment, User).
 
 -spec maybe_negate_match(clause(), match | no_match) -> match | no_match.

@@ -149,8 +149,14 @@ process_response({ok, ResponseBody}, StorageBackend, Tag, _) ->
 process_response_body(ResponseBody, StorageBackend, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),
-    ok = StorageBackend:put_clean(Tag, flags, Flags),
-    ok = StorageBackend:put_clean(Tag, segments, Segments),
+    ParsedFlags = maps:map(
+        fun(_K, V) -> ldclient_flag:new(V) end
+        , Flags),
+    ParsedSegments = maps:map(
+        fun(_K, V) -> ldclient_segment:new(V) end
+        , Segments),
+    ok = StorageBackend:put_clean(Tag, flags, ParsedFlags),
+    ok = StorageBackend:put_clean(Tag, segments, ParsedSegments),
     ok.
 
 -spec get_put_items(Data :: map()) -> [map()].

@@ -210,8 +210,14 @@ decode_data(_, Data) -> jsx:decode(Data, [return_maps]).
 process_items(put, Data, StorageBackend, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
-    ok = StorageBackend:put_clean(Tag, flags, Flags),
-    ok = StorageBackend:put_clean(Tag, segments, Segments);
+    ParsedFlags = maps:map(
+        fun(_K, V) -> ldclient_flag:new(V) end
+        , Flags),
+    ParsedSegments = maps:map(
+        fun(_K, V) -> ldclient_segment:new(V) end
+        , Segments),
+    ok = StorageBackend:put_clean(Tag, flags, ParsedFlags),
+    ok = StorageBackend:put_clean(Tag, segments, ParsedSegments);
 process_items(patch, Data, StorageBackend, Tag) ->
     {Bucket, Key, Item} = get_patch_item(Data),
     ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
@@ -255,7 +261,7 @@ maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
         [] ->
             StorageBackend:put(Tag, Bucket, Item);
         [{Key, ExistingFlagMap}] ->
-            ExistingVersion = maps:get(<<"version">>, ExistingFlagMap, 0),
+            ExistingVersion = maps:get(version, ExistingFlagMap, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
                 Overwrite -> StorageBackend:put(Tag, Bucket, Item);
@@ -268,11 +274,11 @@ maybe_delete_item(StorageBackend, Tag, Bucket, Key, NewVersion) ->
     case StorageBackend:get(Tag, Bucket, Key) of
         [] -> ok;
         [{Key, ExistingItem}] ->
-            ExistingVersion = maps:get(<<"version">>, ExistingItem, 0),
+            ExistingVersion = maps:get(version, ExistingItem, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
                 Overwrite ->
-                    NewItem = #{Key => maps:put(<<"deleted">>, true, ExistingItem)},
+                    NewItem = #{Key => maps:put(deleted, true, ExistingItem)},
                     StorageBackend:put(Tag, Bucket, NewItem);
                 true ->
                     ok

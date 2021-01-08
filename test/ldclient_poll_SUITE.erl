@@ -73,6 +73,14 @@ check_storage_simple() ->
     [{FlagKey, FlagMap}] = ldclient_storage_ets:list(default, flags),
     [{SegmentKey, SegmentMap}] = ldclient_storage_ets:list(default, segments).
 
+check_storage_simple_parsed() ->
+    {FlagKey, _, FlagMap} = ldclient_update_requestor_test:get_simple_flag(),
+    {SegmentKey, _, SegmentMap} = ldclient_update_requestor_test:get_simple_segment(),
+    ParsedFlagMap = ldclient_flag:new(FlagMap),
+    ParsedSegmentMap = ldclient_segment:new(SegmentMap),
+    [{FlagKey, ParsedFlagMap}] = ldclient_storage_ets:list(default, flags),
+    [{SegmentKey, ParsedSegmentMap}] = ldclient_storage_ets:list(default, segments).
+
 check_storage_empty() ->
     [] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments).
@@ -116,7 +124,7 @@ response_error_network(_) ->
 response_flags_segments(_) ->
     ok = ldclient:start_instance("sdk-key-flags-segments", instance_options()),
     timer:sleep(500),
-    check_storage_simple(),
+    check_storage_simple_parsed(),
     ok = ldclient:stop_instance().
 
 successful_response_override_existing_flags(_) ->

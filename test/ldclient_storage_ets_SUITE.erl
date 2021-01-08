@@ -110,25 +110,42 @@ server_process_events_put(_) ->
         <<"path">> => <<"/">>,
         <<"data">> => #{
             <<"flags">> => #{
-                <<"flag-key-1">> => <<"flag-value-1">>,
-                <<"flag-key-2">> => <<"flag-value-2">>,
-                <<"flag-key-3">> => <<"flag-value-3">>
+                <<"flag-key-1">> => #{<<"key">> => <<"flag-key-1">>, <<"on">> => true},
+                <<"flag-key-2">> => #{<<"key">> => <<"flag-key-2">>, <<"on">> => true},
+                <<"flag-key-3">> => #{<<"key">> => <<"flag-key-3">>, <<"on">> => true}
             },
             <<"segments">> => #{
-                <<"segment-key-1">> => <<"segment-value-1">>,
-                <<"segment-key-2">> => <<"segment-value-2">>
+                <<"segment-key-1">> => #{<<"key">> => <<"segment-value-1">>},
+                <<"segment-key-2">> => #{<<"key">> => <<"segment-value-2">>}
             }
         }
     },
     ok = ldclient_update_stream_server:process_items(put, Event, ldclient_storage_ets, default),
     [
-        {<<"flag-key-1">>, <<"flag-value-1">>},
-        {<<"flag-key-2">>, <<"flag-value-2">>},
-        {<<"flag-key-3">>, <<"flag-value-3">>}
+        {<<"flag-key-1">>,  #{debug_events_until_date := null,deleted := false,
+               fallthrough := #{bucket_by := key,variations := []},
+               key := <<"flag-key-1">>,off_variation := 0,on := true,
+               prerequisites := [],rules := [],salt := <<>>,targets := [],
+               track_events := false,track_events_fallthrough := false,
+               variations := [],version := 0}},
+        {<<"flag-key-2">>,  #{debug_events_until_date := null,deleted := false,
+               fallthrough := #{bucket_by := key,variations := []},
+               key := <<"flag-key-2">>,off_variation := 0,on := true,
+               prerequisites := [],rules := [],salt := <<>>,targets := [],
+               track_events := false,track_events_fallthrough := false,
+               variations := [],version := 0}},
+        {<<"flag-key-3">>,  #{debug_events_until_date := null,deleted := false,
+               fallthrough := #{bucket_by := key,variations := []},
+               key := <<"flag-key-3">>,off_variation := 0,on := true,
+               prerequisites := [],rules := [],salt := <<>>,targets := [],
+               track_events := false,track_events_fallthrough := false,
+               variations := [],version := 0}}
     ] = lists:sort(ldclient_storage_ets:list(default, flags)),
     [
-        {<<"segment-key-1">>, <<"segment-value-1">>},
-        {<<"segment-key-2">>, <<"segment-value-2">>}
+        {<<"segment-key-1">>, #{deleted := false,excluded := [],included := [],key := <<"segment-value-1">>,rules := [],
+              salt := <<>>,version := 0}},
+        {<<"segment-key-2">>, #{deleted := false,excluded := [],included := [],key := <<"segment-value-2">>,rules := [],
+              salt := <<>>,version := 0}}
     ] = lists:sort(ldclient_storage_ets:list(default, segments)).
 
 server_process_events_patch(_) ->
@@ -145,10 +162,25 @@ server_process_events_patch(_) ->
     ok = ldclient_update_stream_server:process_items(put, PutEvent, ldclient_storage_ets, default),
     PatchEvent = #{
         <<"path">> => <<"/flags/flag-key-2">>,
-        <<"data">> => #{<<"key">> => <<"flag-key-2">>, <<"on">> => false}
+        <<"data">> => #{debug_events_until_date => null,deleted => false,
+               fallthrough => #{bucket_by => key,variations => []},
+               key => <<"flag-key-2">>,off_variation => 0,on => false,
+               prerequisites =>[],rules => [],salt => <<>>,targets => [],
+               track_events => false,track_events_fallthrough => false,
+               variations => [],version =>1}
     },
     ok = ldclient_update_stream_server:process_items(patch, PatchEvent, ldclient_storage_ets, default),
     [
-        {<<"flag-key-1">>, #{<<"key">> := <<"flag-key-1">>, <<"on">> := true}},
-        {<<"flag-key-2">>, #{<<"key">> := <<"flag-key-2">>, <<"on">> := false}}
+        {<<"flag-key-1">>, #{debug_events_until_date := null,deleted := false,
+               fallthrough := #{bucket_by := key,variations := []},
+               key := <<"flag-key-1">>,off_variation := 0,on := true,
+               prerequisites := [],rules := [],salt := <<>>,targets := [],
+               track_events := false,track_events_fallthrough := false,
+               variations := [],version := 0}},
+        {<<"flag-key-2">>, #{debug_events_until_date := null,deleted := false,
+               fallthrough := #{bucket_by := key,variations := []},
+               key := <<"flag-key-2">>,off_variation := 0,on := false,
+               prerequisites := [],rules := [],salt := <<>>,targets := [],
+               track_events := false,track_events_fallthrough := false,
+               variations := [],version := 1}}
     ] = lists:sort(ldclient_storage_ets:list(default, flags)).

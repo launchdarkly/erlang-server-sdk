@@ -74,7 +74,8 @@ stream_sse_simple_flag(_) ->
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
-    [{FlagSimpleKey, FlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
+    ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments),
     ok = ldclient:stop_instance(),
     ok.
@@ -84,7 +85,8 @@ stream_sse_put_no_path(_) ->
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
-    [{FlagSimpleKey, FlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
+    ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments),
     ok = ldclient:stop_instance(),
     ok.
@@ -96,7 +98,8 @@ stream_sse_timeout(_) ->
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(5500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
-    [{FlagSimpleKey, FlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
+    ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
     [] = ldclient_storage_ets:list(default, segments),
     % Evaluation after SDK is initialized should return an expected flag variation value
     {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
