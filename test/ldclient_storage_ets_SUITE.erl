@@ -162,12 +162,12 @@ server_process_events_patch(_) ->
     ok = ldclient_update_stream_server:process_items(put, PutEvent, ldclient_storage_ets, default),
     PatchEvent = #{
         <<"path">> => <<"/flags/flag-key-2">>,
-        <<"data">> => #{debug_events_until_date => null,deleted => false,
-               fallthrough => #{bucket_by => key,variations => []},
-               key => <<"flag-key-2">>,off_variation => 0,on => false,
-               prerequisites =>[],rules => [],salt => <<>>,targets => [],
-               track_events => false,track_events_fallthrough => false,
-               variations => [],version =>1}
+        <<"data">> => #{<<"debugEventsUntilDate">> => null,<<"deleted">> => false,
+               <<"fallthrough">> => #{<<"bucketBy">> => key,<<"variations">> => []},
+               <<"key">> => <<"flag-key-2">>,<<"offVariation">> => 0,<<"on">> => false,
+               <<"prerequisites">> => [],<<"rules">> => [],<<"salt">> => <<>>,<<"targets">> => [],
+               <<"trackEvents">> => false,<<"trackEventsFallthrough">> => false,
+               <<"variations">> => [],<<"version">> => 1}
     },
     ok = ldclient_update_stream_server:process_items(patch, PatchEvent, ldclient_storage_ets, default),
     [

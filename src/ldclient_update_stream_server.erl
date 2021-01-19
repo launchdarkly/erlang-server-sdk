@@ -219,8 +219,8 @@ process_items(put, Data, StorageBackend, Tag) ->
     ok = StorageBackend:put_clean(Tag, flags, ParsedFlags),
     ok = StorageBackend:put_clean(Tag, segments, ParsedSegments);
 process_items(patch, Data, StorageBackend, Tag) ->
-    {Bucket, Key, Item} = get_patch_item(Data),
-    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
+    {Bucket, Key, Item, Type} = get_patch_item(Data),
+    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, Type);
 process_items(delete, Data, StorageBackend, Tag) ->
     delete_items(Data, StorageBackend, Tag);
 process_items(other, _, _, _) ->
@@ -230,11 +230,11 @@ process_items(other, _, _, _) ->
 get_put_items(#{<<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
--spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}}.
+-spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, Type :: atom()}.
 get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
-    {flags, FlagKey, #{FlagKey => FlagMap}};
+    {flags, FlagKey, #{FlagKey => FlagMap}, flag};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    {segments, SegmentKey, #{SegmentKey => SegmentMap}}.
+    {segments, SegmentKey, #{SegmentKey => SegmentMap}, segment}.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
 delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, StorageBackend, Tag) ->
@@ -253,18 +253,32 @@ delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, StorageBackend, Tag) 
     ok = maybe_delete_item(StorageBackend, Tag, segments, Key, undefined).
 
 
--spec maybe_patch_item(atom(), atom(), atom(), binary(), map()) -> ok.
-maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
+-spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), atom()) -> ok.
+maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, flag) ->
     FlagMap = maps:get(Key, Item, #{}),
     NewVersion = maps:get(<<"version">>, FlagMap, 0),
     ok = case StorageBackend:get(Tag, Bucket, Key) of
         [] ->
-            StorageBackend:put(Tag, Bucket, Item);
+            StorageBackend:put(Tag, Bucket, #{Key => ldclient_flag:new(maps:get(Key, Item))});
         [{Key, ExistingFlagMap}] ->
             ExistingVersion = maps:get(version, ExistingFlagMap, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
-                Overwrite -> StorageBackend:put(Tag, Bucket, Item);
+                Overwrite -> StorageBackend:put(Tag, Bucket, #{Key => ldclient_flag:new(maps:get(Key, Item))});
+                true -> ok
+            end
+    end;
+maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, segment) ->
+    FlagMap = maps:get(Key, Item, #{}),
+    NewVersion = maps:get(<<"version">>, FlagMap, 0),
+    ok = case StorageBackend:get(Tag, Bucket, Key) of
+        [] ->
+            StorageBackend:put(Tag, Bucket, ldclient_segment:new(maps:get(Key, Item)));
+        [{Key, ExistingFlagMap}] ->
+            ExistingVersion = maps:get(version, ExistingFlagMap, 0),
+            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
+            if
+                Overwrite -> StorageBackend:put(Tag, Bucket, ldclient_segment:new(maps:get(Key, Item)));
                 true -> ok
             end
     end.

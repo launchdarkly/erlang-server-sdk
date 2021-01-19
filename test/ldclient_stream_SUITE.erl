@@ -82,7 +82,8 @@ server_process_event_put_patch(_) ->
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = ldclient_test_utils:get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
     ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_ets, default),
-    [{FlagSimpleKey, FlagPatchMap}] = ldclient_storage_ets:list(default, flags),
+    ParsedFlagPatchMap = ldclient_flag:new(FlagPatchMap),
+    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_ets:list(default, flags),
     ok.
 
 server_process_event_put_patch_flag_with_extra_property(_) ->
@@ -102,7 +103,8 @@ server_process_event_put_patch_flag_with_extra_property(_) ->
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = ldclient_test_utils:get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
     ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_ets, default),
-    [{FlagSimpleKey, FlagPatchMap}] = ldclient_storage_ets:list(default, flags),
+    ParsedFlagPatchMap = ldclient_flag:new(FlagPatchMap),
+    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_ets:list(default, flags),
     ok.
 
 server_process_event_put_patch_old_version(_) ->
