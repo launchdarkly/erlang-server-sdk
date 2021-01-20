@@ -48,7 +48,7 @@ init([Tag]) ->
     SdkKey = ldclient_settings:get_value(Tag, sdk_key),
     StreamUri = ldclient_settings:get_value(Tag, stream_uri) ++ "/all",
     StorageBackend = ldclient_settings:get_value(Tag, storage_backend),
-    Backoff = backoff:type(backoff:init(100, 30000, self(), listen), jitter),
+    Backoff = backoff:type(backoff:init(1000, 30000, self(), listen), jitter),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{

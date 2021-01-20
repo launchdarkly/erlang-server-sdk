@@ -42,7 +42,7 @@
 -export_type([private_attributes/0]).
 
 %% Constants
--define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
+-define(DEFAULT_BASE_URI, "https://sdk.launchdarkly.com").
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com").
 -define(DEFAULT_STORAGE_BACKEND, ldclient_storage_ets).

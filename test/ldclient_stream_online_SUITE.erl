@@ -96,7 +96,7 @@ stream_sse_timeout(_) ->
     % Evaluation before SDK is initialized should return client_not_ready with default value
     {null, foo, {error, client_not_ready}} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
     % Wait for SDK to initialize and process initial payload from server
-    timer:sleep(5500),
+    timer:sleep(6500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
     [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:list(default, flags),
