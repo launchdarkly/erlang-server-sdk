@@ -219,8 +219,8 @@ process_items(put, Data, StorageBackend, Tag) ->
     ok = StorageBackend:put_clean(Tag, flags, ParsedFlags),
     ok = StorageBackend:put_clean(Tag, segments, ParsedSegments);
 process_items(patch, Data, StorageBackend, Tag) ->
-    {Bucket, Key, Item, Type} = get_patch_item(Data),
-    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, Type);
+    {Bucket, Key, Item, ParseFunction} = get_patch_item(Data),
+    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, ParseFunction);
 process_items(delete, Data, StorageBackend, Tag) ->
     delete_items(Data, StorageBackend, Tag);
 process_items(other, _, _, _) ->
@@ -230,11 +230,11 @@ process_items(other, _, _, _) ->
 get_put_items(#{<<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
--spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, Type :: atom()}.
+-spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, ParseFunction :: fun()}.
 get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
-    {flags, FlagKey, #{FlagKey => FlagMap}, flag};
+    {flags, FlagKey, #{FlagKey => FlagMap}, fun ldclient_flag:new/1};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    {segments, SegmentKey, #{SegmentKey => SegmentMap}, segment}.
+    {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1}.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
 delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, StorageBackend, Tag) ->
@@ -253,32 +253,18 @@ delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, StorageBackend, Tag) 
     ok = maybe_delete_item(StorageBackend, Tag, segments, Key, undefined).
 
 
--spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), atom()) -> ok.
-maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, flag) ->
+-spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
+maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, ParseFunction) ->
     FlagMap = maps:get(Key, Item, #{}),
     NewVersion = maps:get(<<"version">>, FlagMap, 0),
     ok = case StorageBackend:get(Tag, Bucket, Key) of
         [] ->
-            StorageBackend:put(Tag, Bucket, #{Key => ldclient_flag:new(maps:get(Key, Item))});
+            StorageBackend:put(Tag, Bucket, #{Key => ParseFunction(maps:get(Key, Item))});
         [{Key, ExistingFlagMap}] ->
             ExistingVersion = maps:get(version, ExistingFlagMap, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
-                Overwrite -> StorageBackend:put(Tag, Bucket, #{Key => ldclient_flag:new(maps:get(Key, Item))});
-                true -> ok
-            end
-    end;
-maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item, segment) ->
-    FlagMap = maps:get(Key, Item, #{}),
-    NewVersion = maps:get(<<"version">>, FlagMap, 0),
-    ok = case StorageBackend:get(Tag, Bucket, Key) of
-        [] ->
-            StorageBackend:put(Tag, Bucket, ldclient_segment:new(maps:get(Key, Item)));
-        [{Key, ExistingFlagMap}] ->
-            ExistingVersion = maps:get(version, ExistingFlagMap, 0),
-            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
-            if
-                Overwrite -> StorageBackend:put(Tag, Bucket, ldclient_segment:new(maps:get(Key, Item)));
+                Overwrite -> StorageBackend:put(Tag, Bucket, #{Key => ParseFunction(maps:get(Key, Item))});
                 true -> ok
             end
     end.
