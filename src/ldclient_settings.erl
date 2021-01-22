@@ -33,7 +33,8 @@
     stream => boolean(),
     polling_interval => pos_integer(),
     polling_update_requestor => atom(),
-    offline => boolean()
+    offline => boolean(),
+    use_ldd => boolean()
 }.
 % Settings stored for each running SDK instance
 
@@ -59,6 +60,7 @@
 -define(VERSION, "1.0.0-beta4").
 -define(EVENT_SCHEMA, "3").
 -define(DEFAULT_OFFLINE, false).
+-define(DEFAULT_USE_LDD, false).
 
 %%===================================================================
 %% API
@@ -92,6 +94,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
     OfflineMode = maps:get(offline, Options, ?DEFAULT_OFFLINE),
+    UseLdd = maps:get(use_ldd, Options, ?DEFAULT_USE_LDD),
     PollingInterval = lists:max([
         ?MINIMUM_POLLING_INTERVAL,
         maps:get(polling_interval, Options, ?MINIMUM_POLLING_INTERVAL)
@@ -111,7 +114,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
         offline => OfflineMode,
-        polling_interval => PollingInterval
+        polling_interval => PollingInterval,
+        use_ldd => UseLdd
     }.
 
 %% @doc Get all registered tags
