@@ -23,8 +23,8 @@
 send(JsonEvents, PayloadId, Uri, SdkKey) ->
     Headers = [
         {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", ldclient_settings:get_event_schema()},
-        {"User-Agent", ldclient_settings:get_user_agent()},
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
+        {"User-Agent", ldclient_config:get_user_agent()},
         {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)}
     ],
     Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),

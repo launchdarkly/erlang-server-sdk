@@ -20,9 +20,10 @@
 -export([create/2]).
 -export([empty/2]).
 -export([get/3]).
--export([list/2]).
--export([put/3]).
--export([put_clean/3]).
+-export([all/2]).
+-export([upsert/3]).
+-export([upsert_clean/3]).
+-export([delete/3]).
 
 %% Types
 -type state() :: #{
@@ -75,29 +76,38 @@ get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
 %% @doc List all items in a bucket
 %%
 %% @end
--spec list(ServerRef :: atom(), Bucket :: atom()) ->
+-spec all(ServerRef :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
-list(ServerRef, Bucket) when is_atom(Bucket) ->
-    gen_server:call(ServerRef, {list, Bucket}).
+all(ServerRef, Bucket) when is_atom(Bucket) ->
+    gen_server:call(ServerRef, {all, Bucket}).
 
-%% @doc Put item key value pairs in an existing bucket
+%% @doc Upsert item key value pairs in an existing bucket
 %%
 %% @end
--spec put(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec upsert(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-put(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
-    ok = gen_server:call(ServerRef, {put, Bucket, Items}).
+upsert(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    ok = gen_server:call(ServerRef, {upsert, Bucket, Items}).
 
-%% @doc Perform an atomic empty and put
+%% @doc Perform an atomic empty and upsert
 %%
 %% @end
--spec put_clean(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec upsert_clean(ServerRef :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-put_clean(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
-    ok = gen_server:call(ServerRef, {put_clean, Bucket, Items}).
+upsert_clean(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
+    ok = gen_server:call(ServerRef, {upsert_clean, Bucket, Items}).
+
+%% @doc Delete an item from the bucket by its key
+%%
+%% @end
+-spec delete(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
+    ok |
+    {error, bucket_not_found, string()}.
+delete(ServerRef, Bucket, Key) ->
+    ok = gen_server:call(ServerRef, {delete, Bucket, Key}).
 
 %%===================================================================
 %% Behavior callbacks
@@ -121,22 +131,24 @@ handle_call({empty, Bucket}, _From, #{data := Data} = State) ->
     end;
 handle_call({get, Bucket, Key}, _From, #{data := Data} = State) ->
     {reply, lookup_key(Key, Bucket, Data), State};
-handle_call({list, Bucket}, _From, #{data := Data} = State) ->
-    {reply, list_items(Bucket, Data), State};
-handle_call({put, Bucket, Items}, _From, #{data := Data} = State) ->
-    case put_items(Items, Bucket, Data) of
+handle_call({all, Bucket}, _From, #{data := Data} = State) ->
+    {reply, all_items(Bucket, Data), State};
+handle_call({upsert, Bucket, Items}, _From, #{data := Data} = State) ->
+    case upsert_items(Items, Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
     end;
-handle_call({put_clean, Bucket, Items}, _From, #{data := Data} = State) ->
-    case put_clean_items(Items, Bucket, Data) of
+handle_call({upsert_clean, Bucket, Items}, _From, #{data := Data} = State) ->
+    case upsert_clean_items(Items, Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
-    end.
+    end;
+handle_call({delete, Bucket, Key}, _From, #{data := Data} = State) ->
+    {reply, delete_key(Key, Bucket, Data), State}.
 
 
 handle_cast(_Msg, State) -> {noreply, State}.
@@ -198,10 +210,10 @@ empty_bucket(Bucket, Data) when is_atom(Bucket) ->
 %%
 %% Returns all items stored in the bucket.
 %% @end
--spec list_items(Bucket :: atom(), Data :: map()) ->
+-spec all_items(Bucket :: atom(), Data :: map()) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
-list_items(Bucket, Data) when is_atom(Bucket) ->
+all_items(Bucket, Data) when is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
@@ -230,34 +242,51 @@ lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
             end
     end.
 
-%% @doc Put key value pairs in bucket
+%% @doc Upsert key value pairs in bucket
 %% @private
 %%
 %% @end
--spec put_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
+-spec upsert_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
     {ok, NewData :: map()} |
     {error, bucket_not_found, string()}.
-put_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
+upsert_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
-            BucketData = maps:get(Bucket, Data),
-            NewBucketData = maps:merge(BucketData, Items),
+            BucketMap = maps:get(Bucket, Data),
+            NewBucketData = maps:merge(BucketMap, Items),
             {ok, maps:update(Bucket, NewBucketData, Data)}
     end.
 
-%% @doc Empty bucket and put key value pairs
+%% @doc Empty bucket and upsert key value pairs
 %% @private
 %%
 %% @end
--spec put_clean_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
+-spec upsert_clean_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
     {ok, NewData :: map()} |
     {error, bucket_not_found, string()}.
-put_clean_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
+upsert_clean_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             {ok, maps:update(Bucket, Items, Data)}
+    end.
+
+%% @doc Delete an item by key
+%% @private
+%%
+%% Delete an item by its key.
+%% @end
+-spec delete_key(Key :: binary(), Bucket :: atom(), Data :: map()) ->
+    ok |
+    {error, bucket_not_found, string()}.
+delete_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
+    case bucket_exists(Bucket, Data) of
+        false ->
+            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
+        _ ->
+            BucketMap = maps:get(Bucket, Data),
+            {ok, maps:remove(Key, BucketMap)}
     end.

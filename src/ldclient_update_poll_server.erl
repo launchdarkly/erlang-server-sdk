@@ -16,7 +16,7 @@
 
 -type state() :: #{
     sdk_key := string(),
-    storage_backend := atom(),
+    feature_store := atom(),
     storage_tag := atom(),
     requestor := atom(),
     requestor_state := any(),
@@ -49,16 +49,16 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    SdkKey = ldclient_settings:get_value(Tag, sdk_key),
-    StorageBackend = ldclient_settings:get_value(Tag, storage_backend),
-    Requestor = ldclient_settings:get_value(Tag, polling_update_requestor),
-    PollUri = ldclient_settings:get_value(Tag, base_uri) ++ ?LATEST_ALL_PATH,
-    PollInterval = ldclient_settings:get_value(Tag, polling_interval) * 1000,
+    SdkKey = ldclient_config:get_value(Tag, sdk_key),
+    FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    Requestor = ldclient_config:get_value(Tag, polling_update_requestor),
+    PollUri = ldclient_config:get_value(Tag, base_uri) ++ ?LATEST_ALL_PATH,
+    PollInterval = ldclient_config:get_value(Tag, polling_interval) * 1000,
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
         sdk_key => SdkKey,
-        storage_backend => StorageBackend,
+        feature_store => FeatureStore,
         storage_tag => Tag,
         requestor => Requestor,
         requestor_state => Requestor:init(),
@@ -113,13 +113,13 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec poll(state()) -> state().
 poll(#{ sdk_key := SdkKey,
-        storage_backend := StorageBackend,
+        feature_store := FeatureStore,
         requestor := Requestor,
         requestor_state := RequestorState,
         poll_uri := Uri,
         storage_tag := Tag } = State) ->
     {Result, NewRequestorState} = Requestor:all(Uri, SdkKey, RequestorState),
-    ok = process_response(Result, StorageBackend, Tag, Uri),
+    ok = process_response(Result, FeatureStore, Tag, Uri),
     true = ldclient_update_processor_state:set_initialized_state(Tag, true),
     State#{requestor_state := NewRequestorState}.
 
@@ -137,16 +137,16 @@ process_response({error, network_error}, _, _, Uri) ->
     error_logger:warning_msg("Failed to connect to update server at: %p", [Uri]),
     ok;
 process_response({ok, not_modified}, _, _, _) -> ok;
-process_response({ok, ResponseBody}, StorageBackend, Tag, _) ->
+process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
     StorageDown = ldclient_update_processor_state:get_storage_initialized_state(Tag),
     case StorageDown of
         false -> ldclient_update_processor_state:set_storage_initialized_state(Tag, reload);
         _ -> ok
     end,
-    process_response_body(ResponseBody, StorageBackend, Tag).
+    process_response_body(ResponseBody, FeatureStore, Tag).
 
 -spec process_response_body(binary(), atom(), atom()) -> ok.
-process_response_body(ResponseBody, StorageBackend, Tag) ->
+process_response_body(ResponseBody, FeatureStore, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),
     ParsedFlags = maps:map(
@@ -155,8 +155,8 @@ process_response_body(ResponseBody, StorageBackend, Tag) ->
     ParsedSegments = maps:map(
         fun(_K, V) -> ldclient_segment:new(V) end
         , Segments),
-    ok = StorageBackend:put_clean(Tag, flags, ParsedFlags),
-    ok = StorageBackend:put_clean(Tag, segments, ParsedSegments),
+    ok = FeatureStore:upsert_clean(Tag, features, ParsedFlags),
+    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments),
     ok.
 
 -spec get_put_items(Data :: map()) -> [map()].

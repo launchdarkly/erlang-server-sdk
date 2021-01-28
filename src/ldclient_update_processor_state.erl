@@ -92,4 +92,4 @@ get_storage_initialized_state(Tag) ->
 
 -spec get_storage_name(Tag :: atom()) -> atom().
 get_storage_name(Tag) ->
-	list_to_atom(atom_to_list(Tag) ++ atom_to_list(ldclient_settings:get_value(Tag, storage_backend))).
+	list_to_atom(atom_to_list(Tag) ++ atom_to_list(ldclient_config:get_value(Tag, feature_store))).

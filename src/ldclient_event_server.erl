@@ -98,9 +98,9 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    FlushInterval = ldclient_settings:get_value(Tag, events_flush_interval),
-    Capacity = ldclient_settings:get_value(Tag, events_capacity),
-    InlineUsers = ldclient_settings:get_value(Tag, inline_users_in_events),
+    FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
+    Capacity = ldclient_config:get_value(Tag, events_capacity),
+    InlineUsers = ldclient_config:get_value(Tag, inline_users_in_events),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     % Need to trap exit so supervisor:terminate_child calls terminate callback

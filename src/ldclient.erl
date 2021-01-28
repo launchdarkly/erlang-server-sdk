@@ -98,7 +98,7 @@ stop_instance(Tag) when is_atom(Tag) ->
 %% @end
 -spec is_offline(Tag :: atom()) -> boolean().
 is_offline(Tag) ->
-    ldclient_settings:get_value(Tag, offline).
+    ldclient_config:get_value(Tag, offline).
 
 %% @doc Returns whether the LaunchDarkly client has initialized.
 %%

@@ -59,8 +59,8 @@ match_user(Clause, User) ->
 %%
 %% @end
 -spec match_user(clause(), ldclient_user:user(), atom(), atom()) -> match | no_match.
-match_user(Clause, User, StorageBackend, Tag) ->
-    check_clause(Clause, User, StorageBackend, Tag).
+match_user(Clause, User, FeatureStore, Tag) ->
+    check_clause(Clause, User, FeatureStore, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -89,10 +89,10 @@ parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than;
 parse_operator(_) -> none.
 
 -spec check_clause(clause(), ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clause(#{op := segment_match, values := SegmentKeys} = Clause, User, StorageBackend, Tag) ->
-    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, StorageBackend, Tag));
-check_clause(#{op := none}, _User, _StorageBackend, _Tag) -> no_match;
-check_clause(Clause, User, _StorageBackend, _Tag) ->
+check_clause(#{op := segment_match, values := SegmentKeys} = Clause, User, FeatureStore, Tag) ->
+    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, FeatureStore, Tag));
+check_clause(#{op := none}, _User, _FeatureStore, _Tag) -> no_match;
+check_clause(Clause, User, _FeatureStore, _Tag) ->
     check_clause(Clause, User).
 
 check_clause(#{attribute := Attribute} = Clause, User) ->
@@ -224,17 +224,17 @@ check_attribute_result(no_match, Rest, Clause) ->
     check_attribute(Rest, Clause).
 
 -spec check_segment_keys_match([binary()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_segment_keys_match([], _User, _StorageBackend, _Tag) -> no_match;
-check_segment_keys_match([SegmentKey|Rest], User, StorageBackend, Tag) ->
-    Result = check_segment_key_match(SegmentKey, User, StorageBackend, Tag),
-    check_segment_key_match_result(Result, Rest, User, StorageBackend, Tag).
+check_segment_keys_match([], _User, _FeatureStore, _Tag) -> no_match;
+check_segment_keys_match([SegmentKey|Rest], User, FeatureStore, Tag) ->
+    Result = check_segment_key_match(SegmentKey, User, FeatureStore, Tag),
+    check_segment_key_match_result(Result, Rest, User, FeatureStore, Tag).
 
-check_segment_key_match_result(match, _Rest, _User, _StorageBackend, _Tag) -> match;
-check_segment_key_match_result(no_match, Rest, User, StorageBackend, Tag) ->
-    check_segment_keys_match(Rest, User, StorageBackend, Tag).
+check_segment_key_match_result(match, _Rest, _User, _FeatureStore, _Tag) -> match;
+check_segment_key_match_result(no_match, Rest, User, FeatureStore, Tag) ->
+    check_segment_keys_match(Rest, User, FeatureStore, Tag).
 
-check_segment_key_match(SegmentKey, User, StorageBackend, Tag) ->
-    Segments = StorageBackend:get(Tag, segments, SegmentKey),
+check_segment_key_match(SegmentKey, User, FeatureStore, Tag) ->
+    Segments = FeatureStore:get(Tag, segments, SegmentKey),
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;

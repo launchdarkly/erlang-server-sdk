@@ -1,11 +1,11 @@
 %%-------------------------------------------------------------------
-%% @doc `ldclient_storage_map_sup' module
-%% @private
-%% This is a supervisor for map storage worker.
+%% @doc `ldclient_storage_redis_sup' module
+%%
+%% This is a supervisor for Redis storage worker.
 %% @end
 %%-------------------------------------------------------------------
 
--module(ldclient_storage_map_sup).
+-module(ldclient_storage_redis_sup).
 
 -behaviour(supervisor).
 
@@ -35,5 +35,5 @@ init([WorkerRegName, Tag]) ->
 
 -spec children(WorkerRegName :: atom(), Tag :: atom()) -> [supervisor:child_spec()].
 children(WorkerRegName, Tag) ->
-    FeatureStorageServer = ?CHILD(ldclient_storage_map_server, ldclient_storage_map_server, [WorkerRegName, Tag], worker),
+    FeatureStorageServer = ?CHILD(ldclient_storage_redis_server, ldclient_storage_redis_server, [WorkerRegName, Tag], worker),
     [FeatureStorageServer].

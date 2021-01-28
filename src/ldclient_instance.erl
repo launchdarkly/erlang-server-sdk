@@ -15,13 +15,13 @@
 -type options() :: #{
     base_uri => string(),
     stream_uri => string(),
-    storage_backend => atom(),
+    feature_store => atom(),
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     user_keys_capacity => pos_integer(),
     inline_users_in_events => boolean(),
-    private_attributes => ldclient_settings:private_attributes(),
+    private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
     polling_update_requestor => atom(),
@@ -43,8 +43,8 @@
 start(Tag, SdkKey, Options) ->
     % TODO check if Tag already exists and return already_started error
     % Parse options into settings
-    Settings = ldclient_settings:parse_options(SdkKey, Options),
-    ok = ldclient_settings:register(Tag, Settings),
+    Settings = ldclient_config:parse_options(SdkKey, Options),
+    ok = ldclient_config:register(Tag, Settings),
     % Start instance supervisor
     SupName = get_ref_from_tag(instance, Tag),
     StartStream = maps:get(stream, Settings),
@@ -54,8 +54,8 @@ start(Tag, SdkKey, Options) ->
     {ok, _} = supervisor:start_child(ldclient_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
     true = ldclient_update_processor_state:create_storage_initialized_state(Tag, false),
-    StorageBackend = maps:get(storage_backend, Settings),
-    ok = StorageBackend:init(SupName, Tag, []),
+    FeatureStore = maps:get(feature_store, Settings),
+    ok = FeatureStore:init(SupName, Tag, []),
     % Start stream client
     true = ldclient_update_processor_state:create_initialized_state(Tag, false),
     ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
@@ -70,22 +70,22 @@ stop(Tag) when is_atom(Tag) ->
     StreamSupName = get_ref_from_tag(instance_stream, Tag),
     ok = ldclient_updater:stop(StreamSupName),
     % Terminate storage
-    StorageBackend = ldclient_settings:get_value(Tag, storage_backend),
-    ok = StorageBackend:terminate(Tag),
+    FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    ok = FeatureStore:terminate(Tag),
     % Terminate instance supervisors
     SupName = get_ref_from_tag(instance, Tag),
     SupPid = erlang:whereis(SupName),
     ok = supervisor:terminate_child(ldclient_sup, SupPid),
     ldclient_update_processor_state:delete_initialized_state(Tag),
     ldclient_update_processor_state:delete_storage_initialized_state(Tag),
-    ldclient_settings:unregister(Tag).
+    ldclient_config:unregister(Tag).
 
 %% @doc Stop all client instances
 %%
 %% @end
 -spec stop_all() -> ok.
 stop_all() ->
-    Tags = ldclient_settings:get_registered_tags(),
+    Tags = ldclient_config:get_registered_tags(),
     lists:foreach(fun stop/1, Tags).
 
 %% @doc Whether an instance's update processor has initialized

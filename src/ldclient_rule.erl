@@ -39,9 +39,9 @@ new(RawRuleMap) ->
 %% @doc Match all clauses to user, includes segment_match
 %%
 %% @end
--spec match_user(rule(), User :: ldclient_user:user(), StorageBackend :: atom(), Tag :: atom()) -> match | no_match.
-match_user(#{clauses := Clauses}, User, StorageBackend, Tag) ->
-    check_clauses(Clauses, User, StorageBackend, Tag).
+-spec match_user(rule(), User :: ldclient_user:user(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match.
+match_user(#{clauses := Clauses}, User, FeatureStore, Tag) ->
+    check_clauses(Clauses, User, FeatureStore, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -68,12 +68,12 @@ parse_clauses(Clauses) ->
     lists:map(F, Clauses).
 
 -spec check_clauses([ldclient_clause:clause()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clauses([], _User, _StorageBackend, _Tag) -> match;
-check_clauses([Clause|Rest], User, StorageBackend, Tag) ->
-    Result = ldclient_clause:match_user(Clause, User, StorageBackend, Tag),
-    check_clause_result(Result, Rest, User, StorageBackend, Tag).
+check_clauses([], _User, _FeatureStore, _Tag) -> match;
+check_clauses([Clause|Rest], User, FeatureStore, Tag) ->
+    Result = ldclient_clause:match_user(Clause, User, FeatureStore, Tag),
+    check_clause_result(Result, Rest, User, FeatureStore, Tag).
 
 -spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clause_result(no_match, _Rest, _User, _StorageBackend, _Tag) -> no_match;
-check_clause_result(match, Rest, User, StorageBackend, Tag) ->
-    check_clauses(Rest, User, StorageBackend, Tag).
+check_clause_result(no_match, _Rest, _User, _FeatureStore, _Tag) -> no_match;
+check_clause_result(match, Rest, User, FeatureStore, Tag) ->
+    check_clauses(Rest, User, FeatureStore, Tag).

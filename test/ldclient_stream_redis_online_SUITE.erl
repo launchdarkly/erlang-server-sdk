@@ -1,4 +1,4 @@
--module(ldclient_stream_online_SUITE).
+-module(ldclient_stream_redis_online_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -53,7 +53,8 @@ sdk_options() ->
     #{
         base_uri => "http://localhost:8888",
         stream_uri => "http://localhost:8888",
-        events_uri => "http://localhost:8888"
+        events_uri => "http://localhost:8888",
+        feature_store => ldclient_storage_redis
     }.
 
 %%====================================================================
@@ -64,8 +65,8 @@ stream_sse_empty(_) ->
     ok = ldclient:start_instance("sdk-empty", sdk_options()),
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
-    [] = ldclient_storage_ets:all(default, features),
-    [] = ldclient_storage_ets:all(default, segments),
+    [] = ldclient_storage_redis:all(default, features),
+    [] = ldclient_storage_redis:all(default, segments),
     ok = ldclient:stop_instance(),
     ok.
 
@@ -75,8 +76,8 @@ stream_sse_simple_flag(_) ->
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
-    [] = ldclient_storage_ets:all(default, segments),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
+    [] = ldclient_storage_redis:all(default, segments),
     ok = ldclient:stop_instance(),
     ok.
 
@@ -86,8 +87,8 @@ stream_sse_put_no_path(_) ->
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
-    [] = ldclient_storage_ets:all(default, segments),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
+    [] = ldclient_storage_redis:all(default, segments),
     ok = ldclient:stop_instance(),
     ok.
 
@@ -99,8 +100,8 @@ stream_sse_timeout(_) ->
     timer:sleep(6500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
-    [] = ldclient_storage_ets:all(default, segments),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
+    [] = ldclient_storage_redis:all(default, segments),
     % Evaluation after SDK is initialized should return an expected flag variation value
     {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
     ok = ldclient:stop_instance(),

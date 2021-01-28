@@ -35,5 +35,5 @@ init([WorkerRegName, Tag]) ->
 
 -spec children(WorkerRegName :: atom(), Tag :: atom()) -> [supervisor:child_spec()].
 children(WorkerRegName, Tag) ->
-    FlagStorageServer = ?CHILD(ldclient_storage_ets_server, ldclient_storage_ets_server, [WorkerRegName, Tag], worker),
-    [FlagStorageServer].
+    FeatureStorageServer = ?CHILD(ldclient_storage_ets_server, ldclient_storage_ets_server, [WorkerRegName, Tag], worker),
+    [FeatureStorageServer].

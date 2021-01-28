@@ -17,7 +17,7 @@
 %%===================================================================
 
 start(_Type, _Args) ->
-    ok = ldclient_settings:init(),
+    ok = ldclient_config:init(),
     ldclient_sup:start_link().
 
 stop(_State) ->

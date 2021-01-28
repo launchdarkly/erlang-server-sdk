@@ -1,4 +1,4 @@
--module(ldclient_stream_SUITE).
+-module(ldclient_stream_redis_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -41,7 +41,8 @@ init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(ldclient),
     Options = #{
         stream => false,
-        polling_update_requestor => ldclient_update_requestor_test
+        polling_update_requestor => ldclient_update_requestor_test,
+        feature_store => ldclient_storage_redis
     },
     ldclient:start_instance("", Options),
     Config.
@@ -54,7 +55,8 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, _Config) ->
-    ok = ldclient_storage_ets:empty(default, features),
+    ok = ldclient_storage_redis:empty(default, features),
+    ok = ldclient_storage_redis:empty(default, segments),
     ok.
 
 %%====================================================================
@@ -75,15 +77,15 @@ server_process_event_put_patch(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, segments),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = ldclient_test_utils:get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_ets, default),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_redis, default),
     ParsedFlagPatchMap = ldclient_flag:new(FlagPatchMap),
-    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_redis:all(default, features),
     ok.
 
 server_process_event_put_patch_flag_with_extra_property(_) ->
@@ -96,15 +98,15 @@ server_process_event_put_patch_flag_with_extra_property(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, segments),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
     {FlagSimpleKey, FlagPatchBin, FlagPatchMap} = ldclient_test_utils:get_simple_flag_patch(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_ets, default),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_redis, default),
     ParsedFlagPatchMap = ldclient_flag:new(FlagPatchMap),
-    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagPatchMap}] = ldclient_storage_redis:all(default, features),
     ok.
 
 server_process_event_put_patch_old_version(_) ->
@@ -117,14 +119,14 @@ server_process_event_put_patch_old_version(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, segments),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
     {FlagSimpleKey, FlagPatchBin, _FlagPatchMap} = ldclient_test_utils:get_simple_flag_patch_old(),
     PatchData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\",", FlagPatchBin/binary, "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_ets, default),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"patch">>, data => PatchData}, ldclient_storage_redis, default),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
     ok.
 
 server_process_event_put_delete(_) ->
@@ -137,14 +139,14 @@ server_process_event_put_delete(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, segments),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
-    ok = ldclient_update_stream_server:process_event(#{event => <<"delete">>, data => PutData}, ldclient_storage_ets, default),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"delete">>, data => PutData}, ldclient_storage_redis, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = ldclient_test_utils:get_simple_flag_delete(),
     ParsedFlagDeleteMap = ldclient_flag:new(FlagDeleteMap),
-    [{FlagSimpleKey, ParsedFlagDeleteMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagDeleteMap}] = ldclient_storage_redis:all(default, features),
     ok.
 
 server_process_event_put_delete_single(_) ->
@@ -157,21 +159,21 @@ server_process_event_put_delete_single(_) ->
             "\"segments\":{}",
         "}",
     "}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, segments),
     ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_redis:all(default, features),
     DeleteData = <<"{\"path\":\"/flags/", FlagSimpleKey/binary, "\"}">>,
-    ok = ldclient_update_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, ldclient_storage_ets, default),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, ldclient_storage_redis, default),
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = ldclient_test_utils:get_simple_flag_delete(),
     ParsedFlagDeleteMap = ldclient_flag:new(FlagDeleteMap),
-    [{FlagSimpleKey, ParsedFlagDeleteMap}] = ldclient_storage_ets:all(default, features),
+    [{FlagSimpleKey, ParsedFlagDeleteMap}] = ldclient_storage_redis:all(default, features),
     ok.
 
 server_process_event_other(_) ->
-    ok = ldclient_update_stream_server:process_event(#{event => <<"unsupported-event">>, data => <<"foo">>}, ldclient_storage_ets, default),
-    [] = ldclient_storage_ets:all(default, features),
-    [] = ldclient_storage_ets:all(default, segments),
+    ok = ldclient_update_stream_server:process_event(#{event => <<"unsupported-event">>, data => <<"foo">>}, ldclient_storage_redis, default),
+    [] = ldclient_storage_redis:all(default, features),
+    [] = ldclient_storage_redis:all(default, segments),
     ok.
 
 parse_shotgun_event(_) ->
