@@ -278,7 +278,10 @@ maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction) ->
 -spec maybe_delete_item(atom(), atom(), atom(), binary(), pos_integer()|undefined) -> ok.
 maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
     case FeatureStore:get(Tag, Bucket, Key) of
-        [] -> ok;
+        [] -> 
+            NewDeletedFlag = ldclient_flag:new(#{<<"key">> => Key, <<"deleted">> => true, <<"version">> => NewVersion}),
+            NewItem = #{Key => NewDeletedFlag},
+            FeatureStore:upsert(Tag, Bucket, NewItem);
         [{Key, ExistingItem}] ->
             ExistingVersion = maps:get(version, ExistingItem, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
