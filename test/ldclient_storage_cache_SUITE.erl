@@ -1,4 +1,4 @@
--module(ldclient_storage_redis_SUITE).
+-module(ldclient_storage_cache_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -14,6 +14,7 @@
     server_init/1,
     server_bucket_exists/1,
     server_get_upsert/1,
+    server_get_cache_timeout_upsert/1,
     server_upsert_clean/1,
     server_all/1,
     server_process_events_put/1,
@@ -41,18 +42,24 @@ init_per_suite(Config) ->
         feature_store => ldclient_storage_redis,
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
-        redis_prefix => "default",
-        cache_ttl => 0 % this sets the caching layer to testing mode
+        redis_prefix => "default"
     },
     ldclient:start_instance("", Options),
     AnotherOptions = #{
         feature_store => ldclient_storage_redis,
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
-        redis_prefix => "another1",
-        cache_ttl => 0 % this sets the caching layer to testing mode
+        redis_prefix => "another1"
     },
     ldclient:start_instance("", another1, AnotherOptions),
+    TimeoutOptions = #{
+        feature_store => ldclient_storage_redis,
+        stream => false,
+        polling_update_requestor => ldclient_update_requestor_test,
+        redis_prefix => "timeout",
+        cache_ttl => 3
+    },
+    ldclient:start_instance("", timeout, TimeoutOptions),
     Config.
 
 end_per_suite(_) ->
@@ -64,8 +71,6 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, _Config) ->
     ok = ldclient_storage_redis:empty(default, features),
     ok = ldclient_storage_redis:empty(another1, features),
-    ok = ldclient_storage_redis:empty(default, segments),
-    ok = ldclient_storage_redis:empty(another1, segments),
     ok.
 
 %%====================================================================
@@ -123,6 +128,20 @@ server_get_upsert(_) ->
                prerequisites := [],rules := [],salt := <<>>,targets := [],
                track_events := false,track_events_fallthrough := false,
                variations := [],version := 0}}] = ldclient_storage_redis:get(default, features, <<"flag1">>).
+
+server_get_cache_timeout_upsert(_) ->
+    [] = ldclient_storage_redis:get(timeout, features, <<"flag1">>),
+    ok = ldclient_storage_redis:upsert(timeout, features, #{<<"flag1">> => #{debug_events_until_date => null,deleted => false,
+               fallthrough => #{bucket_by => key,variations => []},
+               key => <<"flag1">>,off_variation => 0,on => true,
+               prerequisites => [],rules => [],salt => <<>>,targets => [],
+               track_events => false,track_events_fallthrough => false,
+               variations => [],version => 0}}),
+    [] = ldclient_storage_redis:get(another1, features, <<"flag1">>),
+    [_, true] = ldclient_storage_cache_server:get(ldclient_storage_cache_server_timeout, features, <<"flag1">>),
+    timer:sleep(3100),
+    [[{}], false] = ldclient_storage_cache_server:get(ldclient_storage_cache_server_timeout, features, <<"flag1">>),
+    [] = ldclient_storage_redis:get(another1, features, <<"flag1">>).
 
 server_upsert_clean(_) ->
     ok = ldclient_storage_redis:upsert(default, features, #{<<"flag1">> => #{debug_events_until_date => null,deleted => false,
@@ -223,19 +242,19 @@ server_process_events_put(_) ->
     },
     ok = ldclient_update_stream_server:process_items(put, Event, ldclient_storage_redis, default),
     [
-        {<<"flag-key-1">>,  #{debug_events_until_date := null,deleted := false,
+        {<<"flag-key-1">>, #{debug_events_until_date := null,deleted := false,
                fallthrough := #{bucket_by := key,variations := []},
                key := <<"flag-key-1">>,off_variation := 0,on := true,
                prerequisites := [],rules := [],salt := <<>>,targets := [],
                track_events := false,track_events_fallthrough := false,
                variations := [],version := 0}},
-        {<<"flag-key-2">>,  #{debug_events_until_date := null,deleted := false,
+        {<<"flag-key-2">>, #{debug_events_until_date := null,deleted := false,
                fallthrough := #{bucket_by := key,variations := []},
                key := <<"flag-key-2">>,off_variation := 0,on := true,
                prerequisites := [],rules := [],salt := <<>>,targets := [],
                track_events := false,track_events_fallthrough := false,
                variations := [],version := 0}},
-        {<<"flag-key-3">>,  #{debug_events_until_date := null,deleted := false,
+        {<<"flag-key-3">>, #{debug_events_until_date := null,deleted := false,
                fallthrough := #{bucket_by := key,variations := []},
                key := <<"flag-key-3">>,off_variation := 0,on := true,
                prerequisites := [],rules := [],salt := <<>>,targets := [],

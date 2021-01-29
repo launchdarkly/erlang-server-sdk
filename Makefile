@@ -24,8 +24,7 @@ doc:
 tests:
 	docker run --name ld-test-redis -p 6379:6379 -d redis
 	@$(REBAR3) ct --logdir logs/ct
-	docker kill ld-test-redis
-	docker rm ld-test-redis
+	docker rm --force ld-test-redis
 
 #This is used on CircleCI because the Redis Docker container is already started unlike the local tests command
 circle-tests:
@@ -33,7 +32,6 @@ circle-tests:
 
 #This is for local debugging if your tests fail and the Redis Docker container is not torn down properly
 clean-redis:
-	docker kill ld-test-redis
-	docker rm ld-test-redis
+	docker rm --force ld-test-redis
 
 .PHONY: all compile dialyze deps rel run doc tests clean-redis circle-tests

@@ -209,7 +209,6 @@ all_items(true, Bucket, Client, Prefix) ->
     NewValues = lists:filter(fun (Elem) -> not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
     Decoded = pairs(NewValues),
     keys_to_atom(Decoded).
-    %pairs(NewValues).
 
 pairs([A,B|L]) ->
     [{A, jsx:decode(B, [return_maps])}|pairs(L)];
