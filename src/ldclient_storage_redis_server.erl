@@ -28,7 +28,8 @@
 -type state() :: #{
     client => eredis:client(),
     prefix => string(),
-    buckets => list()
+    buckets => list(),
+    tag => atom()
 }.
 
 %%===================================================================
@@ -46,10 +47,12 @@ init([Tag]) ->
     Password = ldclient_config:get_value(Tag, redis_password),
     Prefix = ldclient_config:get_value(Tag, redis_prefix),
     {ok, Client} = eredis:start_link(Host, Port, Database, Password),
+    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, true),
     State = #{
         client => Client,
         prefix => Prefix,
-        buckets => []
+        buckets => [],
+        tag => Tag
     },
     {ok, State}.
 
@@ -147,8 +150,9 @@ handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Msg, State) -> {noreply, State}.
 
-terminate(_Reason, #{client := Client, prefix := _Prefix} = _State) -> 
+terminate(_Reason, #{client := Client, tag := Tag} = _State) -> 
     eredis:stop(Client),
+    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, false),
     ok.
 
 code_change(_OldVersion, State, _Extra) -> {ok, State}.

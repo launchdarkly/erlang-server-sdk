@@ -11,6 +11,7 @@
 -export([stop/1]).
 -export([stop_all/0]).
 -export([update_processor_initialized/1]).
+-export([feature_store_initialized/1]).
 
 -type options() :: #{
     base_uri => string(),
@@ -94,6 +95,13 @@ stop_all() ->
 -spec update_processor_initialized(Tag :: atom()) -> boolean().
 update_processor_initialized(Tag) ->
     ldclient_update_processor_state:get_initialized_state(Tag).
+
+%% @doc Whether an instance's feature store has initialized
+%%
+%% @end
+-spec feature_store_initialized(Tag :: atom()) -> boolean().
+feature_store_initialized(Tag) ->
+    ldclient_update_processor_state:get_storage_initialized_state(Tag).
 
 %%===================================================================
 %% Internal functions

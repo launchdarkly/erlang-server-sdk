@@ -39,6 +39,7 @@ start_link(WorkerRegName, Tag) ->
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
 init([Tag]) ->
+    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, true),
     {ok, #{tids => #{}, tag => Tag}}.
 
 %%===================================================================
