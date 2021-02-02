@@ -95,7 +95,7 @@ all_flags_eval(_User, _Tag, _, not_initialized) ->
     #{flag_values => #{}};
 all_flags_eval(User, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-    AllFlags = [FlagKey || {FlagKey, _} <- FeatureStore:list(Tag, features)],
+    AllFlags = [FlagKey || {FlagKey, _} <- FeatureStore:all(Tag, features)],
     EvalFun = fun(FlagKey, Acc) ->
         {{_, V, _}, _Events} = flag_key_for_user(Tag, FlagKey, User, null),
         Acc#{FlagKey => V}
