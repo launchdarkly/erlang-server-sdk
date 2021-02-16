@@ -62,18 +62,18 @@ end_per_testcase(_, _Config) ->
 parse_flag_empty(_) ->
     FlagRaw = #{},
     FlagExpected = #{
-        debug_events_until_date  => null,
+        debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucket_by => key, variations => []},
+        fallthrough              => #{bucketBy => key, variations => []},
         key                      => <<>>,
-        off_variation            => 0,
+        offVariation            => 0,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        track_events             => false,
-        track_events_fallthrough => false,
+        trackEvents             => false,
+        trackEventsFallthrough => false,
         variations               => [],
         version                  => 0
     },
@@ -84,18 +84,18 @@ parse_flag_key_only(_) ->
         <<"key">> => <<"flag-key-only">>
     },
     FlagExpected = #{
-        debug_events_until_date  => null,
+        debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucket_by => key, variations => []},
+        fallthrough              => #{bucketBy => key, variations => []},
         key                      => <<"flag-key-only">>,
-        off_variation            => 0,
+        offVariation            => 0,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        track_events             => false,
-        track_events_fallthrough => false,
+        trackEvents             => false,
+        trackEventsFallthrough => false,
         variations               => [],
         version                  => 0
     },
@@ -119,18 +119,18 @@ parse_flag_bare(_) ->
         <<"version">> => 10
     },
     FlagExpected = #{
-        debug_events_until_date  => 12345,
+        debugEventsUntilDate  => 12345,
         deleted                  => true,
         fallthrough              => 1,
         key                      => <<"flag-bare">>,
-        off_variation            => 1,
+        offVariation            => 1,
         on                       => true,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        track_events             => true,
-        track_events_fallthrough => true,
+        trackEvents             => true,
+        trackEventsFallthrough => true,
         variations               => [true, false],
         version                  => 10
     },
@@ -184,10 +184,10 @@ parse_flag_full(_) ->
         <<"version">> => 9
     },
     FlagExpected = #{
-        debug_events_until_date  => 1234567,
+        debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucket_by => <<"foo">>,
+            bucketBy => <<"foo">>,
             variations => [
                 #{variation => 0, weight => 0},
                 #{variation => 1, weight => 40000},
@@ -195,7 +195,7 @@ parse_flag_full(_) ->
             ]
         },
         key                      => <<"flag-full">>,
-        off_variation            => 2,
+        offVariation            => 2,
         on                       => true,
         prerequisites            => [
             #{key => <<"flag-foo">>, variation => 5},
@@ -204,8 +204,8 @@ parse_flag_full(_) ->
         rules                    => [
             #{
                 id => <<"rule-foo">>,
-                track_events => true,
-                variation_or_rollout => 3,
+                trackEvents => true,
+                variationOrRollout => 3,
                 clauses => [
                     #{
                         attribute => <<"user-attr-foo">>,
@@ -222,8 +222,8 @@ parse_flag_full(_) ->
             #{variation => 1, values => [<<"user-target3">>, <<"user-target-4">>]},
             #{variation => 2, values => []}
         ],
-        track_events             => true,
-        track_events_fallthrough => true,
+        trackEvents             => true,
+        trackEventsFallthrough => true,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
         version                  => 9
     },
@@ -257,18 +257,18 @@ parse_flag_ignore_invalid(_) ->
         <<"variations">> => [<<"A">>, <<"B">>, <<"C">>]
     },
     FlagExpected = #{
-        debug_events_until_date  => null,
+        debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucket_by => <<"foo">>, variations => [#{variation => 1, weight => 0}]},
+        fallthrough              => #{bucketBy => <<"foo">>, variations => [#{variation => 1, weight => 0}]},
         key                      => <<"flag-ignore-invalid">>,
-        off_variation            => 2,
+        offVariation            => 2,
         on                       => true,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        track_events             => false,
-        track_events_fallthrough => false,
+        trackEvents             => false,
+        trackEventsFallthrough => false,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
         version                  => 0
     },
@@ -280,18 +280,18 @@ parse_flag_invalid_fallthrough(_) ->
         <<"fallthrough">> => #{}
     },
     FlagExpected = #{
-        debug_events_until_date  => null,
+        debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucket_by => key, variations => []},
+        fallthrough              => #{bucketBy => key, variations => []},
         key                      => <<"flag-invalid-fallthrough">>,
-        off_variation            => 0,
+        offVariation            => 0,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        track_events             => false,
-        track_events_fallthrough => false,
+        trackEvents             => false,
+        trackEventsFallthrough => false,
         variations               => [],
         version                  => 0
     },
@@ -356,10 +356,10 @@ parse_segment_full(_) ->
         included => [<<"789">>],
         rules    => [
             #{
-                bucket_by => key,
+                bucketBy => key,
                 weight => null,
-                segment_key => <<"segment-full">>,
-                segment_salt => <<"segment-full-salt">>,
+                segmentKey => <<"segment-full">>,
+                segmentSalt => <<"segment-full-salt">>,
                 clauses => [
                     #{
                         attribute => <<"user-attr-foo">>,

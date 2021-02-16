@@ -214,13 +214,11 @@ lookup_key(Key, Bucket, Data, CacheTtl) when is_atom(Bucket), is_binary(Key) ->
                         CacheTtl == 0 -> % testing mode for underlying persistent storage layer
                             {[{}], false};
                         CacheTtl < 0 -> % infinite ttl
-                            Parsed = jsx:decode(Value, [return_maps]),
-                            Atoms = lookup_keys_to_atom(Parsed),
-                            {[{Key, Atoms}], true};
+                            Atoms = parse_json_to_flag(Bucket, Key, Value),
+                            {Atoms, true};
                         TimeCheck > CurrentTime ->
-                            Parsed = jsx:decode(Value, [return_maps]),
-                            Atoms = lookup_keys_to_atom(Parsed),
-                            {[{Key, Atoms}], true};
+                            Atoms = parse_json_to_flag(Bucket, Key, Value),
+                            {Atoms, true};
                         true ->
                             {[{}], false}
                     end
@@ -230,19 +228,16 @@ lookup_key(Key, Bucket, Data, CacheTtl) when is_atom(Bucket), is_binary(Key) ->
             end
     end.
 
-lookup_keys_to_atom(Map) ->
-    maps:fold(fun(K, V, Acc) ->
-            Key = binary_to_atom(K, latin1),
-            Value = if is_map(V) -> fallthrough_fold(V); true -> V end,
-            maps:put(Key, Value, Acc)
-            end, #{}, Map).
-
-fallthrough_fold(Map) ->
-    maps:fold(fun(K, V, Acc) ->
-        Key = binary_to_atom(K, latin1),
-        Value = if Key == bucket_by -> binary_to_atom(V, latin1); true -> V end,
-        maps:put(Key, Value, Acc)
-        end, #{}, Map).
+parse_json_to_flag(Bucket, Key, Value) ->
+    Decoded = jsx:decode(Value, [return_maps]),
+    if 
+        Bucket == features ->
+            Parsed = ldclient_flag:new(Decoded),
+            [{Key, Parsed}];
+        Bucket == segments ->
+            Parsed = ldclient_segment:new(Decoded),
+            [{Key, Parsed}]
+    end.
 
 %% @doc Upsert key value pairs in bucket
 %% @private

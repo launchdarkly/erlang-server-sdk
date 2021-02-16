@@ -207,6 +207,11 @@ decode_data(_, Data) -> jsx:decode(Data, [return_maps]).
 %%
 %% @end
 -spec process_items(EventOperation :: ldclient_storage_engine:event_operation(), Data :: map(), FeatureStore :: atom(), Tag :: atom()) -> ok.
+process_items(put, Data, ldclient_storage_redis, Tag) ->
+    [Flags, Segments] = get_put_items(Data),
+    error_logger:info_msg("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
 process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
@@ -237,6 +242,12 @@ get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> :=
     {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1}.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
+delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, ldclient_storage_redis, Tag) ->
+    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
+    UpdatedFlags = maps:map(MapFun, Flags),
+    UpdatedSegments = maps:map(MapFun, Segments),
+    ok = ldclient_storage_redis:upsert(Tag, features, UpdatedFlags),
+    ok = ldclient_storage_redis:upsert(Tag, segments, UpdatedSegments);
 delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, FeatureStore, Tag) ->
     MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
     UpdatedFlags = maps:map(MapFun, Flags),
@@ -260,17 +271,31 @@ delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, FeatureStore, Tag) ->
 
 
 -spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
+maybe_patch_item(ldclient_storage_redis, Tag, Bucket, Key, Item, _ParseFunction) ->
+    FlagMap = maps:get(Key, Item, #{}),
+    NewVersion = maps:get(<<"version">>, FlagMap, 0),
+    ok = case ldclient_storage_redis:get(Tag, Bucket, Key) of
+        [] ->
+            ldclient_storage_redis:upsert(Tag, Bucket, #{Key => FlagMap});
+        [{Key, ExistingItem}] ->
+            ExistingVersion = maps:get(version, ExistingItem, 0),
+            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
+            if
+                Overwrite -> ldclient_storage_redis:upsert(Tag, Bucket, #{Key => FlagMap});
+                true -> ok
+            end
+    end;
 maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction) ->
     FlagMap = maps:get(Key, Item, #{}),
     NewVersion = maps:get(<<"version">>, FlagMap, 0),
     ok = case FeatureStore:get(Tag, Bucket, Key) of
         [] ->
-            FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(maps:get(Key, Item))});
-        [{Key, ExistingFlagMap}] ->
-            ExistingVersion = maps:get(version, ExistingFlagMap, 0),
+            FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(FlagMap)});
+        [{Key, ExistingItem}] ->
+            ExistingVersion = maps:get(version, ExistingItem, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
-                Overwrite -> FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(maps:get(Key, Item))});
+                Overwrite -> FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(FlagMap)});
                 true -> ok
             end
     end.

@@ -211,29 +211,19 @@ all_items(true, Bucket, Client, Prefix) ->
     {ok, Values} = eredis:q(Client, ["HGETALL", bucket_name(Prefix, Bucket)]),
     NullFilter = [<<"null">>],
     NewValues = lists:filter(fun (Elem) -> not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
-    Decoded = pairs(NewValues),
-    keys_to_atom(Decoded).
+    pairs(NewValues, Bucket).
 
-pairs([A,B|L]) ->
-    [{A, jsx:decode(B, [return_maps])}|pairs(L)];
-pairs([]) -> [].
-
-keys_to_atom([{A,B}|L]) ->
-    Map = 
-        maps:fold(fun(K, V, Acc) ->
-            Key = binary_to_atom(K, latin1),
-            Value = if is_map(V) -> fallthrough_fold(V); true -> V end,
-            maps:put(Key, Value, Acc)
-            end, #{}, B),
-    [{A, Map}|keys_to_atom(L)];
-keys_to_atom([]) -> [].
-
-fallthrough_fold(Map) ->
-    maps:fold(fun(K, V, Acc) ->
-        Key = binary_to_atom(K, latin1),
-        Value = if Key == bucket_by -> binary_to_atom(V, latin1); true -> V end,
-        maps:put(Key, Value, Acc)
-        end, #{}, Map).
+pairs([A,B|L], Bucket) ->
+    Decoded = jsx:decode(B, [return_maps]),
+    if 
+        Bucket == features ->
+            Parsed = ldclient_flag:new(Decoded),
+            [{A, Parsed}|pairs(L, Bucket)];
+        Bucket == segments ->
+            Parsed = ldclient_segment:new(Decoded),
+            [{A, Parsed}|pairs(L, Bucket)]
+    end;
+pairs([], _Bucket) -> [].
 
 %% @doc Look up an item by key
 %% @private
@@ -250,17 +240,16 @@ lookup_key(true, Key, Bucket, Client, Prefix) ->
     if
         (Value == undefined) -> [];
         true ->
-            Parsed = jsx:decode(Value, [return_maps]),
-            Atoms = lookup_keys_to_atom(Parsed),
-            [{Key, Atoms}]
+            Decoded = jsx:decode(Value, [return_maps]),
+            if 
+                Bucket == features ->
+                    Parsed = ldclient_flag:new(Decoded),
+                    [{Key, Parsed}];
+                Bucket == segments ->
+                    Parsed = ldclient_segment:new(Decoded),
+                    [{Key, Parsed}]
+            end
     end.
-
-lookup_keys_to_atom(Map) ->
-    maps:fold(fun(K, V, Acc) ->
-            Key = binary_to_atom(K, latin1),
-            Value = if is_map(V) -> fallthrough_fold(V); true -> V end,
-            maps:put(Key, Value, Acc)
-            end, #{}, Map).
 
 %% @doc Upsert key value pairs in bucket
 %% @private

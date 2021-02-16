@@ -12,18 +12,18 @@
 
 %% Types
 -type flag() :: #{
-    debug_events_until_date  => pos_integer() | null,
+    debugEventsUntilDate  => pos_integer() | null,
     deleted                  => boolean(),
     fallthrough              => variation_or_rollout(),
     key                      => key(),
-    off_variation            => variation(),
+    offVariation            => variation(),
     on                       => boolean(),
     prerequisites            => [prerequisite()],
     rules                    => [ldclient_rule:rule()],
     salt                     => binary(),
     targets                  => [target()],
-    track_events             => boolean(),
-    track_events_fallthrough => boolean(),
+    trackEvents             => boolean(),
+    trackEventsFallthrough => boolean(),
     variations               => [variation_value()],
     version                  => version()
 }.
@@ -123,18 +123,18 @@ new_from_template(#{
     <<"version">>                := Version
 }) ->
     #{
-        debug_events_until_date  => DebugEventsUntilDate,
+        debugEventsUntilDate  => DebugEventsUntilDate,
         deleted                  => Deleted,
         fallthrough              => parse_variation_or_rollout(Fallthrough),
         key                      => Key,
-        off_variation            => OffVariation,
+        offVariation            => OffVariation,
         on                       => On,
         prerequisites            => parse_prerequisites(Prerequisites),
         rules                    => parse_rules(Rules),
         salt                     => Salt,
         targets                  => parse_targets(Targets),
-        track_events             => TrackEvents,
-        track_events_fallthrough => TrackEventsFallthrough,
+        trackEvents             => TrackEvents,
+        trackEventsFallthrough => TrackEventsFallthrough,
         variations               => Variations,
         version                  => Version
     }.
@@ -170,4 +170,5 @@ parse_targets(Targets) ->
 parse_variation_or_rollout(#{<<"variation">> := Variation}) when is_integer(Variation) -> Variation;
 parse_variation_or_rollout(#{<<"rollout">> := #{<<"variations">> := Variations} = Rollout}) when is_list(Variations) ->
     ldclient_rollout:new(Rollout);
+parse_variation_or_rollout(Variation) when is_integer(Variation) -> Variation;
 parse_variation_or_rollout(_) -> ldclient_rollout:new(#{<<"variations">> => []}).

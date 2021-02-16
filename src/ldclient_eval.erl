@@ -170,11 +170,11 @@ flag_for_user(Flag, User, FeatureStore, Tag, DefaultValue) ->
     {{Variation, VariationValue, Reason}, [FlagEvalEvent|Events]}.
 
 -spec flag_for_user_valid(ldclient_flag:flag(), ldclient_user:user(), atom(), atom(), result_value()) -> result().
-flag_for_user_valid(#{on := false, off_variation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue)
+flag_for_user_valid(#{on := false, offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue)
     when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, off, Flag, []);
 flag_for_user_valid(#{on := false}, _User, _FeatureStore, _Tag, DefaultValue) ->
-    % off_variation is null or not set
+    % offVariation is null or not set
     {{null, DefaultValue, off}, []};
 flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, FeatureStore, Tag, DefaultValue) ->
     check_prerequisites(Prerequisites, Flag, User, FeatureStore, Tag, DefaultValue).
@@ -217,11 +217,11 @@ check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites,
 check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
     check_prerequisites(Prerequisites, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-flag_for_user_prerequisites({fail, Reason}, #{off_variation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue, Events)
+flag_for_user_prerequisites({fail, Reason}, #{offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue, Events)
     when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, Reason, Flag, Events);
 flag_for_user_prerequisites({fail, Reason}, _Flag, _User, _FeatureStore, _Tag, DefaultValue, Events) ->
-    % prerequisite failed, but off_variation is null or not set
+    % prerequisite failed, but offVariation is null or not set
     {{null, DefaultValue, Reason}, Events};
 flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, FeatureStore, Tag, _DefaultValue, Events) ->
     check_targets(Targets, Flag, User, FeatureStore, Tag, Events).
@@ -256,7 +256,7 @@ check_rule_result({match, Rule, Index}, _Rest, Flag, User, _FeatureStore, _Tag, 
     % Rule matched: short-circuit
     flag_for_user_rules({match, Rule, Index}, Flag, User, Events).
 
-flag_for_user_rules({match, #{id := Id, variation_or_rollout := VorR}, Index}, Flag, User, Events) ->
+flag_for_user_rules({match, #{id := Id, variationOrRollout := VorR}, Index}, Flag, User, Events) ->
     Reason = {rule_match, Index, Id},
     flag_for_user_variation_or_rollout(VorR, Reason, Flag, User, Events);
 flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, Events) ->

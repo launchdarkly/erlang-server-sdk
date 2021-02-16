@@ -24,9 +24,9 @@
 -type rule() :: #{
     clauses      => [ldclient_clause:clause()],
     weight       => null | non_neg_integer(),
-    bucket_by    => ldclient_user:attribute(),
-    segment_key  => binary(),
-    segment_salt => binary()
+    bucketBy    => ldclient_user:attribute(),
+    segmentKey  => binary(),
+    segmentSalt => binary()
 }.
 
 -export_type([segment/0]).
@@ -81,8 +81,8 @@ new_from_template(#{
 parse_rules(SegmentKey, SegmentSalt, Rules) ->
     F = fun(#{<<"clauses">> := Clauses} = RuleRaw, Acc) ->
             Rule = #{
-                segment_key  => SegmentKey,
-                segment_salt => SegmentSalt,
+                segmentKey  => SegmentKey,
+                segmentSalt => SegmentSalt,
                 clauses      => parse_clauses(Clauses)
             },
             [parse_rule_optional_attributes(Rule, RuleRaw)|Acc];
@@ -95,7 +95,7 @@ parse_rules(SegmentKey, SegmentSalt, Rules) ->
 parse_rule_optional_attributes(Rule, RuleRaw) ->
     Weight = maps:get(<<"weight">>, RuleRaw, null),
     BucketBy = maps:get(<<"bucketBy">>, RuleRaw, key),
-    Rule#{weight => Weight, bucket_by => BucketBy}.
+    Rule#{weight => Weight, bucketBy => BucketBy}.
 
 -spec parse_clauses([map()]) -> [ldclient_clause:clause()].
 parse_clauses(Clauses) ->
@@ -154,7 +154,7 @@ check_rule_weight(#{weight := null}, _User) -> match;
 check_rule_weight(Rule, User) ->
     check_user_bucket(Rule, User).
 
-check_user_bucket(#{segment_key := SegmentKey, segment_salt := SegmentSalt, bucket_by := BucketBy, weight := Weight}, User) ->
+check_user_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, User) ->
     Bucket = ldclient_rollout:bucket_user(SegmentKey, SegmentSalt, User, BucketBy),
     check_user_bucket_result(Bucket, Weight).
 

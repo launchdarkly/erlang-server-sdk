@@ -17,7 +17,8 @@
     lru,
     backoff,
     verl,
-    uuid
+    uuid,
+    eredis
    ]},
   {env,[]},
   {modules, []},

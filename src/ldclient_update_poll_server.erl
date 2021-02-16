@@ -146,6 +146,12 @@ process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
     process_response_body(ResponseBody, FeatureStore, Tag).
 
 -spec process_response_body(binary(), atom(), atom()) -> ok.
+process_response_body(ResponseBody, ldclient_storage_redis, Tag) ->
+    Data = jsx:decode(ResponseBody, [return_maps]),
+    [Flags, Segments] = get_put_items(Data),
+    error_logger:info_msg("Received poll event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
 process_response_body(ResponseBody, FeatureStore, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),
@@ -156,8 +162,7 @@ process_response_body(ResponseBody, FeatureStore, Tag) ->
         fun(_K, V) -> ldclient_segment:new(V) end
         , Segments),
     ok = FeatureStore:upsert_clean(Tag, features, ParsedFlags),
-    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments),
-    ok.
+    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments).
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"flags">> := Flags, <<"segments">> := Segments}) ->

@@ -243,7 +243,7 @@ add_feature_request_event(
     }.
 
 -spec should_add_full_event(ldclient_event:event()) -> boolean().
-should_add_full_event(#{data := #{track_events := true}}) -> true;
+should_add_full_event(#{data := #{trackEvents := true}}) -> true;
 should_add_full_event(_) -> false.
 
 -spec maybe_add_feature_request_full_fidelity(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
@@ -273,8 +273,8 @@ add_index_event(User, Timestamp, Events, Capacity) ->
     add_raw_event(IndexEvent, Events, Capacity).
 
 -spec should_add_debug_event(ldclient_event:event()) -> boolean().
-should_add_debug_event(#{data := #{debug_events_until_date := null}}) -> false;
-should_add_debug_event(#{data := #{debug_events_until_date := DebugDate}}) ->
+should_add_debug_event(#{data := #{debugEventsUntilDate := null}}) -> false;
+should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}) ->
     Now = erlang:system_time(milli_seconds),
     DebugDate > Now.
 

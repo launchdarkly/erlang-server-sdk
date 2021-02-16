@@ -35,8 +35,8 @@
         default                 := ldclient_eval:result_value(),
         version                 := ldclient_flag:version() | null,
         prereq_of               := ldclient_flag:key() | null,
-        track_events            := boolean() | null,
-        debug_events_until_date := boolean() | null,
+        trackEvents            := boolean() | null,
+        debugEventsUntilDate := boolean() | null,
         eval_reason             := ldclient_eval:reason() | null,
         include_reason          := boolean(),
         debug                   := boolean()
@@ -102,8 +102,8 @@ new(feature_request, User, Timestamp, #{
     default                 := Default,              % ldclient_eval:result_value()
     version                 := Version,              % null | ldclient_flag:version()
     prereq_of               := PrereqOf,             % null | ldclient_flag:key()
-    track_events            := TrackEvents,          % null | boolean()
-    debug_events_until_date := DebugEventsUntilDate, % null | boolean()
+    trackEvents            := TrackEvents,          % null | boolean()
+    debugEventsUntilDate := DebugEventsUntilDate, % null | boolean()
     eval_reason             := EvalReason,           % null | ldclient_eval:reason()
     include_reason          := IncludeReason         % boolean()
 }) ->
@@ -118,8 +118,8 @@ new(feature_request, User, Timestamp, #{
             default                 => Default,
             version                 => Version,
             prereq_of               => PrereqOf,
-            track_events            => TrackEvents,
-            debug_events_until_date => DebugEventsUntilDate,
+            trackEvents            => TrackEvents,
+            debugEventsUntilDate => DebugEventsUntilDate,
             eval_reason             => EvalReason,
             include_reason          => IncludeReason,
             debug                   => false
@@ -156,8 +156,8 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
         default                 => DefaultValue,
         version                 => null,
         prereq_of               => null,
-        track_events            => null,
-        debug_events_until_date => null,
+        trackEvents            => null,
+        debugEventsUntilDate => null,
         eval_reason             => Reason,
         include_reason          => false,
         debug                   => false
@@ -175,8 +175,8 @@ new_for_unknown_flag(FlagKey, User, DefaultValue, Reason) ->
 new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
     key                     := Key,
     version                 := Version,
-    track_events            := TrackEvents,
-    debug_events_until_date := DebugEventsUntilDate
+    trackEvents            := TrackEvents,
+    debugEventsUntilDate := DebugEventsUntilDate
 } = Flag) ->
     IsExperiment = is_experiment(Reason, Flag),
     EventData = #{
@@ -186,8 +186,8 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
         default                 => DefaultValue,
         version                 => Version,
         prereq_of               => null,
-        track_events            => TrackEvents or IsExperiment,
-        debug_events_until_date => DebugEventsUntilDate,
+        trackEvents            => TrackEvents or IsExperiment,
+        debugEventsUntilDate => DebugEventsUntilDate,
         eval_reason             => Reason,
         include_reason          => IsExperiment,
         debug                   => false
@@ -205,8 +205,8 @@ new_flag_eval(VariationIndex, VariationValue, DefaultValue, User, Reason, #{
 new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reason, #{
     key                     := Key,
     version                 := Version,
-    track_events            := TrackEvents,
-    debug_events_until_date := DebugEventsUntilDate
+    trackEvents            := TrackEvents,
+    debugEventsUntilDate := DebugEventsUntilDate
 } = Flag) ->
     IsExperiment = is_experiment(Reason, Flag),
     EventData = #{
@@ -216,8 +216,8 @@ new_prerequisite_eval(VariationIndex, VariationValue, PrerequisiteOf, User, Reas
         default                 => null,
         version                 => Version,
         prereq_of               => PrerequisiteOf,
-        track_events            => TrackEvents or IsExperiment,
-        debug_events_until_date => DebugEventsUntilDate,
+        trackEvents            => TrackEvents or IsExperiment,
+        debugEventsUntilDate => DebugEventsUntilDate,
         eval_reason             => Reason,
         include_reason          => IsExperiment,
         debug                   => false
@@ -262,8 +262,8 @@ strip_eval_reason(#{type := feature_request, data := Data} = Event) ->
 %%===================================================================
 
 -spec is_experiment(ldclient_eval:reason(), ldclient_flag:flag()) -> boolean().
-is_experiment(fallthrough, #{track_events_fallthrough := true}) -> true;
+is_experiment(fallthrough, #{trackEventsFallthrough := true}) -> true;
 is_experiment({rule_match, RuleIndex, _}, #{rules := Rules}) when RuleIndex >=0, RuleIndex < length(Rules) ->
     Rule = lists:nth(RuleIndex + 1, Rules),
-    maps:get(track_events, Rule, false);
+    maps:get(trackEvents, Rule, false);
 is_experiment(_Reason, _Flag) -> false.

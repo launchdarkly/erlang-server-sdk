@@ -14,8 +14,8 @@
 -type rule() :: #{
     id                   => binary(),
     clauses              => [ldclient_clause:clause()],
-    track_events         => boolean(),
-    variation_or_rollout => ldclient_flag:variation_or_rollout()
+    trackEvents         => boolean(),
+    variationOrRollout => ldclient_flag:variation_or_rollout()
 }.
 %% Expresses a set of AND-ed matching conditions for a user, along with either
 %% a fixed variation or a set of rollout percentages
@@ -36,7 +36,7 @@ new(RawRuleMap) ->
     RuleMap = maps:merge(RuleTemplate, RawRuleMap),
     new_from_template(RuleMap).
 
-%% @doc Match all clauses to user, includes segment_match
+%% @doc Match all clauses to user, includes segmentMatch
 %%
 %% @end
 -spec match_user(rule(), User :: ldclient_user:user(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match.
@@ -49,18 +49,18 @@ match_user(#{clauses := Clauses}, User, FeatureStore, Tag) ->
 
 -spec new_from_template(map()) -> rule().
 new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"variation">> := Variation}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), track_events => TrackEvents, variation_or_rollout => Variation};
+    #{id => Id, clauses => parse_clauses(Clauses), trackEvents => TrackEvents, variationOrRollout => Variation};
 new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"rollout">> := #{
         <<"variations">> := Variations
     } = Rollout}) when is_list(Variations) ->
     #{
         id => Id,
         clauses => parse_clauses(Clauses),
-        track_events => TrackEvents,
-        variation_or_rollout => ldclient_rollout:new(Rollout)
+        trackEvents => TrackEvents,
+        variationOrRollout => ldclient_rollout:new(Rollout)
     };
 new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), track_events => TrackEvents, variation_or_rollout => 0}.
+    #{id => Id, clauses => parse_clauses(Clauses), trackEvents => TrackEvents, variationOrRollout => 0}.
 
 -spec parse_clauses([map()]) -> [ldclient_clause:clause()].
 parse_clauses(Clauses) ->
