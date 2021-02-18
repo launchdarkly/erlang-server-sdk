@@ -27,8 +27,8 @@
 -export([identify/2]).
 -export([track/3]).
 -export([track/4]).
--export([track_with_metric/4]).
--export([track_with_metric/5]).
+-export([track_metric/4]).
+-export([track_metric/5]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -233,9 +233,9 @@ track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key), is_map(Data) ->
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_with_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number()) -> ok.
-track_with_metric(Key, User, Data, Metric) ->
-    track_with_metric(Key, User, Data, Metric, ?DEFAULT_INSTANCE_NAME).
+-spec track_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number()) -> ok.
+track_metric(Key, User, Data, Metric) ->
+    track_metric(Key, User, Data, Metric, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Reports that a user has performed an event, and associates it with a numeric value.
 %%
@@ -244,7 +244,7 @@ track_with_metric(Key, User, Data, Metric) ->
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_with_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number(), Tag :: atom()) -> ok.
-track_with_metric(Key, User, Data, Metric, Tag) ->
+-spec track_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number(), Tag :: atom()) -> ok.
+track_metric(Key, User, Data, Metric, Tag) ->
     Event = ldclient_event:new_custom(Key, User, Data, Metric),
     ldclient_event_server:add_event(Tag, Event, #{}).
