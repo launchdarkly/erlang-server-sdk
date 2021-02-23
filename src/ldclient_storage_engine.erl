@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_engine' module
-%%
+%% @private
 %% This is a behavior that all storage engines must implement. It works with
 %% the concept of buckets and keys.
 %% @end
@@ -17,7 +17,7 @@
 %% `init' gets called during startup. Typically storage engine would initialize
 %% here. E.g. start application, supervisor, workers, establish connections, or
 %% any other initialization resources as needed.
-%% It is expected that `flags' and `segments' buckets will be reachable after
+%% It is expected that `features' and `segments' buckets will be reachable after
 %% initialization, which should also be accounted for here.
 -callback init(SupRef :: atom(), Tag :: atom(), Options :: list()) ->
     ok.
@@ -41,20 +41,25 @@
     [{Key :: binary(), Value :: any()}]
     | {error, bucket_not_found, string()}.
 
-%% `list' must return all key-value pairs for the specified bucket as tuples.
+%% `all' must return all key-value pairs for the specified bucket as tuples.
 %% If the bucket doesn't exist, it must return `bucket_not_found' error.
--callback list(Tag :: atom(), Bucket :: atom()) ->
+-callback all(Tag :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}]
     | {error, bucket_not_found, string()}.
 
-%% `put' must create or update key-value pair records in the given bucket.
+%% `upsert' must create or update key-value pair records in the given bucket.
 %% If the bucket doesn't exist, it must return `bucket_not_found' error.
--callback put(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
+-callback upsert(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
     ok
     | {error, bucket_not_found, string()}.
 
-%% `put_clean' must perform `empty' and `put' atomically on a given bucket.
--callback put_clean(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
+%% `upsert_clean' must perform `empty' and `upsert' atomically on a given bucket.
+-callback upsert_clean(Tag :: atom(), Bucket :: atom(), Item :: #{Key :: binary() => Value :: any()}) ->
+    ok
+    | {error, bucket_not_found, string()}.
+
+%% `delete` must delete a record from the specified bucket.
+-callback delete(Tag:: atom(), Bucket :: atom(), Key :: binary()) ->
     ok
     | {error, bucket_not_found, string()}.
 

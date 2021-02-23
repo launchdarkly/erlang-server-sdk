@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc Event server
-%%
+%% @private
 %% @end
 %%-------------------------------------------------------------------
 -module(ldclient_event_server).
@@ -98,9 +98,9 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    FlushInterval = ldclient_settings:get_value(Tag, events_flush_interval),
-    Capacity = ldclient_settings:get_value(Tag, events_capacity),
-    InlineUsers = ldclient_settings:get_value(Tag, inline_users_in_events),
+    FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
+    Capacity = ldclient_config:get_value(Tag, events_capacity),
+    InlineUsers = ldclient_config:get_value(Tag, inline_users_in_events),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
@@ -243,7 +243,7 @@ add_feature_request_event(
     }.
 
 -spec should_add_full_event(ldclient_event:event()) -> boolean().
-should_add_full_event(#{data := #{track_events := true}}) -> true;
+should_add_full_event(#{data := #{trackEvents := true}}) -> true;
 should_add_full_event(_) -> false.
 
 -spec maybe_add_feature_request_full_fidelity(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
@@ -273,8 +273,8 @@ add_index_event(User, Timestamp, Events, Capacity) ->
     add_raw_event(IndexEvent, Events, Capacity).
 
 -spec should_add_debug_event(ldclient_event:event()) -> boolean().
-should_add_debug_event(#{data := #{debug_events_until_date := null}}) -> false;
-should_add_debug_event(#{data := #{debug_events_until_date := DebugDate}}) ->
+should_add_debug_event(#{data := #{debugEventsUntilDate := null}}) -> false;
+should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}) ->
     Now = erlang:system_time(milli_seconds),
     DebugDate > Now.
 

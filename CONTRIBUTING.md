@@ -14,7 +14,7 @@ We encourage pull requests and other contributions from the community. Before su
 
 ### Prerequisites
 
-This project is built with [rebar3](https://www.rebar3.org/) and `make`.
+This project is built with [rebar3](https://www.rebar3.org/) and `make`. To run the unit tests you will need to install Docker and keep the Docker daemon running.
 
 ### Run all tasks
 

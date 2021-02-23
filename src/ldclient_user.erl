@@ -92,7 +92,7 @@ set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) -
 %% Returns the scrubbed user and the list of attributes that were actually
 %% scrubbed.
 %% @end
--spec scrub(user(), ldclient_settings:private_attributes()) -> {user(), private_attribute_names()}.
+-spec scrub(user(), ldclient_config:private_attributes()) -> {user(), private_attribute_names()}.
 scrub(User, all) ->
     AllStandardAttributes = [<<"key">>, <<"secondary">>, <<"ip">>, <<"country">>, <<"email">>, <<"first_name">>, <<"last_name">>, <<"avatar">>, <<"name">>, <<"anonymous">>],
     AllCustomAttributes = maps:keys(maps:get(custom, User, #{})),

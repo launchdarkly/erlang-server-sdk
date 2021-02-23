@@ -15,6 +15,7 @@
     new_from_map_key_only/1,
     new_from_map_custom_only/1,
     new_from_map_full/1,
+    new_from_map_full_custom/1,
     get/1,
     get_custom/1,
     set/1,
@@ -128,6 +129,59 @@ new_from_map_full(_) ->
         anonymous => Anonymous,
         CustomKey1 => CustomValue1,
         CustomKey2 => CustomValue2
+    },
+    User = ldclient_user:new_from_map(Map),
+    UserExpected = #{
+        key => Key,
+        secondary => Secondary,
+        ip => Ip,
+        country => Country,
+        email => Email,
+        first_name => FirstName,
+        last_name => LastName,
+        avatar => Avatar,
+        name => Name,
+        anonymous => Anonymous,
+        custom => #{
+            CustomKey1 => CustomValue1,
+            CustomKey2 => CustomValue2
+        }
+    },
+    io:format("Actual user: ~p~n", [User]),
+    io:format("Expected user: ~p~n", [UserExpected]),
+    UserExpected = User.
+
+new_from_map_full_custom(_) ->
+    Key = 12345,
+    Secondary = "abc",
+    Ip = "1.2.3.4",
+    Country = <<"some-country">>,
+    Email = "foo@bar.com",
+    FirstName = "a",
+    LastName = "z",
+    Avatar = "ratavA",
+    Name = "foobar",
+    Anonymous = false,
+    CustomKey1 = <<"custom-key1">>,
+    CustomKey2 = <<"custom-key2">>,
+    CustomValue1 = <<"custom-foo">>,
+    CustomValue2 = <<"custom-bar">>,
+    CustomMap = #{
+        CustomKey1 => CustomValue1,
+        CustomKey2 => CustomValue2
+    },
+    Map = #{
+        <<"key">> => Key,
+        secondary => Secondary,
+        ip => Ip,
+        country => Country,
+        email => Email,
+        first_name => FirstName,
+        last_name => LastName,
+        avatar => Avatar,
+        name => Name,
+        anonymous => Anonymous,
+        custom => CustomMap
     },
     User = ldclient_user:new_from_map(Map),
     UserExpected = #{

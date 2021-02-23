@@ -1,12 +1,12 @@
 %%-------------------------------------------------------------------
-%% @doc `ldclient_storage_map_server' module
-%% @private
-%% This is a simple in-memory implementation of an storage server using Erlang
+%% @doc `ldclient_storage_cache_server' module
+%%
+%% This is a simple in-memory implementation of an storage cache server using Erlang
 %% map.
 %% @end
 %%-------------------------------------------------------------------
 
--module(ldclient_storage_map_server).
+-module(ldclient_storage_cache_server).
 
 -behaviour(gen_server).
 
@@ -20,7 +20,6 @@
 -export([create/2]).
 -export([empty/2]).
 -export([get/3]).
--export([all/2]).
 -export([upsert/3]).
 -export([upsert_clean/3]).
 -export([delete/3]).
@@ -28,7 +27,7 @@
 %% Types
 -type state() :: #{
     data => map(),
-    tag => atom()
+    cache_ttl => integer()
 }.
 
 %%===================================================================
@@ -40,8 +39,8 @@ start_link(WorkerRegName, Tag) ->
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
 init([Tag]) ->
-    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, true),
-    {ok, #{data => #{}, tag => Tag}}.
+    CacheTtl = ldclient_config:get_value(Tag, cache_ttl),
+    {ok, #{data => #{}, cache_ttl => CacheTtl}}.
 
 %%===================================================================
 %% API
@@ -69,19 +68,10 @@ empty(ServerRef, Bucket) when is_atom(Bucket) ->
 %%
 %% @end
 -spec get(ServerRef :: atom(), Bucket :: atom(), Key :: binary()) ->
-    [{Key :: binary(), Value :: any()}] |
+    {[{Key :: binary(), Value :: any()}], Hit :: boolean()} |
     {error, bucket_not_found, string()}.
 get(ServerRef, Bucket, Key) when is_atom(Bucket), is_binary(Key) ->
     gen_server:call(ServerRef, {get, Bucket, Key}).
-
-%% @doc List all items in a bucket
-%%
-%% @end
--spec all(ServerRef :: atom(), Bucket :: atom()) ->
-    [{Key :: binary(), Value :: any()}] |
-    {error, bucket_not_found, string()}.
-all(ServerRef, Bucket) when is_atom(Bucket) ->
-    gen_server:call(ServerRef, {all, Bucket}).
 
 %% @doc Upsert item key value pairs in an existing bucket
 %%
@@ -116,32 +106,30 @@ delete(ServerRef, Bucket, Key) ->
 
 -type from() :: {pid(), term()}.
 -spec handle_call(term(), from(), state()) -> {reply, term(), state()}.
-handle_call({create, Bucket}, _From, #{data := Data} = State) ->
+handle_call({create, Bucket}, _From, #{data := Data, cache_ttl := _CacheTtl} = State) ->
     case create_bucket(Bucket, Data) of
         {error, already_exists, Error} ->
             {reply, {error, already_exists, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
     end;
-handle_call({empty, Bucket}, _From, #{data := Data} = State) ->
+handle_call({empty, Bucket}, _From, #{data := Data, cache_ttl := _CacheTtl} = State) ->
     case empty_bucket(Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
     end;
-handle_call({get, Bucket, Key}, _From, #{data := Data} = State) ->
-    {reply, lookup_key(Key, Bucket, Data), State};
-handle_call({all, Bucket}, _From, #{data := Data} = State) ->
-    {reply, all_items(Bucket, Data), State};
-handle_call({upsert, Bucket, Items}, _From, #{data := Data} = State) ->
+handle_call({get, Bucket, Key}, _From, #{data := Data, cache_ttl := CacheTtl} = State) ->
+    {reply, lookup_key(Key, Bucket, Data, CacheTtl), State};
+handle_call({upsert, Bucket, Items}, _From, #{data := Data, cache_ttl := _CacheTtl} = State) ->
     case upsert_items(Items, Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
         {ok, NewData} ->
             {reply, ok, maps:update(data, NewData, State)}
     end;
-handle_call({upsert_clean, Bucket, Items}, _From, #{data := Data} = State) ->
+handle_call({upsert_clean, Bucket, Items}, _From, #{data := Data, cache_ttl := _CacheTtl} = State) ->
     case upsert_clean_items(Items, Bucket, Data) of
         {error, bucket_not_found, Error} ->
             {reply, {error, bucket_not_found, Error}, State};
@@ -156,9 +144,7 @@ handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Msg, State) -> {noreply, State}.
 
-terminate(_Reason, #{tag := Tag} = _State) ->
-    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, reload),
-    ok.
+terminate(_Reason, _State) -> ok.
 
 code_change(_OldVersion, State, _Extra) -> {ok, State}.
 
@@ -206,41 +192,51 @@ empty_bucket(Bucket, Data) when is_atom(Bucket) ->
             {ok, maps:update(Bucket, #{}, Data)}
     end.
 
-%% @doc List all items in a bucket
-%% @private
-%%
-%% Returns all items stored in the bucket.
-%% @end
--spec all_items(Bucket :: atom(), Data :: map()) ->
-    [tuple()] |
-    {error, bucket_not_found, string()}.
-all_items(Bucket, Data) when is_atom(Bucket) ->
-    case bucket_exists(Bucket, Data) of
-        false ->
-            {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
-        _ ->
-            maps:to_list(maps:get(Bucket, Data))
-    end.
-
 %% @doc Look up an item by key
 %% @private
 %%
 %% Search for an item by its key.
 %% @end
--spec lookup_key(Key :: binary(), Bucket :: atom(), Data :: map()) ->
-    [tuple()] |
+-spec lookup_key(Key :: binary(), Bucket :: atom(), Data :: map(), CacheTtl :: integer()) ->
+    {[tuple()], boolean()} |
     {error, bucket_not_found, string()}.
-lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
+lookup_key(Key, Bucket, Data, CacheTtl) when is_atom(Bucket), is_binary(Key) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
             BucketMap = maps:get(Bucket, Data),
             try maps:get(Key, BucketMap) of
-                Value -> [{Key, Value}]
+                {Value, Timestamp} ->
+                    TimeCheck = Timestamp + CacheTtl,
+                    CurrentTime = os:system_time(seconds),
+                    if 
+                        CacheTtl == 0 -> % testing mode for underlying persistent storage layer
+                            {[{}], false};
+                        CacheTtl < 0 -> % infinite ttl
+                            Atoms = parse_json_to_flag(Bucket, Key, Value),
+                            {Atoms, true};
+                        TimeCheck > CurrentTime ->
+                            Atoms = parse_json_to_flag(Bucket, Key, Value),
+                            {Atoms, true};
+                        true ->
+                            {[{}], false}
+                    end
             catch
-                error:{badkey, Key} -> []
+                error:{badkey, Key} ->
+                    {[{}], false}
             end
+    end.
+
+parse_json_to_flag(Bucket, Key, Value) ->
+    Decoded = jsx:decode(Value, [return_maps]),
+    if 
+        Bucket == features ->
+            Parsed = ldclient_flag:new(Decoded),
+            [{Key, Parsed}];
+        Bucket == segments ->
+            Parsed = ldclient_segment:new(Decoded),
+            [{Key, Parsed}]
     end.
 
 %% @doc Upsert key value pairs in bucket
@@ -250,13 +246,16 @@ lookup_key(Key, Bucket, Data) when is_atom(Bucket), is_binary(Key) ->
 -spec upsert_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
     {ok, NewData :: map()} |
     {error, bucket_not_found, string()}.
+upsert_items(Items, _, Data) when map_size(Items) == 0 -> {ok, Data};
 upsert_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
+            TimestampedItems = maps:map(
+                fun(_, V) -> {jsx:encode(V), os:system_time(seconds)} end, Items),
             BucketMap = maps:get(Bucket, Data),
-            NewBucketData = maps:merge(BucketMap, Items),
+            NewBucketData = maps:merge(BucketMap, TimestampedItems),
             {ok, maps:update(Bucket, NewBucketData, Data)}
     end.
 
@@ -267,12 +266,15 @@ upsert_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
 -spec upsert_clean_items(Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Data :: map()) ->
     {ok, NewData :: map()} |
     {error, bucket_not_found, string()}.
+upsert_clean_items(Items, _, Data) when map_size(Items) == 0 -> {ok, Data};
 upsert_clean_items(Items, Bucket, Data) when is_map(Items), is_atom(Bucket) ->
     case bucket_exists(Bucket, Data) of
         false ->
             {error, bucket_not_found, "Map " ++ atom_to_list(Bucket) ++ " does not exist."};
         _ ->
-            {ok, maps:update(Bucket, Items, Data)}
+            TimestampedItems = maps:map(
+                fun(_, V) -> {jsx:encode(V), os:system_time(seconds)} end, Items),
+            {ok, maps:update(Bucket, TimestampedItems, Data)}
     end.
 
 %% @doc Delete an item by key

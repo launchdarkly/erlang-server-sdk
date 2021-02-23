@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc Rule clause data type
-%%
+%% @private
 %% @end
 %%-------------------------------------------------------------------
 
@@ -20,10 +20,10 @@
 }.
 %% Describes an individual clause within a targeting rule
 
--type operator() :: in | ends_with | starts_with | matches | contains
-    | less_than | less_than_or_equal | greater_than | greater_than_or_equal
-    | before | 'after' | segment_match | semver_equal | semver_less_than
-    | semver_greater_than | none.
+-type operator() :: in | endsWith | startsWith | matches | contains
+    | lessThan | lessThanOrEqual | greaterThan | greaterThanOrEqual
+    | before | 'after' | segmentMatch | semVerEqual | semVerLessThan
+    | semVerGreaterThan | none.
 %% List of available operators
 
 -export_type([clause/0]).
@@ -48,19 +48,19 @@ new(RawClauseMap) ->
     new_from_template(ClauseMap).
 
 
-%% @doc Match clauses to user, no segment_match allowed
+%% @doc Match clauses to user, no segmentMatch allowed
 %%
 %% @end
 -spec match_user(clause(), ldclient_user:user()) -> match | no_match.
 match_user(Clause, User) ->
     check_clause(Clause, User).
 
-%% @doc Match all clauses to user, includes possible segment_match
+%% @doc Match all clauses to user, includes possible segmentMatch
 %%
 %% @end
 -spec match_user(clause(), ldclient_user:user(), atom(), atom()) -> match | no_match.
-match_user(Clause, User, StorageBackend, Tag) ->
-    check_clause(Clause, User, StorageBackend, Tag).
+match_user(Clause, User, FeatureStore, Tag) ->
+    check_clause(Clause, User, FeatureStore, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -72,27 +72,27 @@ new_from_template(#{<<"attribute">> := Attribute, <<"negate">> := Negate, <<"op"
 
 -spec parse_operator(binary()) -> operator().
 parse_operator(<<"in">>) -> in;
-parse_operator(<<"endsWith">>) -> ends_with;
-parse_operator(<<"startsWith">>) -> starts_with;
+parse_operator(<<"endsWith">>) -> endsWith;
+parse_operator(<<"startsWith">>) -> startsWith;
 parse_operator(<<"matches">>) -> matches;
 parse_operator(<<"contains">>) -> contains;
-parse_operator(<<"lessThan">>) -> less_than;
-parse_operator(<<"lessThanOrEqual">>) -> less_than_or_equal;
-parse_operator(<<"greaterThan">>) -> greater_than;
-parse_operator(<<"greaterThanOrEqual">>) -> greater_than_or_equal;
+parse_operator(<<"lessThan">>) -> lessThan;
+parse_operator(<<"lessThanOrEqual">>) -> lessThanOrEqual;
+parse_operator(<<"greaterThan">>) -> greaterThan;
+parse_operator(<<"greaterThanOrEqual">>) -> greaterThanOrEqual;
 parse_operator(<<"before">>) -> before;
 parse_operator(<<"after">>) -> 'after';
-parse_operator(<<"segmentMatch">>) -> segment_match;
-parse_operator(<<"semVerEqual">>) -> semver_equal;
-parse_operator(<<"semVerLessThan">>) -> semver_less_than;
-parse_operator(<<"semVerGreaterThan">>) -> semver_greater_than;
+parse_operator(<<"segmentMatch">>) -> segmentMatch;
+parse_operator(<<"semVerEqual">>) -> semVerEqual;
+parse_operator(<<"semVerLessThan">>) -> semVerLessThan;
+parse_operator(<<"semVerGreaterThan">>) -> semVerGreaterThan;
 parse_operator(_) -> none.
 
 -spec check_clause(clause(), ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clause(#{op := segment_match, values := SegmentKeys} = Clause, User, StorageBackend, Tag) ->
-    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, StorageBackend, Tag));
-check_clause(#{op := none}, _User, _StorageBackend, _Tag) -> no_match;
-check_clause(Clause, User, _StorageBackend, _Tag) ->
+check_clause(#{op := segmentMatch, values := SegmentKeys} = Clause, User, FeatureStore, Tag) ->
+    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, User, FeatureStore, Tag));
+check_clause(#{op := none}, _User, _FeatureStore, _Tag) -> no_match;
+check_clause(Clause, User, _FeatureStore, _Tag) ->
     check_clause(Clause, User).
 
 check_clause(#{attribute := Attribute} = Clause, User) ->
@@ -123,10 +123,10 @@ check_attribute_against_clause_value(null, _Operator, _ClauseValue) -> false;
 check_attribute_against_clause_value(_UserValue, _Operator, null) -> false;
 check_attribute_against_clause_value(Value, in, Value) -> true;
 check_attribute_against_clause_value(_UserValue, in, _ClauseValue) -> false;
-check_attribute_against_clause_value(UserValue, ends_with, ClauseValue)
+check_attribute_against_clause_value(UserValue, endsWith, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:longest_common_suffix([UserValue, ClauseValue]) == byte_size(ClauseValue);
-check_attribute_against_clause_value(UserValue, starts_with, ClauseValue)
+check_attribute_against_clause_value(UserValue, startsWith, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:longest_common_prefix([UserValue, ClauseValue]) == byte_size(ClauseValue);
 check_attribute_against_clause_value(UserValue, matches, ClauseValue)
@@ -135,16 +135,16 @@ check_attribute_against_clause_value(UserValue, matches, ClauseValue)
 check_attribute_against_clause_value(UserValue, contains, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     binary:match(UserValue, ClauseValue) =/= nomatch;
-check_attribute_against_clause_value(UserValue, less_than, ClauseValue)
+check_attribute_against_clause_value(UserValue, lessThan, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue < ClauseValue;
-check_attribute_against_clause_value(UserValue, less_than_or_equal, ClauseValue)
+check_attribute_against_clause_value(UserValue, lessThanOrEqual, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue =< ClauseValue;
-check_attribute_against_clause_value(UserValue, greater_than, ClauseValue)
+check_attribute_against_clause_value(UserValue, greaterThan, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue > ClauseValue;
-check_attribute_against_clause_value(UserValue, greater_than_or_equal, ClauseValue)
+check_attribute_against_clause_value(UserValue, greaterThanOrEqual, ClauseValue)
     when is_number(UserValue), is_number(ClauseValue) ->
     UserValue >= ClauseValue;
 check_attribute_against_clause_value(UserValue, before, ClauseValue)
@@ -167,13 +167,13 @@ check_attribute_against_clause_value(UserValue, 'after', ClauseValue) ->
     UserDate = parse_date_to_int(UserValue),
     ClauseDate = parse_date_to_int(ClauseValue),
     UserDate > ClauseDate;
-check_attribute_against_clause_value(UserValue, semver_equal, ClauseValue)
+check_attribute_against_clause_value(UserValue, semVerEqual, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_equal(parse_semver(UserValue), parse_semver(ClauseValue));
-check_attribute_against_clause_value(UserValue, semver_less_than, ClauseValue)
+check_attribute_against_clause_value(UserValue, semVerLessThan, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_less_than(parse_semver(UserValue), parse_semver(ClauseValue));
-check_attribute_against_clause_value(UserValue, semver_greater_than, ClauseValue)
+check_attribute_against_clause_value(UserValue, semVerGreaterThan, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_greater_than(parse_semver(UserValue), parse_semver(ClauseValue));
 check_attribute_against_clause_value(_UserValue, _Operator, _ClauseValue) -> false.
@@ -224,22 +224,21 @@ check_attribute_result(no_match, Rest, Clause) ->
     check_attribute(Rest, Clause).
 
 -spec check_segment_keys_match([binary()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_segment_keys_match([], _User, _StorageBackend, _Tag) -> no_match;
-check_segment_keys_match([SegmentKey|Rest], User, StorageBackend, Tag) ->
-    Result = check_segment_key_match(SegmentKey, User, StorageBackend, Tag),
-    check_segment_key_match_result(Result, Rest, User, StorageBackend, Tag).
+check_segment_keys_match([], _User, _FeatureStore, _Tag) -> no_match;
+check_segment_keys_match([SegmentKey|Rest], User, FeatureStore, Tag) ->
+    Result = check_segment_key_match(SegmentKey, User, FeatureStore, Tag),
+    check_segment_key_match_result(Result, Rest, User, FeatureStore, Tag).
 
-check_segment_key_match_result(match, _Rest, _User, _StorageBackend, _Tag) -> match;
-check_segment_key_match_result(no_match, Rest, User, StorageBackend, Tag) ->
-    check_segment_keys_match(Rest, User, StorageBackend, Tag).
+check_segment_key_match_result(match, _Rest, _User, _FeatureStore, _Tag) -> match;
+check_segment_key_match_result(no_match, Rest, User, FeatureStore, Tag) ->
+    check_segment_keys_match(Rest, User, FeatureStore, Tag).
 
-check_segment_key_match(SegmentKey, User, StorageBackend, Tag) ->
-    Segments = StorageBackend:get(Tag, segments, SegmentKey),
+check_segment_key_match(SegmentKey, User, FeatureStore, Tag) ->
+    Segments = FeatureStore:get(Tag, segments, SegmentKey),
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;
-check_segments_match([{_SegmentKey, SegmentProperties}|_], User) ->
-    Segment = ldclient_segment:new(SegmentProperties),
+check_segments_match([{_SegmentKey, Segment}|_], User) ->
     ldclient_segment:match_user(Segment, User).
 
 -spec maybe_negate_match(clause(), match | no_match) -> match | no_match.

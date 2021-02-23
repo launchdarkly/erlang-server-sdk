@@ -1,11 +1,11 @@
 %%-------------------------------------------------------------------
-%% @doc `ldclient_settings' module
+%% @doc `ldclient_config' module
 %%
 %% Acts as a storage interface for SDK client instance settings.
 %% @end
 %%-------------------------------------------------------------------
 
--module(ldclient_settings).
+-module(ldclient_config).
 
 %% API
 -export([init/0]).
@@ -23,7 +23,7 @@
     base_uri => string(),
     events_uri => string(),
     stream_uri => string(),
-    storage_backend => atom(),
+    feature_store => atom(),
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
@@ -33,7 +33,14 @@
     stream => boolean(),
     polling_interval => pos_integer(),
     polling_update_requestor => atom(),
-    offline => boolean()
+    offline => boolean(),
+    redis_host => string(),
+    redis_port => pos_integer(),
+    redis_database => integer(),
+    redis_password => string(),
+    redis_prefix => string(),
+    cache_ttl => integer(), % Any negative integer is parsed as an infinite TTL, zero is parsed as testing mode
+    use_ldd => boolean()
 }.
 % Settings stored for each running SDK instance
 
@@ -42,10 +49,10 @@
 -export_type([private_attributes/0]).
 
 %% Constants
--define(DEFAULT_BASE_URI, "https://app.launchdarkly.com").
+-define(DEFAULT_BASE_URI, "https://sdk.launchdarkly.com").
 -define(DEFAULT_EVENTS_URI, "https://events.launchdarkly.com").
 -define(DEFAULT_STREAM_URI, "https://stream.launchdarkly.com").
--define(DEFAULT_STORAGE_BACKEND, ldclient_storage_ets).
+-define(DEFAULT_FEATURE_STORE, ldclient_storage_ets).
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
@@ -59,6 +66,13 @@
 -define(VERSION, "1.0.0-beta4").
 -define(EVENT_SCHEMA, "3").
 -define(DEFAULT_OFFLINE, false).
+-define(DEFAULT_REDIS_HOST, "127.0.0.1").
+-define(DEFAULT_REDIS_PORT, 6379).
+-define(DEFAULT_REDIS_DATABASE, 0).
+-define(DEFAULT_REDIS_PASSWORD, "").
+-define(DEFAULT_REDIS_PREFIX, "launchdarkly").
+-define(DEFAULT_CACHE_TTL, 15).
+-define(DEFAULT_USE_LDD, false).
 
 %%===================================================================
 %% API
@@ -82,7 +96,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     BaseUri = maps:get(base_uri, Options, ?DEFAULT_BASE_URI),
     EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
     StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
-    StorageBackend = maps:get(storage_backend, Options, ?DEFAULT_STORAGE_BACKEND),
+    FeatureStore = maps:get(feature_store, Options, ?DEFAULT_FEATURE_STORE),
     EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
@@ -92,16 +106,23 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
     OfflineMode = maps:get(offline, Options, ?DEFAULT_OFFLINE),
+    UseLdd = maps:get(use_ldd, Options, ?DEFAULT_USE_LDD),
     PollingInterval = lists:max([
         ?MINIMUM_POLLING_INTERVAL,
         maps:get(polling_interval, Options, ?MINIMUM_POLLING_INTERVAL)
     ]),
+    RedisHost = maps:get(redis_host, Options, ?DEFAULT_REDIS_HOST),
+    RedisPort = maps:get(redis_port, Options, ?DEFAULT_REDIS_PORT),
+    RedisDatabase = maps:get(redis_database, Options, ?DEFAULT_REDIS_DATABASE),
+    RedisPassword = maps:get(redis_password, Options, ?DEFAULT_REDIS_PASSWORD),
+    RedisPrefix = maps:get(redis_prefix, Options, ?DEFAULT_REDIS_PREFIX),
+    CacheTtl = maps:get(cache_ttl, Options, ?DEFAULT_CACHE_TTL),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
         events_uri => EventsUri,
         stream_uri => StreamUri,
-        storage_backend => StorageBackend,
+        feature_store => FeatureStore,
         events_capacity => EventsCapacity,
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
@@ -111,7 +132,14 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
         offline => OfflineMode,
-        polling_interval => PollingInterval
+        polling_interval => PollingInterval,
+        redis_host => RedisHost,
+        redis_port => RedisPort,
+        redis_database => RedisDatabase,
+        redis_password => RedisPassword,
+        redis_prefix => RedisPrefix,
+        cache_ttl => CacheTtl,
+        use_ldd => UseLdd
     }.
 
 %% @doc Get all registered tags

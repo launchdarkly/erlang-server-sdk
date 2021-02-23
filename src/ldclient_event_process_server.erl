@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc Event processor server
-%%
+%% @private
 %% @end
 %%-------------------------------------------------------------------
 
@@ -22,7 +22,7 @@
     sdk_key := string(),
     dispatcher := atom(),
     inline_users := boolean(),
-    global_private_attributes := ldclient_settings:private_attributes(),
+    global_private_attributes := ldclient_config:private_attributes(),
     events_uri := string()
 }.
 
@@ -57,11 +57,11 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    SdkKey = ldclient_settings:get_value(Tag, sdk_key),
-    Dispatcher = ldclient_settings:get_value(Tag, events_dispatcher),
-    InlineUsers = ldclient_settings:get_value(Tag, inline_users_in_events),
-    GlobalPrivateAttributes = ldclient_settings:get_value(Tag, private_attributes),
-    EventsUri = ldclient_settings:get_value(Tag, events_uri) ++ "/api/events/bulk",
+    SdkKey = ldclient_config:get_value(Tag, sdk_key),
+    Dispatcher = ldclient_config:get_value(Tag, events_dispatcher),
+    InlineUsers = ldclient_config:get_value(Tag, inline_users_in_events),
+    GlobalPrivateAttributes = ldclient_config:get_value(Tag, private_attributes),
+    EventsUri = ldclient_config:get_value(Tag, events_uri) ++ "/bulk",
     State = #{
         sdk_key => SdkKey,
         dispatcher => Dispatcher,
@@ -124,13 +124,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec format_events([ldclient_event:event()], boolean(), ldclient_settings:private_attributes()) -> list().
+-spec format_events([ldclient_event:event()], boolean(), ldclient_config:private_attributes()) -> list().
 format_events(Events, InlineUsers, GlobalPrivateAttributes) ->
     {FormattedEvents, _, _} = lists:foldl(fun format_event/2, {[], InlineUsers, GlobalPrivateAttributes}, Events),
     FormattedEvents.
 
--spec format_event(ldclient_event:event(), {list(), boolean(), ldclient_settings:private_attributes()}) ->
-    {list(), boolean(), ldclient_settings:private_attributes()}.
+-spec format_event(ldclient_event:event(), {list(), boolean(), ldclient_config:private_attributes()}) ->
+    {list(), boolean(), ldclient_config:private_attributes()}.
 format_event(
     #{
         type := feature_request,
@@ -207,7 +207,7 @@ format_eval_reason({error, exception}) -> #{kind => <<"ERROR">>, errorKind => <<
 format_eval_reason(fallthrough) -> #{<<"kind">> => <<"FALLTHROUGH">>};
 format_eval_reason(off) -> #{<<"kind">> => <<"OFF">>}.
 
--spec format_event_set_user(binary(), ldclient_user:user(), map(), boolean(), ldclient_settings:private_attributes()) -> map().
+-spec format_event_set_user(binary(), ldclient_user:user(), map(), boolean(), ldclient_config:private_attributes()) -> map().
 format_event_set_user(<<"feature">>, User, OutputEvent, true, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{

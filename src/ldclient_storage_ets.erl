@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_ets' module
-%%
+%% @private
 %% Provides implementation of ETS storage backend behavior.
 %% @end
 %%-------------------------------------------------------------------
@@ -17,9 +17,10 @@
 -export([create/2]).
 -export([empty/2]).
 -export([get/3]).
--export([list/2]).
--export([put/3]).
--export([put_clean/3]).
+-export([all/2]).
+-export([upsert/3]).
+-export([upsert_clean/3]).
+-export([delete/3]).
 -export([terminate/1]).
 
 %%===================================================================
@@ -31,11 +32,16 @@
 init(SupRef, Tag, _) ->
     SupRegName = get_local_reg_name(supervisor, Tag),
     WorkerRegName = get_local_reg_name(worker, Tag),
-    StorageSup = ?CHILD(ldclient_storage_ets_sup, ldclient_storage_ets_sup, [SupRegName, WorkerRegName], supervisor),
+    StorageSup = ?CHILD(ldclient_storage_ets_sup, ldclient_storage_ets_sup, [SupRegName, WorkerRegName, Tag], supervisor),
     {ok, _} = supervisor:start_child(SupRef, StorageSup),
-    % Pre-create flags and segments buckets
-    ok = create(Tag, flags),
-    ok = create(Tag, segments).
+    % Pre-create features and segments buckets
+    ok = create(Tag, features),
+    ok = create(Tag, segments),
+    Reload = ldclient_update_processor_state:get_storage_initialized_state(Tag),
+    case Reload of
+        reload -> ok = ldclient_updater:stop(list_to_atom("ldclient_instance_stream_" ++ atom_to_list(Tag)));
+        _ -> ok
+    end.
 
 -spec create(Tag :: atom(), Bucket :: atom()) ->
     ok |
@@ -58,26 +64,33 @@ get(Tag, Bucket, Key) ->
     ServerRef = get_local_reg_name(worker, Tag),
     ldclient_storage_ets_server:get(ServerRef, Bucket, Key).
 
--spec list(Tag :: atom(), Bucket :: atom()) ->
+-spec all(Tag :: atom(), Bucket :: atom()) ->
     [{Key :: binary(), Value :: any()}] |
     {error, bucket_not_found, string()}.
-list(Tag, Bucket) ->
+all(Tag, Bucket) ->
     ServerRef = get_local_reg_name(worker, Tag),
-    ldclient_storage_ets_server:list(ServerRef, Bucket).
+    ldclient_storage_ets_server:all(ServerRef, Bucket).
 
--spec put(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec upsert(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-put(Tag, Bucket, Items) ->
+upsert(Tag, Bucket, Items) ->
     ServerRef = get_local_reg_name(worker, Tag),
-    ldclient_storage_ets_server:put(ServerRef, Bucket, Items).
+    ldclient_storage_ets_server:upsert(ServerRef, Bucket, Items).
 
--spec put_clean(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
+-spec upsert_clean(Tag :: atom(), Bucket :: atom(), Items :: #{Key :: binary() => Value :: any()}) ->
     ok |
     {error, bucket_not_found, string()}.
-put_clean(Tag, Bucket, Items) ->
+upsert_clean(Tag, Bucket, Items) ->
     ServerRef = get_local_reg_name(worker, Tag),
-    ldclient_storage_ets_server:put_clean(ServerRef, Bucket, Items).
+    ldclient_storage_ets_server:upsert_clean(ServerRef, Bucket, Items).
+
+-spec delete(Tag :: atom(), Bucket :: atom(), Key :: binary()) ->
+    ok |
+    {error, bucket_not_found, string()}.
+delete(Tag, Bucket, Key) ->
+    ServerRef = get_local_reg_name(worker, Tag),
+    ldclient_storage_ets_server:delete(ServerRef, Bucket, Key).
 
 -spec terminate(Tag :: atom()) -> ok.
 terminate(_Tag) -> ok.

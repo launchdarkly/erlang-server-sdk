@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc Rollout data type
-%%
+%% @private
 %% @end
 %%-------------------------------------------------------------------
 
@@ -14,7 +14,7 @@
 %% Types
 -type rollout() :: #{
     variations => [weighted_variation()],
-    bucket_by  => ldclient_user:attribute()
+    bucketBy  => ldclient_user:attribute()
 }.
 %% Describes how users will be bucketed into variations during a percentage rollout
 
@@ -37,16 +37,16 @@ new(#{
 }) ->
     #{
         variations => parse_variations(Variations),
-        bucket_by  => BucketBy
+        bucketBy  => BucketBy
     };
 new(#{<<"variations">> := Variations}) ->
     #{
         variations => parse_variations(Variations),
-        bucket_by  => key
+        bucketBy  => key
     }.
 
 -spec rollout_user(rollout(), ldclient_flag:flag(), ldclient_user:user()) -> ldclient_flag:variation() | null.
-rollout_user(#{variations := WeightedVariations, bucket_by := BucketBy}, #{key := FlagKey, salt := FlagSalt}, User) ->
+rollout_user(#{variations := WeightedVariations, bucketBy := BucketBy}, #{key := FlagKey, salt := FlagSalt}, User) ->
     Bucket = bucket_user(FlagKey, FlagSalt, User, BucketBy),
     match_weighted_variations(Bucket, WeightedVariations).
 

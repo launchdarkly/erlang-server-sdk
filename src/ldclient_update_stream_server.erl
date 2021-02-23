@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc Stream server
-%%
+%% @private
 %% @end
 %%-------------------------------------------------------------------
 
@@ -19,7 +19,7 @@
     backoff := backoff:backoff(),
     last_attempted := non_neg_integer(),
     sdk_key := string(),
-    storage_backend := atom(),
+    feature_store := atom(),
     storage_tag := atom(),
     stream_uri := string()
 }.
@@ -45,10 +45,10 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    SdkKey = ldclient_settings:get_value(Tag, sdk_key),
-    StreamUri = ldclient_settings:get_value(Tag, stream_uri) ++ "/all",
-    StorageBackend = ldclient_settings:get_value(Tag, storage_backend),
-    Backoff = backoff:type(backoff:init(100, 30000, self(), listen), jitter),
+    SdkKey = ldclient_config:get_value(Tag, sdk_key),
+    StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
+    FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    Backoff = backoff:type(backoff:init(1000, 30000, self(), listen), jitter),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -56,7 +56,7 @@ init([Tag]) ->
         backoff => Backoff,
         last_attempted => 0,
         sdk_key => SdkKey,
-        storage_backend => StorageBackend,
+        feature_store => FeatureStore,
         storage_tag => Tag,
         stream_uri => StreamUri
     },
@@ -112,7 +112,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec do_listen(state()) -> state().
 do_listen(#{
     sdk_key := SdkKey,
-    storage_backend := StorageBackend,
+    feature_store := FeatureStore,
     storage_tag := Tag,
     stream_uri := Uri,
     backoff := Backoff,
@@ -120,7 +120,7 @@ do_listen(#{
 ) ->
     Now = erlang:system_time(milli_seconds),
     NewState = State#{last_attempted := Now},
-    case do_listen(Uri, StorageBackend, Tag, SdkKey) of
+    case do_listen(Uri, FeatureStore, Tag, SdkKey) of
         {error, Code, Reason} ->
             % Error occurred during initial connection, shotgun pid is not in state yet, so we
             % handle reconnection manually.
@@ -143,7 +143,7 @@ do_listen(#{
 %%
 %% @end
 -spec do_listen(string(), atom(), atom(), string()) -> {ok, pid()} | {error, atom(), term()}.
-do_listen(Uri, StorageBackend, Tag, SdkKey) ->
+do_listen(Uri, FeatureStore, Tag, SdkKey) ->
     {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
     GunOpts = #{retry => 0},
     Opts = #{gun_opts => GunOpts},
@@ -155,7 +155,7 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
         {ok, Pid} ->
             _ = monitor(process, Pid),
             F = fun(nofin, _Ref, Bin) ->
-                    process_event(parse_shotgun_event(Bin), StorageBackend, Tag);
+                    process_event(parse_shotgun_event(Bin), FeatureStore, Tag);
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
@@ -164,7 +164,7 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
             Options = #{async => true, async_mode => sse, handle_event => F},
             Headers = #{
                 "Authorization" => SdkKey,
-                "User-Agent" => ldclient_settings:get_user_agent()
+                "User-Agent" => ldclient_config:get_user_agent()
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
@@ -179,11 +179,16 @@ do_listen(Uri, StorageBackend, Tag, SdkKey) ->
 %% @private
 %%
 %% @end
--spec process_event(shotgun:event(), StorageBackend :: atom(), Tag :: atom()) -> ok.
-process_event(#{event := Event, data := Data}, StorageBackend, Tag) ->
+-spec process_event(shotgun:event(), FeatureStore :: atom(), Tag :: atom()) -> ok.
+process_event(#{event := Event, data := Data}, FeatureStore, Tag) ->
+    StorageDown = ldclient_update_processor_state:get_storage_initialized_state(Tag),
+    case StorageDown of
+        false -> ldclient_update_processor_state:set_storage_initialized_state(Tag, reload);
+        _ -> ok
+    end,
     EventOperation = get_event_operation(Event),
     DecodedData = decode_data(EventOperation, Data),
-    ProcessResult = process_items(EventOperation, DecodedData, StorageBackend, Tag),
+    ProcessResult = process_items(EventOperation, DecodedData, FeatureStore, Tag),
     true = ldclient_update_processor_state:set_initialized_state(Tag, true),
     ProcessResult.
 
@@ -201,74 +206,114 @@ decode_data(_, Data) -> jsx:decode(Data, [return_maps]).
 %% @private
 %%
 %% @end
--spec process_items(EventOperation :: ldclient_storage_engine:event_operation(), Data :: map(), StorageBackend :: atom(), Tag :: atom()) -> ok.
-process_items(put, Data, StorageBackend, Tag) ->
+-spec process_items(EventOperation :: ldclient_storage_engine:event_operation(), Data :: map(), FeatureStore :: atom(), Tag :: atom()) -> ok.
+process_items(put, Data, ldclient_storage_redis, Tag) ->
+    [Flags, Segments] = get_put_items(Data),
+    error_logger:info_msg("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
+process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
-    ok = StorageBackend:put_clean(Tag, flags, Flags),
-    ok = StorageBackend:put_clean(Tag, segments, Segments);
-process_items(patch, Data, StorageBackend, Tag) ->
-    {Bucket, Key, Item} = get_patch_item(Data),
-    ok = maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item);
-process_items(delete, Data, StorageBackend, Tag) ->
-    delete_items(Data, StorageBackend, Tag);
+    ParsedFlags = maps:map(
+        fun(_K, V) -> ldclient_flag:new(V) end
+        , Flags),
+    ParsedSegments = maps:map(
+        fun(_K, V) -> ldclient_segment:new(V) end
+        , Segments),
+    ok = FeatureStore:upsert_clean(Tag, features, ParsedFlags),
+    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments);
+process_items(patch, Data, FeatureStore, Tag) ->
+    {Bucket, Key, Item, ParseFunction} = get_patch_item(Data),
+    ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction);
+process_items(delete, Data, FeatureStore, Tag) ->
+    delete_items(Data, FeatureStore, Tag);
 process_items(other, _, _, _) ->
     ok.
 
 -spec get_put_items(Data :: map()) -> [map()].
-get_put_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
+get_put_items(#{<<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
--spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}}.
+-spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, ParseFunction :: fun()}.
 get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
-    {flags, FlagKey, #{FlagKey => FlagMap}};
+    {features, FlagKey, #{FlagKey => FlagMap}, fun ldclient_flag:new/1};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    {segments, SegmentKey, #{SegmentKey => SegmentMap}}.
+    {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1}.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
-delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, StorageBackend, Tag) ->
+delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, ldclient_storage_redis, Tag) ->
     MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
     UpdatedFlags = maps:map(MapFun, Flags),
     UpdatedSegments = maps:map(MapFun, Segments),
-    ok = StorageBackend:put(Tag, flags, UpdatedFlags),
-    ok = StorageBackend:put(Tag, segments, UpdatedSegments);
-delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, StorageBackend, Tag) ->
-    ok = maybe_delete_item(StorageBackend, Tag, flags, Key, Version);
-delete_items(#{<<"path">> := <<"/flags/",Key/binary>>}, StorageBackend, Tag) ->
-    ok = maybe_delete_item(StorageBackend, Tag, flags, Key, undefined);
-delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, StorageBackend, Tag) ->
-    ok = maybe_delete_item(StorageBackend, Tag, segments, Key, Version);
-delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, StorageBackend, Tag) ->
-    ok = maybe_delete_item(StorageBackend, Tag, segments, Key, undefined).
+    ok = ldclient_storage_redis:upsert(Tag, features, UpdatedFlags),
+    ok = ldclient_storage_redis:upsert(Tag, segments, UpdatedSegments);
+delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, FeatureStore, Tag) ->
+    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
+    UpdatedFlags = maps:map(MapFun, Flags),
+    UpdatedSegments = maps:map(MapFun, Segments),
+    ParsedFlags = maps:map(
+        fun(_K, V) -> ldclient_flag:new(V) end
+        , UpdatedFlags),
+    ParsedSegments = maps:map(
+        fun(_K, V) -> ldclient_segment:new(V) end
+        , UpdatedSegments),
+    ok = FeatureStore:upsert(Tag, features, ParsedFlags),
+    ok = FeatureStore:upsert(Tag, segments, ParsedSegments);
+delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
+    ok = maybe_delete_item(FeatureStore, Tag, features, Key, Version);
+delete_items(#{<<"path">> := <<"/flags/",Key/binary>>}, FeatureStore, Tag) ->
+    ok = maybe_delete_item(FeatureStore, Tag, features, Key, undefined);
+delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
+    ok = maybe_delete_item(FeatureStore, Tag, segments, Key, Version);
+delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, FeatureStore, Tag) ->
+    ok = maybe_delete_item(FeatureStore, Tag, segments, Key, undefined).
 
 
--spec maybe_patch_item(atom(), atom(), atom(), binary(), map()) -> ok.
-maybe_patch_item(StorageBackend, Tag, Bucket, Key, Item) ->
+-spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
+maybe_patch_item(ldclient_storage_redis, Tag, Bucket, Key, Item, _ParseFunction) ->
     FlagMap = maps:get(Key, Item, #{}),
     NewVersion = maps:get(<<"version">>, FlagMap, 0),
-    ok = case StorageBackend:get(Tag, Bucket, Key) of
+    ok = case ldclient_storage_redis:get(Tag, Bucket, Key) of
         [] ->
-            StorageBackend:put(Tag, Bucket, Item);
-        [{Key, ExistingFlagMap}] ->
-            ExistingVersion = maps:get(<<"version">>, ExistingFlagMap, 0),
+            ldclient_storage_redis:upsert(Tag, Bucket, #{Key => FlagMap});
+        [{Key, ExistingItem}] ->
+            ExistingVersion = maps:get(version, ExistingItem, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
-                Overwrite -> StorageBackend:put(Tag, Bucket, Item);
+                Overwrite -> ldclient_storage_redis:upsert(Tag, Bucket, #{Key => FlagMap});
+                true -> ok
+            end
+    end;
+maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction) ->
+    FlagMap = maps:get(Key, Item, #{}),
+    NewVersion = maps:get(<<"version">>, FlagMap, 0),
+    ok = case FeatureStore:get(Tag, Bucket, Key) of
+        [] ->
+            FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(FlagMap)});
+        [{Key, ExistingItem}] ->
+            ExistingVersion = maps:get(version, ExistingItem, 0),
+            Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
+            if
+                Overwrite -> FeatureStore:upsert(Tag, Bucket, #{Key => ParseFunction(FlagMap)});
                 true -> ok
             end
     end.
 
 -spec maybe_delete_item(atom(), atom(), atom(), binary(), pos_integer()|undefined) -> ok.
-maybe_delete_item(StorageBackend, Tag, Bucket, Key, NewVersion) ->
-    case StorageBackend:get(Tag, Bucket, Key) of
-        [] -> ok;
+maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
+    case FeatureStore:get(Tag, Bucket, Key) of
+        [] -> 
+            NewDeletedFlag = ldclient_flag:new(#{<<"key">> => Key, <<"deleted">> => true, <<"version">> => NewVersion}),
+            NewItem = #{Key => NewDeletedFlag},
+            FeatureStore:upsert(Tag, Bucket, NewItem);
         [{Key, ExistingItem}] ->
-            ExistingVersion = maps:get(<<"version">>, ExistingItem, 0),
+            ExistingVersion = maps:get(version, ExistingItem, 0),
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
                 Overwrite ->
-                    NewItem = #{Key => maps:put(<<"deleted">>, true, ExistingItem)},
-                    StorageBackend:put(Tag, Bucket, NewItem);
+                    NewItem = #{Key => maps:put(deleted, true, ExistingItem)},
+                    FeatureStore:upsert(Tag, Bucket, NewItem);
                 true ->
                     ok
             end
