@@ -1,0 +1,6 @@
+%% encoding: UTF-8
+{application,ldclient}.
+{modules,[ldclient,ldclient_config,ldclient_storage_cache,
+          ldclient_storage_cache_server,ldclient_storage_cache_sup,
+          ldclient_storage_redis,ldclient_storage_redis_server,
+          ldclient_storage_redis_sup,ldclient_user]}.
