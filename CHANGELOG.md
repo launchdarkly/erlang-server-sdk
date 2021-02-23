@@ -2,6 +2,31 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.0] - 2021-02-22
+Initial supported release of the SDK.
+
+### Added:
+- Added Redis feature store.
+- Added LDD mode.
+- Reload in-memory flag data when storage server fails.
+
+### Changed:
+- Parse flags and segments before in-memory storage.
+- Updated the default base URL to `sdk.launchdarkly.com`.
+- Events URL path from `api/events/bulk` to `/bulk`.
+- Renamed `ldclient_settings` to `ldclient_config`.
+- Renamed `ldclient:track_with_metric` to `ldclient:track_metric`.
+- Improved generated documentation.
+
+### Fixed:
+- Ignore path in streaming put events.
+
+### Removed:
+- Removed `ldclient_settings`.
+- Removed `ldclient:track_with_metric`.
+
+
+
 ## [1.0.0-beta4] - 2020-08-27
 
 ### Changed
