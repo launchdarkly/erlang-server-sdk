@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_cache' module
-%%
+%% @private
 %% Provides implementation of storage cache using Erlang map.
 %% @end
 %%-------------------------------------------------------------------

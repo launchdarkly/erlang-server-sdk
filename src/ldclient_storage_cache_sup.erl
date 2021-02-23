@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_cache_sup' module
-%%
+%% @private
 %% This is a supervisor for cache storage worker.
 %% @end
 %%-------------------------------------------------------------------

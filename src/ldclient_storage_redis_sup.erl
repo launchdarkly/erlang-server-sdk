@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_redis_sup' module
-%%
+%% @private
 %% This is a supervisor for Redis storage worker.
 %% @end
 %%-------------------------------------------------------------------
