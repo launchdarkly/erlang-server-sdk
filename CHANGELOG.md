@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.0.1] - 2021-02-23
+### Changed:
+- Removed internal storage files from generated documentation.
+
+
+
+
 ## [1.0.0] - 2021-02-22
 Initial supported release of the SDK.
 
