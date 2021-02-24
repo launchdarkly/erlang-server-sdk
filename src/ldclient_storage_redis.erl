@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_redis' module
-%%
+%% @private
 %% Provides implementation of Redis storage backend behavior.
 %% @end
 %%-------------------------------------------------------------------

@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_redis_server' module
-%%
+%% @private
 %% This is a implementation of an storage server using Redis.
 %% @end
 %%-------------------------------------------------------------------

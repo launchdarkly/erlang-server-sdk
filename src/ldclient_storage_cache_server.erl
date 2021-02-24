@@ -1,6 +1,6 @@
 %%-------------------------------------------------------------------
 %% @doc `ldclient_storage_cache_server' module
-%%
+%% @private
 %% This is a simple in-memory implementation of an storage cache server using Erlang
 %% map.
 %% @end
