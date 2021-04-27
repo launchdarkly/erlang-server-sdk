@@ -29,6 +29,7 @@
 -export([track/4]).
 -export([track_metric/4]).
 -export([track_metric/5]).
+-export([alias/3]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -247,4 +248,17 @@ track_metric(Key, User, Data, Metric) ->
 -spec track_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number(), Tag :: atom()) -> ok.
 track_metric(Key, User, Data, Metric, Tag) ->
     Event = ldclient_event:new_custom(Key, User, Data, Metric),
+    ldclient_event_server:add_event(Tag, Event, #{}).
+
+
+%% @doc Associates two users for analytics purposes.
+%%
+%% This can be helpful in the situation where a person is represented by multiple
+%% LaunchDarkly users. This may happen, for example, when a person initially logs into
+%% an application-- the person might be represented by an anonymous user prior to logging
+%% in and a different user after logging in, as denoted by a different user key.
+%% @end
+-spec alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user(), Tag :: atom()) -> ok.
+alias(User, PreviousUser, Tag) ->
+    Event = ldclient_event:new_alias(User, PreviousUser),
     ldclient_event_server:add_event(Tag, Event, #{}).

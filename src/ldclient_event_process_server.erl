@@ -124,6 +124,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
+-spec context_kind(ldclient_user:user()) -> binary().
+context_kind(User) ->
+    case User:get_attribute(anonymous) of
+        true -> <<"anonymousUser">>;
+        _ -> <<"user">>
+    end.
+
 -spec format_events([ldclient_event:event()], boolean(), ldclient_config:private_attributes()) -> list().
 format_events(Events, InlineUsers, GlobalPrivateAttributes) ->
     {FormattedEvents, _, _} = lists:foldl(fun format_event/2, {[], InlineUsers, GlobalPrivateAttributes}, Events),
@@ -149,7 +156,7 @@ format_event(
     {FormattedEvents, InlineUsers, GlobalPrivateAttributes}
 ) ->
     Kind = if Debug -> <<"debug">>; true -> <<"feature">> end,
-    OutputEvent = #{
+    OutputEvent = maybe_set_context_kind(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
@@ -158,7 +165,7 @@ format_event(
         <<"default">> => Default,
         <<"version">> => Version,
         <<"prereqOf">> => PrereqOf
-    },
+    }),
     FormattedEvent = format_event_set_user(Kind, User, maybe_set_reason(Event, OutputEvent), InlineUsers, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
 format_event(#{type := identify, timestamp := Timestamp, user := User}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
@@ -179,13 +186,30 @@ format_event(#{type := index, timestamp := Timestamp, user := User}, {FormattedE
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
 format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data} = Event, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
     Kind = <<"custom">>,
-    OutputEvent = maybe_set_metric_value(Event, #{
+    OutputEvent = maybe_set_context_kind(Event, maybe_set_metric_value(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
         <<"data">> => Data
-    }),
+    })),
     FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
+format_event(#{
+    type := alias, 
+    timestamp := Timestamp, 
+    user := User, 
+    previous_user := PreviousUser}, 
+    {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
+    Kind = <<"alias">>,
+    OutputEvent = #{
+        <<"kind">> => Kind,
+        <<"creationData">> => Timestamp,
+        <<"key">> => User:get_attribute(key),
+        <<"contextKind">> => context_kind(User),
+        <<"previousKey">> => PreviousUser:get_attribute(key),
+        <<"previousContextKind">> => context_kind(PreviousUser)
+    },
+    FormattedEvent = format_event(Kind, OutputEvent),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
 
 -spec maybe_set_reason(ldclient_event:event(), #{binary() => any()}) -> #{binary() => any()}.
@@ -247,6 +271,13 @@ maybe_set_metric_value(#{metric_value := MetricValue}, OutputEvent) ->
     OutputEvent#{<<"metricValue">> => MetricValue};
 maybe_set_metric_value(_, OutputEvent) ->
     OutputEvent.
+
+-spec maybe_set_context_kind(ldclient_event:event(), map()) -> map().
+maybe_set_context_kind(#{user := User}, OutputEvent) ->
+    case User:get_attribute(anonymous) of
+        true -> OutputEvent#{<<"contextKind">> => <<"anonymousUser">>};
+        _ -> OutputEvent
+    end.
 
 -spec format_summary_event(ldclient_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};

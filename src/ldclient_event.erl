@@ -17,11 +17,12 @@
 -export([new_custom/3]).
 -export([new_custom/4]).
 -export([strip_eval_reason/1]).
+-export([new_alias/2]).
 
 %% Types
--type event() :: feature_request() | identify() | index() | custom().
+-type event() :: feature_request() | identify() | index() | custom() | alias().
 
--type event_type() :: identify | index | feature_request | custom.
+-type event_type() :: identify | index | feature_request | custom | alias.
 %% Event type
 
 -type feature_request() :: #{
@@ -64,6 +65,13 @@
     metric_value => number()
 }.
 
+-type alias() :: #{
+    type            := alias,
+    timestamp       := non_neg_integer(),
+    user            := ldclient_user:user(),
+    previous_user   := ldclient_user:user()
+}.
+
 -export_type([event/0]).
 
 %%===================================================================
@@ -81,7 +89,7 @@
     Type :: event_type(),
     User :: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map()
+    Data :: map() | ldclient_user:user()
 ) -> event().
 new(identify, User, Timestamp, #{}) ->
     #{
@@ -131,7 +139,7 @@ new(feature_request, User, Timestamp, #{
     Key :: binary(),
     User:: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map()
+    Data :: map() | ldclient_user:user()
 ) -> event().
 new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
     #{
@@ -256,6 +264,15 @@ new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_map(Data), is_n
 -spec strip_eval_reason(ldclient_event:event()) -> ldclient_event:event().
 strip_eval_reason(#{type := feature_request, data := Data} = Event) ->
     Event#{data => maps:remove(eval_reason, Data)}.
+
+-spec new_alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user()) -> event().
+new_alias(User, PreviousUser) -> 
+    #{ 
+        type            => alias,
+        timestamp       => erlang:system_time(milli_seconds),
+        user            => ldclient_user:event_format(User),
+        previous_user   => ldclient_user:event_format(PreviousUser)
+    }.
 
 %%===================================================================
 %% Internal functions
