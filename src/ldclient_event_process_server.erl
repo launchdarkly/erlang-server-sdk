@@ -126,7 +126,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec context_kind(ldclient_user:user()) -> binary().
 context_kind(User) ->
-    case User:get_attribute(anonymous) of
+    case ldclient_user:get(anonymous, User) of
         true -> <<"anonymousUser">>;
         _ -> <<"user">>
     end.
@@ -203,14 +203,13 @@ format_event(#{
     Kind = <<"alias">>,
     OutputEvent = #{
         <<"kind">> => Kind,
-        <<"creationData">> => Timestamp,
-        <<"key">> => User:get_attribute(key),
+        <<"creationDate">> => Timestamp,
+        <<"key">> => ldclient_user:get(key, User),
         <<"contextKind">> => context_kind(User),
-        <<"previousKey">> => PreviousUser:get_attribute(key),
+        <<"previousKey">> => ldclient_user:get(key, PreviousUser),
         <<"previousContextKind">> => context_kind(PreviousUser)
     },
-    FormattedEvent = format_event(Kind, OutputEvent),
-    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
+    {[OutputEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
 
 -spec maybe_set_reason(ldclient_event:event(), #{binary() => any()}) -> #{binary() => any()}.
 maybe_set_reason(#{data := #{eval_reason := EvalReason}}, OutputEvent) ->
@@ -274,7 +273,7 @@ maybe_set_metric_value(_, OutputEvent) ->
 
 -spec maybe_set_context_kind(ldclient_event:event(), map()) -> map().
 maybe_set_context_kind(#{user := User}, OutputEvent) ->
-    case User:get_attribute(anonymous) of
+    case ldclient_user:get(anonymous, User) of
         true -> OutputEvent#{<<"contextKind">> => <<"anonymousUser">>};
         _ -> OutputEvent
     end.

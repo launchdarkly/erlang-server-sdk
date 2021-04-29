@@ -89,7 +89,7 @@
     Type :: event_type(),
     User :: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map() | ldclient_user:user()
+    Data :: map()
 ) -> event().
 new(identify, User, Timestamp, #{}) ->
     #{
@@ -139,7 +139,7 @@ new(feature_request, User, Timestamp, #{
     Key :: binary(),
     User:: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map() | ldclient_user:user()
+    Data :: map()
 ) -> event().
 new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
     #{
