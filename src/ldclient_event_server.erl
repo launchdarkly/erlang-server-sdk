@@ -177,7 +177,9 @@ add_event(_Tag, #{type := identify} = Event, _Options, Events, SummaryEvent, Cap
 add_event(Tag, #{type := custom, user := User, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity, InlineUsers) ->
     AddIndex = not InlineUsers,
     EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, AddIndex),
-    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent}.
+    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent};
+add_event(_, #{type := alias} = Event, _, Events, SummaryEvent, Capacity, _) ->
+    {add_raw_event(Event, Events, Capacity), SummaryEvent}.
 
 -spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].

@@ -24,7 +24,9 @@
     auto_flush/1,
     exceed_capacity/1,
     fail_and_retry/1,
-    payload_id_differs/1
+    payload_id_differs/1,
+    alias_event_is_serialized/1,
+    alias_event_is_serialized_with_anonymous_users/1
 ]).
 
 %%====================================================================
@@ -46,7 +48,9 @@ all() ->
         auto_flush,
         exceed_capacity,
         fail_and_retry,
-        payload_id_differs
+        payload_id_differs,
+        alias_event_is_serialized,
+        alias_event_is_serialized_with_anonymous_users
     ].
 
 init_per_suite(Config) ->
@@ -778,3 +782,37 @@ payload_id_differs(_) ->
         }
     ] = ActualEvents2,
     false = PayloadId1 =:= PayloadId2.
+
+alias_event_is_serialized(_) ->
+    Event = ldclient_event:new_alias(
+        #{key => <<"user">>},
+        #{key => <<"another">>}    
+    ),
+    {ActualEvents, _} = send_await_events([Event], #{flush => true}),
+    [
+        #{
+            <<"kind">> := <<"alias">>,
+            <<"creationDate">> := _,
+            <<"key">> := <<"user">>,
+            <<"previousKey">> := <<"another">>,
+            <<"contextKind">> := <<"user">>,
+            <<"previousContextKind">> := <<"user">>
+        }
+    ] = ActualEvents.
+
+alias_event_is_serialized_with_anonymous_users(_) ->
+    Event = ldclient_event:new_alias(
+        #{key => <<"user">>, anonymous => true},
+        #{key => <<"another">>, anonymous => true}    
+    ),
+    {ActualEvents, _} = send_await_events([Event], #{flush => true}),
+    [
+        #{
+            <<"kind">> := <<"alias">>,
+            <<"creationDate">> := _,
+            <<"key">> := <<"user">>,
+            <<"previousKey">> := <<"another">>,
+            <<"contextKind">> := <<"anonymousUser">>,
+            <<"previousContextKind">> := <<"anonymousUser">>
+        }
+    ] = ActualEvents.
