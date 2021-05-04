@@ -260,8 +260,7 @@ track_metric(Key, User, Data, Metric, Tag) ->
 %% @end
 -spec alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user()) -> ok.
 alias(User, PreviousUser) ->
-    Event = ldclient_event:new_alias(User, PreviousUser),
-    ldclient_event_server:add_event(?DEFAULT_INSTANCE_NAME, Event, #{}).
+    alias(User, PreviousUser, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Associates two users for analytics purposes.
 %%

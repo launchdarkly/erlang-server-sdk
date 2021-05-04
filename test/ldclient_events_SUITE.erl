@@ -1,7 +1,6 @@
 -module(ldclient_events_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--import(lists,[nth/2]).
 
 %% ct functions
 -export([all/0]).
