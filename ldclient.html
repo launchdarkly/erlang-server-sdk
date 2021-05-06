@@ -18,7 +18,9 @@
   Acts as an interface to most common SDK functions: starting and stopping
   client instances, and evaluating feature flags for users.
 <h2><a name="index">Function Index</a></h2>
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all_flags_state-1">all_flags_state/1</a></td><td>Evaluate all flags for a given user and return their values.</td></tr>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#alias-2">alias/2</a></td><td>Associates two users for analytics purposes.</td></tr>
+<tr><td valign="top"><a href="#alias-3">alias/3</a></td><td>Associates two users for analytics purposes.</td></tr>
+<tr><td valign="top"><a href="#all_flags_state-1">all_flags_state/1</a></td><td>Evaluate all flags for a given user and return their values.</td></tr>
 <tr><td valign="top"><a href="#all_flags_state-2">all_flags_state/2</a></td><td>Evaluate all flags for a given user and given client instance.</td></tr>
 <tr><td valign="top"><a href="#identify-1">identify/1</a></td><td>Identify reports details about a user.</td></tr>
 <tr><td valign="top"><a href="#identify-2">identify/2</a></td><td>Identify reports details about a user.</td></tr>
@@ -41,6 +43,26 @@
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="alias-2">alias/2</a></h3>
+<div class="spec">
+<p><tt>alias(User::<a href="ldclient_user.html#type-user">ldclient_user:user()</a>, PreviousUser::<a href="ldclient_user.html#type-user">ldclient_user:user()</a>) -&gt; ok</tt><br></p>
+</div><p><p>Associates two users for analytics purposes.</p>
+ 
+  This can be helpful in the situation where a person is represented by multiple
+  LaunchDarkly users. This may happen, for example, when a person initially logs into
+  an application-- the person might be represented by an anonymous user prior to logging
+  in and a different user after logging in, as denoted by a different user key.</p>
+
+<h3 class="function"><a name="alias-3">alias/3</a></h3>
+<div class="spec">
+<p><tt>alias(User::<a href="ldclient_user.html#type-user">ldclient_user:user()</a>, PreviousUser::<a href="ldclient_user.html#type-user">ldclient_user:user()</a>, Tag::atom()) -&gt; ok</tt><br></p>
+</div><p><p>Associates two users for analytics purposes.</p>
+ 
+  This can be helpful in the situation where a person is represented by multiple
+  LaunchDarkly users. This may happen, for example, when a person initially logs into
+  an application-- the person might be represented by an anonymous user prior to logging
+  in and a different user after logging in, as denoted by a different user key.</p>
 
 <h3 class="function"><a name="all_flags_state-1">all_flags_state/1</a></h3>
 <div class="spec">
