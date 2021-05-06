@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.1.0] - 2021-05-06
+### Added:
+- `ldclient:alias/2` and `ldclient:alias/3` functions. These can be used to associate two user objects for analytics purposes with an alias event.
+
+
 ## [1.0.1] - 2021-02-23
 ### Changed:
 - Removed internal storage files from generated documentation.
