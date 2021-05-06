@@ -1,7 +1,7 @@
 {application, ldclient,
  [{description, "LaunchDarkly SDK for Erlang"},
   {pkg_name, "launchdarkly_server_sdk"},
-  {vsn, "1.0.1"},
+  {vsn, "1.1.0"},
   {registered, []},
   {mod, {ldclient_app, []}},
   {applications,
