@@ -4,10 +4,18 @@ workflows:
   version: 2
   test:
     jobs:
-      - test-elixir-otp22
+      # elixir 8 is based on otp 21
+      # elixir 12 is based on otp 24
+      # test the full range
+      - test-elixir-8
+      - test-elixir-9
+      - test-elixir-10
+      - test-elixir-11
+      - test-elixir-12
       - test-21
       - test-22
       - test-23
+      - test-24
 
 erlang-docker-template: &erlang-docker-template
   steps:
@@ -37,11 +45,32 @@ erlang-docker-template: &erlang-docker-template
         path: ~/ldclient/test-results
 
 jobs:
-  test-elixir-otp22:
+  test-elixir-8:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:otp-22
+      - image: circleci/elixir:1.8
       - image: redis
+  test-elixir-9:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/elixir:1.9
+      - image: redis
+  test-elixir-10:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/elixir:1.10
+      - image: redis
+  test-elixir-11:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/elixir:1.11
+      - image: redis
+  test-elixir-12:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/elixir:1.12
+      - image: redis
+
   test-21:
     <<: *erlang-docker-template
     docker:
@@ -56,4 +85,9 @@ jobs:
     <<: *erlang-docker-template
     docker:
       - image: circleci/erlang:23.0
+      - image: redis
+  test-24:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/erlang:24.0
       - image: redis
