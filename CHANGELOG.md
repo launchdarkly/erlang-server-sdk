@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.1.1] - 2021-08-06
+### Changed:
+- Updated the `eredis` dependency to version `1.4.0`. (Thanks, [jeffgrunewald](https://github.com/launchdarkly/erlang-server-sdk/pull/32)!)
+- Updated the `jsx` dependency to version `3.1.0`. (Thanks, [bitwalker](https://github.com/launchdarkly/erlang-server-sdk/pull/35)!)
+- Updated the `uuid` dependency to version `2.0.2`. (Thanks, [jeffgrunewald](https://github.com/launchdarkly/erlang-server-sdk/pull/32)!)
+- Expanded test coverage to include OTP 24.
+
 ## [1.1.0] - 2021-05-06
 ### Added:
 - `ldclient:alias/2` and `ldclient:alias/3` functions. These can be used to associate two user objects for analytics purposes with an alias event.
