@@ -26,7 +26,8 @@
     stream => boolean(),
     polling_interval => pos_integer(),
     polling_update_requestor => atom(),
-    offline => boolean()
+    offline => boolean(),
+    ssl_options => [ssl:tls_option()]
 }.
 %% Options for starting an SDK instance
 

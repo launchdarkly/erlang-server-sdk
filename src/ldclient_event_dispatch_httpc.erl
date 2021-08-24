@@ -27,7 +27,11 @@ send(JsonEvents, PayloadId, Uri, SdkKey) ->
         {"User-Agent", ldclient_config:get_user_agent()},
         {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)}
     ],
-    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),
+    % Here we don't have information about any specific client instance, so we use the default one
+    Tag = default,
+    SslOptions = ldclient_config:get_value(Tag, ssl_options),
+    HttpOptions = maybe_with_ssl_options([], SslOptions),
+    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, HttpOptions, []),
     process_request(Request).
 
 %%===================================================================
@@ -58,3 +62,7 @@ is_http_error_code_recoverable(408) -> temporary;
 is_http_error_code_recoverable(429) -> temporary;
 is_http_error_code_recoverable(StatusCode) when StatusCode >= 500 -> temporary;
 is_http_error_code_recoverable(_) -> permanent.
+
+-spec maybe_with_ssl_options(list(), [ssl:tls_option()]) -> list().
+maybe_with_ssl_options(HttpOptions, [_|_]=SslOptions) -> [{ssl, SslOptions}|HttpOptions];
+maybe_with_ssl_options(HttpOptions, _) -> HttpOptions.

@@ -21,7 +21,8 @@
     sdk_key := string(),
     feature_store := atom(),
     storage_tag := atom(),
-    stream_uri := string()
+    stream_uri := string(),
+    ssl_options := [ssl:tls_option()]
 }.
 
 -ifdef(TEST).
@@ -48,6 +49,7 @@ init([Tag]) ->
     SdkKey = ldclient_config:get_value(Tag, sdk_key),
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    SslOptions = ldclient_config:get_value(Tag, ssl_options),
     Backoff = backoff:type(backoff:init(1000, 30000, self(), listen), jitter),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
@@ -58,7 +60,8 @@ init([Tag]) ->
         sdk_key => SdkKey,
         feature_store => FeatureStore,
         storage_tag => Tag,
-        stream_uri => StreamUri
+        stream_uri => StreamUri,
+        ssl_options => SslOptions
     },
     self() ! {listen},
     {ok, State}.
@@ -116,11 +119,12 @@ do_listen(#{
     storage_tag := Tag,
     stream_uri := Uri,
     backoff := Backoff,
-    last_attempted := LastAttempted} = State
+    last_attempted := LastAttempted,
+    ssl_options := SslOptions} = State
 ) ->
     Now = erlang:system_time(milli_seconds),
     NewState = State#{last_attempted := Now},
-    case do_listen(Uri, FeatureStore, Tag, SdkKey) of
+    case do_listen(Uri, FeatureStore, Tag, SdkKey, SslOptions) of
         {error, Code, Reason} ->
             % Error occurred during initial connection, shotgun pid is not in state yet, so we
             % handle reconnection manually.
@@ -142,11 +146,11 @@ do_listen(#{
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), string()) -> {ok, pid()} | {error, atom(), term()}.
-do_listen(Uri, FeatureStore, Tag, SdkKey) ->
+-spec do_listen(string(), atom(), atom(), string(), [ssl:tls_option()]) -> {ok, pid()} | {error, atom(), term()}.
+do_listen(Uri, FeatureStore, Tag, SdkKey, SslOptions) ->
     {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
     GunOpts = #{retry => 0},
-    Opts = #{gun_opts => GunOpts},
+    Opts = maybe_with_ssl_options(#{gun_opts => GunOpts}, SslOptions),
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
             {error, gun_open_failed, "Could not open connection to host"};
@@ -326,3 +330,12 @@ maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
 -spec parse_shotgun_event(binary()) -> shotgun:event().
 parse_shotgun_event(EventBin) ->
     shotgun:parse_event(EventBin).
+
+
+%% @doc If ssl options have been provided, then add them to the list of transport options
+%% to be sent to shotgun
+%% @private
+%%
+%% @end
+maybe_with_ssl_options(Opts, [_|_]=SslOptions) -> Opts#{transport_opts => SslOptions};
+maybe_with_ssl_options(Opts, _) -> Opts.

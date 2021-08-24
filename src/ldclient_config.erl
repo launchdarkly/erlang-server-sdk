@@ -40,7 +40,8 @@
     redis_password => string(),
     redis_prefix => string(),
     cache_ttl => integer(), % Any negative integer is parsed as an infinite TTL, zero is parsed as testing mode
-    use_ldd => boolean()
+    use_ldd => boolean(),
+    ssl_options => [ssl:tls_option()]
 }.
 % Settings stored for each running SDK instance
 
@@ -73,6 +74,7 @@
 -define(DEFAULT_REDIS_PREFIX, "launchdarkly").
 -define(DEFAULT_CACHE_TTL, 15).
 -define(DEFAULT_USE_LDD, false).
+-define(DEFAULT_SSL_OPTIONS, []).
 
 %%===================================================================
 %% API
@@ -117,6 +119,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     RedisPassword = maps:get(redis_password, Options, ?DEFAULT_REDIS_PASSWORD),
     RedisPrefix = maps:get(redis_prefix, Options, ?DEFAULT_REDIS_PREFIX),
     CacheTtl = maps:get(cache_ttl, Options, ?DEFAULT_CACHE_TTL),
+    SslOptions = maps:get(ssl_options, Options, ?DEFAULT_SSL_OPTIONS),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -139,7 +142,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         redis_password => RedisPassword,
         redis_prefix => RedisPrefix,
         cache_ttl => CacheTtl,
-        use_ldd => UseLdd
+        use_ldd => UseLdd,
+        ssl_options => SslOptions
     }.
 
 %% @doc Get all registered tags
