@@ -163,8 +163,8 @@ do_listen(Uri, FeatureStore, Tag, SdkKey) ->
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
             Headers = #{
-                "Authorization" => SdkKey,
-                "User-Agent" => ldclient_config:get_user_agent()
+                <<"Authorization">> => SdkKey,
+                <<"User-Agent">> => ldclient_config:get_user_agent()
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
