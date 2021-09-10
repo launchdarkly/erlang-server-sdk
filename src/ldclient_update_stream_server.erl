@@ -145,7 +145,10 @@ do_listen(#{
 -spec do_listen(string(), atom(), atom(), string()) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, SdkKey) ->
     {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
-    GunOpts = #{retry => 0},
+    GunOpts = #{
+        retry => 0,
+        protocols => [http]
+    },
     Opts = #{gun_opts => GunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
@@ -163,8 +166,8 @@ do_listen(Uri, FeatureStore, Tag, SdkKey) ->
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
             Headers = #{
-                <<"Authorization">> => SdkKey,
-                <<"User-Agent">> => ldclient_config:get_user_agent()
+                <<"authorization">> => SdkKey,
+                <<"user-agent">> => ldclient_config:get_user_agent()
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
