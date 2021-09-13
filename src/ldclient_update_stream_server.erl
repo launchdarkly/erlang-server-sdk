@@ -120,13 +120,9 @@ do_listen(#{
 ) ->
     Now = erlang:system_time(milli_seconds),
     NewState = State#{last_attempted := Now},
-    case do_listen(Uri, FeatureStore, Tag, SdkKey) of
+    try do_listen(Uri, FeatureStore, Tag, SdkKey) of
         {error, Code, Reason} ->
-            % Error occurred during initial connection, shotgun pid is not in state yet, so we
-            % handle reconnection manually.
-            error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, backoff:get(Backoff)]),
-            _ = backoff:fire(Backoff),
-            {_, NewBackoff} = backoff:fail(Backoff),
+            NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
             NewState#{backoff := NewBackoff};
         {ok, Pid} ->
             % If the last connection attempt was more than a minute ago (i.e. we stayed connected)
@@ -136,7 +132,21 @@ do_listen(#{
                 true -> {backoff:get(Backoff), Backoff}
             end,
             NewState#{conn := Pid, backoff := NewBackoff}
+        catch Code:Reason ->
+            NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
+            NewState#{backoff := NewBackoff}
     end.
+
+%% @doc Used for firing backoff before shotgun pid is monitored
+%% @private
+%%
+%% @end
+-spec do_listen_fail_backoff(backoff:backoff(), atom(), term()) -> backoff:backoff().
+do_listen_fail_backoff(Backoff, Code, Reason) ->
+    error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, backoff:get(Backoff)]),
+    _ = backoff:fire(Backoff),
+    {_, NewBackoff} = backoff:fail(Backoff),
+    NewBackoff.
 
 %% @doc Connect to LaunchDarkly streaming endpoint
 %% @private
@@ -158,7 +168,13 @@ do_listen(Uri, FeatureStore, Tag, SdkKey) ->
         {ok, Pid} ->
             _ = monitor(process, Pid),
             F = fun(nofin, _Ref, Bin) ->
-                    process_event(parse_shotgun_event(Bin), FeatureStore, Tag);
+                    try
+                        process_event(parse_shotgun_event(Bin), FeatureStore, Tag)
+                    catch Code:Reason ->
+                        % Exception when processing event, log error, close connection
+                        error_logger:warning_msg("Invalid SSE event error (~p): ~p", [Code, Reason]),
+                        shotgun:close(Pid)
+                    end;
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
