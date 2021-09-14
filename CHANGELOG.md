@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.1.2] - 2021-09-13
+### Fixed:
+- The SDK now forces connections to use HTTP/1.1 instead of the newer HTTP/2 protocol as an underlying dependency does not yet support HTTP/2. This change does not impact current behavior as LaunchDarkly’s servers do not yet accept requests with HTTP/2; however, this SDK change ensures operational continuity when LaunchDarkly’s services enable HTTP/2 compatibility.
+- The SDK is more resilient when opening an SSE connection, processing events from the stream, and evaluating feature flags.
+
 ## [1.1.1] - 2021-08-06
 ### Changed:
 - Updated the `eredis` dependency to version `1.4.0`. (Thanks, [jeffgrunewald](https://github.com/launchdarkly/erlang-server-sdk/pull/32)!)
