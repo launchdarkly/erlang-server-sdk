@@ -53,7 +53,14 @@
     User :: ldclient_user:user(),
     DefaultValue :: result_value()
 ) -> result().
-flag_key_for_user(Tag, FlagKey, User, DefaultValue) -> flag_key_for_user(Tag, FlagKey, User, DefaultValue, get_state(Tag), get_initialization_state(Tag)).
+flag_key_for_user(Tag, FlagKey, User, DefaultValue) ->
+    try
+        flag_key_for_user(Tag, FlagKey, User, DefaultValue, get_state(Tag), get_initialization_state(Tag))
+    catch _:_->
+        Reason = {error, exception},
+        Events = [ldclient_event:new_for_unknown_flag(FlagKey, User, DefaultValue, Reason)],
+        {{null, DefaultValue, Reason}, Events}
+    end.
 
 -spec flag_key_for_user(
     Tag :: atom(),
@@ -79,7 +86,8 @@ flag_key_for_user(Tag, FlagKey, User, DefaultValue, online, initialized) ->
     User :: ldclient_user:user(),
     Tag :: atom()
 ) -> feature_flags_state().
-all_flags_eval(User, Tag) -> all_flags_eval(User, Tag, get_state(Tag), get_initialization_state(Tag)).
+all_flags_eval(User, Tag) ->
+    all_flags_eval(User, Tag, get_state(Tag), get_initialization_state(Tag)).
 
 -spec all_flags_eval(
     User :: ldclient_user:user(),
