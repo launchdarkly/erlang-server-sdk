@@ -860,7 +860,74 @@
             },
             "missing-all-fields": {
                 "key": "missing-all-fields"
-            }
+            },
+            "missing-rollout-for-rule": {
+                "clientSide": true,
+                "clientSideAvailability": {
+                  "usingEnvironmentId": true,
+                  "usingMobileKey": true
+                },
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {
+                  "variation": 2
+                },
+                "key": "missing-rollout-for-rule",
+                "offVariation": null,
+                "on": true,
+                "prerequisites": [],
+                "rules": [
+                  {
+                    "clauses": [
+                      {
+                        "attribute": "key",
+                        "negate": false,
+                        "op": "contains",
+                        "values": [
+                          "Maybe"
+                        ]
+                      }
+                    ],
+                    "id": "e924d1cc-6719-44ea-b486-51d0e538c544",
+                    "trackEvents": false
+                  }
+                ],
+                "salt": "26d913f26e4b4a199abae59995995026",
+                "targets": [],
+                "trackEvents": true,
+                "trackEventsFallthrough": false,
+                "variations": [
+                  "RuleA",
+                  "RuleB",
+                  "FallthroughValue"
+                ],
+                "version": 4243
+              },
+              "fallthrough-no-rollout-or-variation": {
+                "clientSide": true,
+                "clientSideAvailability": {
+                  "usingEnvironmentId": true,
+                  "usingMobileKey": true
+                },
+                "debugEventsUntilDate": null,
+                "deleted": false,
+                "fallthrough": {},
+                "key": "fallthrough-no-rollout-or-variation",
+                "offVariation": null,
+                "on": true,
+                "prerequisites": [],
+                "rules": [],
+                "salt": "41e52f2dfc644478a3b0a51f71308e76",
+                "targets": [],
+                "trackEvents": true,
+                "trackEventsFallthrough": false,
+                "variations": [
+                  "ExpectedPrefix_A",
+                  "ExpectedPrefix_B",
+                  "ExpectedPrefix_C"
+                ],
+                "version": 7243
+              }
         },
         "segments": {
             "test-included": {

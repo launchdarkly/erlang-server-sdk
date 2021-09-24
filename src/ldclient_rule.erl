@@ -60,7 +60,7 @@ new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> 
         variationOrRollout => ldclient_rollout:new(Rollout)
     };
 new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents}) ->
-    #{id => Id, clauses => parse_clauses(Clauses), trackEvents => TrackEvents, variationOrRollout => 0}.
+    #{id => Id, clauses => parse_clauses(Clauses), trackEvents => TrackEvents, variationOrRollout => null}.
 
 -spec parse_clauses([map()]) -> [ldclient_clause:clause()].
 parse_clauses(Clauses) ->
