@@ -57,7 +57,10 @@
     variation_out_of_range/1,
     extra_fields/1,
     missing_some_fields/1,
-    missing_all_fields/1
+    missing_all_fields/1,
+    missing_rollout_for_rule/1,
+    missing_rollout_for_rule_match_rule/1,
+    fallthrough_no_rollout_or_variation/1
 ]).
 
 %%====================================================================
@@ -112,7 +115,10 @@ all() ->
         variation_out_of_range,
         extra_fields,
         missing_some_fields,
-        missing_all_fields
+        missing_all_fields,
+        missing_rollout_for_rule,
+        missing_rollout_for_rule_match_rule,
+        fallthrough_no_rollout_or_variation
     ].
 
 init_per_suite(Config) ->
@@ -705,5 +711,24 @@ missing_all_fields(_) ->
     ExpectedEvents = lists:sort([
         {<<"missing-all-fields">>, feature_request, null, null, "foo", ExpectedReason, null}
     ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_rollout_for_rule(_) -> 
+    {{2,<<"FallthroughValue">>,fallthrough}, Events} = ldclient_eval:flag_key_for_user(default, <<"missing-rollout-for-rule">>, #{key => <<"user123">>}, "DefaultValue"),
+    ExpectedEvents = lists:sort([{<<"missing-rollout-for-rule">>, feature_request, 2, <<"FallthroughValue">>, "DefaultValue", fallthrough, null}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+missing_rollout_for_rule_match_rule(_) ->
+    % For this test the user key matters because the rule matches keys containing "maybe".
+    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_user(default, <<"missing-rollout-for-rule">>, #{key => <<"key1Maybe">>}, "DefaultValue"),
+    ExpectedEvents = lists:sort([{<<"missing-rollout-for-rule">>, feature_request, null, "DefaultValue", "DefaultValue", {error, malformed_flag}, null}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_no_rollout_or_variation(_) ->
+    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_user(default, <<"fallthrough-no-rollout-or-variation">>, #{key => <<"user123">>}, "DefaultValue"),
+    ExpectedEvents = lists:sort([{<<"fallthrough-no-rollout-or-variation">>, feature_request, null, "DefaultValue", "DefaultValue", {error, malformed_flag}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
