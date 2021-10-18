@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.2.0] - 2021-10-18
+### Added:
+- The SDK now supports the ability to control the proportion of traffic allocation to an experiment. This works in conjunction with a new platform feature now available to early access customers.
+- The SDK now supports the ability to read flags from a file.
+
 ## [1.1.3] - 2021-09-27
 ### Fixed:
 - When a rule was missing both the rollout and the variation, and that rule was matched, then variation 0 would be returned instead of the default value.
