@@ -24,10 +24,12 @@
 -type variation_index() :: null | non_neg_integer().
 -type reason() ::
     target_match
-    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
+    | {rule_match, RuleIndex :: non_neg_integer(), in_experiment}
+    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary(), InExperiment :: true}
     | {prerequisite_failed, FlagKeys :: [binary()]}
     | {error, error_type()}
     | fallthrough
+    | {fallthrough, in_experiment}
     | off.
 -type error_type() :: client_not_ready | flag_not_found | malformed_flag
     | user_not_specified | wrong_type | exception.
@@ -273,8 +275,9 @@ flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, Defaul
 flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, _DefaultValue, Events) when is_integer(Variation) ->
     result_for_variation_index(Variation, Reason, Flag, Events);
 flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, DefaultValue, Events) when is_map(Rollout) ->
-    Result = ldclient_rollout:rollout_user(Rollout, Flag, User),
-    flag_for_user_rollout_result(Result, Reason, Flag, DefaultValue, Events);
+    {Result, InExperiment} = ldclient_rollout:rollout_user(Rollout, Flag, User),
+    UpdatedReason = experimentize_reason(InExperiment, Reason),
+    flag_for_user_rollout_result(Result, UpdatedReason, Flag, DefaultValue, Events);
 flag_for_user_variation_or_rollout(null, _Reason, #{key := FlagKey}, _User, DefaultValue, Events) ->
     error_logger:warning_msg("Data inconsistency in feature flag ~p: rule object with no variation or rollout", [FlagKey]),
     Reason = {error, malformed_flag},
@@ -297,3 +300,11 @@ result_for_variation_value(null, _Variation, _Reason, _Flag, Events) ->
     {{null, null, Reason}, Events};
 result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events) ->
     {{Variation, VariationValue, Reason}, Events}.
+
+-spec experimentize_reason(InExperiment :: boolean(), Reason :: reason()) -> reason().
+experimentize_reason(true, fallthrough) ->
+    {fallthrough, in_experiment};
+experimentize_reason(true, {rule_match, RuleIndex, RuleUUID}) ->
+    {rule_match, RuleIndex, RuleUUID, in_experiment};
+experimentize_reason(_InExperiment, Reason) ->
+    Reason.

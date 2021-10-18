@@ -18,7 +18,8 @@
     backoff,
     verl,
     uuid,
-    eredis
+    eredis,
+    yamerl
    ]},
   {env,[]},
   {modules, []},

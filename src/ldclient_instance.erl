@@ -50,7 +50,7 @@ start(Tag, SdkKey, Options) ->
     SupName = get_ref_from_tag(instance, Tag),
     StartStream = maps:get(stream, Settings),
     UpdateSupName = get_ref_from_tag(instance_stream, Tag),
-    UpdateWorkerModule = get_update_processor(StartStream, maps:get(offline, Settings), maps:get(use_ldd, Settings)),
+    UpdateWorkerModule = get_update_processor(StartStream, maps:get(offline, Settings), maps:get(use_ldd, Settings), maps:get(file_datasource, Settings)),
     EventsSupName = get_ref_from_tag(instance_events, Tag),
     {ok, _} = supervisor:start_child(ldclient_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
     % Start storage backend
@@ -133,8 +133,9 @@ start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
 %% @private
 %%
 %% @end
--spec get_update_processor(Stream :: boolean(), Offline :: boolean(), UseLdd :: boolean()) -> atom().
-get_update_processor(_Stream, _Offline, true) -> ldclient_update_null_server;
-get_update_processor(_Stream, true, _UseLdd) -> ldclient_update_null_server;
-get_update_processor(true, _Offline, _UseLdd) -> ldclient_update_stream_server;
-get_update_processor(false, _Offline, _UseLdd) -> ldclient_update_poll_server.
+-spec get_update_processor(Stream :: boolean(), Offline :: boolean(), UseLdd :: boolean(), FileDataSource :: boolean()) -> atom().
+get_update_processor(_Stream, _Offline, _UseLdd, true) -> ldclient_update_file_server;
+get_update_processor(_Stream, _Offline, true, _FileDataSource) -> ldclient_update_null_server;
+get_update_processor(_Stream, true, _UseLdd, _FileDataSource) -> ldclient_update_null_server;
+get_update_processor(true, _Offline, _UseLdd, _FileDataSource) -> ldclient_update_stream_server;
+get_update_processor(false, _Offline, _UseLdd, _FileDataSource) -> ldclient_update_poll_server.

@@ -279,6 +279,9 @@ new_alias(User, PreviousUser) ->
 %%===================================================================
 
 -spec is_experiment(ldclient_eval:reason(), ldclient_flag:flag()) -> boolean().
+%% If the reason indicates it is inExperiment, then it is. Otherwise use legacy logic.
+is_experiment({rule_match, _, _, in_experiment}, _) -> true;
+is_experiment({fallthrough, in_experiment}, _) -> true;
 is_experiment(fallthrough, #{trackEventsFallthrough := true}) -> true;
 is_experiment({rule_match, RuleIndex, _}, #{rules := Rules}) when RuleIndex >=0, RuleIndex < length(Rules) ->
     Rule = lists:nth(RuleIndex + 1, Rules),

@@ -60,7 +60,11 @@
     missing_all_fields/1,
     missing_rollout_for_rule/1,
     missing_rollout_for_rule_match_rule/1,
-    fallthrough_no_rollout_or_variation/1
+    fallthrough_no_rollout_or_variation/1,
+    fallthrough_rollout_in_experiment/1,
+    fallthrough_rollout_not_in_experiment/1,
+    rule_match_rollout_in_experiment/1,
+    rule_match_rollout_not_in_experiment/1
 ]).
 
 %%====================================================================
@@ -118,7 +122,11 @@ all() ->
         missing_all_fields,
         missing_rollout_for_rule,
         missing_rollout_for_rule_match_rule,
-        fallthrough_no_rollout_or_variation
+        fallthrough_no_rollout_or_variation,
+        fallthrough_rollout_in_experiment,
+        fallthrough_rollout_not_in_experiment,
+        rule_match_rollout_in_experiment,
+        rule_match_rollout_not_in_experiment
     ].
 
 init_per_suite(Config) ->
@@ -159,6 +167,9 @@ create_flags() ->
     ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData2}, ldclient_storage_ets, another1).
 
 extract_events(Events) ->
+    extract_events(Events, false).
+
+extract_events(Events, false) ->
     [
         {Key, Type, Variation, VariationValue, DefaultValue, Reason, PrereqOf} ||
         #{
@@ -170,6 +181,23 @@ extract_events(Events) ->
                 default := DefaultValue,
                 eval_reason := Reason,
                 prereq_of := PrereqOf
+            }
+        } <- Events
+    ];
+extract_events(Events, true) ->
+    [
+        {Key, Type, Variation, VariationValue, DefaultValue, Reason, PrereqOf, TrackEvents, IncludeReason} ||
+        #{
+            type := Type,
+            data := #{
+                key := Key,
+                variation := Variation,
+                value := VariationValue,
+                default := DefaultValue,
+                eval_reason := Reason,
+                prereq_of := PrereqOf,
+                trackEvents := TrackEvents,
+                include_reason := IncludeReason
             }
         } <- Events
     ].
@@ -731,4 +759,44 @@ fallthrough_no_rollout_or_variation(_) ->
     {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_user(default, <<"fallthrough-no-rollout-or-variation">>, #{key => <<"user123">>}, "DefaultValue"),
     ExpectedEvents = lists:sort([{<<"fallthrough-no-rollout-or-variation">>, feature_request, null, "DefaultValue", "DefaultValue", {error, malformed_flag}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_in_experiment(_) ->
+    ExpectedReason = {fallthrough, in_experiment},
+    {{0, <<"a">>, ExpectedReason}, Events} =
+        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyA">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"experiment-traffic-allocation-v2">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null, true, true}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events, true)),
+    ExpectedEvents = ActualEvents.
+
+fallthrough_rollout_not_in_experiment(_) ->
+    ExpectedReason = fallthrough,
+    {{1, <<"b">>, ExpectedReason}, Events} =
+        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyB">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"experiment-traffic-allocation-v2">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null, false, false}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events, true)),
+    ExpectedEvents = ActualEvents.
+
+rule_match_rollout_in_experiment(_) ->
+    ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>, in_experiment},
+    {{0, <<"a">>, ExpectedReason}, Events} =
+        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyA">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"experiment-traffic-allocation-v2-rules">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null, true, true}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events, true)),
+    ExpectedEvents = ActualEvents.
+
+rule_match_rollout_not_in_experiment(_) ->
+    ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
+    {{1, <<"b">>, ExpectedReason}, Events} =
+        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyB">>}, "foo"),
+    ExpectedEvents = lists:sort([
+        {<<"experiment-traffic-allocation-v2-rules">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null, true, false}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events, true)),
     ExpectedEvents = ActualEvents.
