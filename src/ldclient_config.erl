@@ -40,7 +40,13 @@
     redis_password => string(),
     redis_prefix => string(),
     cache_ttl => integer(), % Any negative integer is parsed as an infinite TTL, zero is parsed as testing mode
-    use_ldd => boolean()
+    use_ldd => boolean(),
+    send_events => boolean(),
+    file_datasource => boolean(),
+    file_paths => [string()],
+    file_auto_update => boolean(),
+    file_poll_interval => pos_integer(),
+    file_allow_duplicate_keys => boolean()
 }.
 % Settings stored for each running SDK instance
 
@@ -73,6 +79,12 @@
 -define(DEFAULT_REDIS_PREFIX, "launchdarkly").
 -define(DEFAULT_CACHE_TTL, 15).
 -define(DEFAULT_USE_LDD, false).
+-define(DEFAULT_SEND_EVENTS, true).
+-define(DEFAULT_FILE_DATASOURCE, false).
+-define(DEFAULT_FILE_PATHS, []).
+-define(DEFAULT_FILE_AUTO_UPDATE, false).
+-define(DEFAULT_FILE_POLL_INTERVAL, 1000).
+-define(DEFAULT_FILE_ALLOW_DUPLICATE_KEYS, false).
 
 %%===================================================================
 %% API
@@ -117,6 +129,12 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     RedisPassword = maps:get(redis_password, Options, ?DEFAULT_REDIS_PASSWORD),
     RedisPrefix = maps:get(redis_prefix, Options, ?DEFAULT_REDIS_PREFIX),
     CacheTtl = maps:get(cache_ttl, Options, ?DEFAULT_CACHE_TTL),
+    SendEvents = maps:get(send_events, Options, ?DEFAULT_SEND_EVENTS),
+    FileDataSource = maps:get(file_datasource, Options, ?DEFAULT_FILE_DATASOURCE),
+    FilePaths = maps:get(file_paths, Options, ?DEFAULT_FILE_PATHS),
+    FileAutoUpdate = maps:get(file_auto_update, Options, ?DEFAULT_FILE_AUTO_UPDATE),
+    FilePollInterval = maps:get(file_poll_interval, Options, ?DEFAULT_FILE_POLL_INTERVAL),
+    FileAllowDuplicateKeys = maps:get(file_allow_duplicate_keys, Options, ?DEFAULT_FILE_ALLOW_DUPLICATE_KEYS),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -139,7 +157,13 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         redis_password => RedisPassword,
         redis_prefix => RedisPrefix,
         cache_ttl => CacheTtl,
-        use_ldd => UseLdd
+        use_ldd => UseLdd,
+        send_events => SendEvents,
+        file_datasource => FileDataSource,
+        file_paths => FilePaths,
+        file_auto_update => FileAutoUpdate,
+        file_poll_interval => FilePollInterval,
+        file_allow_duplicate_keys => FileAllowDuplicateKeys
     }.
 
 %% @doc Get all registered tags
