@@ -927,6 +927,96 @@
                   "ExpectedPrefix_C"
                 ],
                 "version": 7243
+              },
+              "experiment-traffic-allocation-v2" : {
+                  "clientSide": false,
+                  "debugEventsUntilDate": null,
+                  "deleted": false,
+                  "fallthrough": {
+                      "rollout": {
+                          "kind": "experiment",
+                          "seed": 61,
+                          "variations": [
+                              {
+                                  "variation": 0,
+                                  "weight": 10000
+                              },
+                              {
+                                  "variation": 1,
+                                  "weight": 50000,
+                                  "untracked": true
+                              }
+                          ]
+                      }
+                  },
+                  "key": "experiment-traffic-allocation-v2",
+                  "offVariation": 1,
+                  "on": true,
+                  "prerequisites": [],
+                  "rules": [],
+                  "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+                  "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+                  "targets": [],
+                  "variations": [
+                      "a",
+                      "b",
+                      "c"
+                  ],
+                  "version": 5
+              },
+              "experiment-traffic-allocation-v2-rules": {
+                  "clientSide": false,
+                  "debugEventsUntilDate": null,
+                  "deleted": false,
+                  "fallthrough": {
+                      "variation": 0
+                  },
+                  "key": "experiment-traffic-allocation-v2-rules",
+                  "offVariation": 1,
+                  "on": true,
+                  "prerequisites": [],
+                  "rules": [
+                      {
+                          "clauses": [
+                              {
+                                  "attribute": "this-value-does-not-matter",
+                                  "negate": false,
+                                  "op": "segmentMatch",
+                                  "values": [
+                                      "eligible-for-experiment"
+                                  ]
+                              }
+                          ],
+                          "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+                          "trackEvents": false,
+                          "rollout": {
+                              "kind": "experiment",
+                              "seed": 61,
+                              "variations": [
+                                  {
+                                      "variation": 0,
+                                      "weight": 10000
+                                  },
+                                  {
+                                      "variation": 1,
+                                      "weight": 50000,
+                                      "untracked": true
+                                  }
+                              ]
+                          }
+                      }
+                  ],
+                  "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+                  "sel": "45501b9314dc4641841af774cb038b96",
+                  "targets": [],
+                  "trackEvents": true,
+                  "trackEventsFallthrough": false,
+                  "variations": [
+                      "a",
+                      "b",
+                      "c"
+                  ],
+                  "version": 1
               }
         },
         "segments": {
@@ -957,8 +1047,19 @@
                 "foo": "bar",
                 "bar": 2,
                 "baz": null
+            },
+            "eligible-for-experiment": {
+                "deleted": false,
+                "excluded": [],
+                "included": [
+                    "userKeyA",
+                    "userKeyB"
+                ],
+                "key": "eligible-for-experiment",
+                "rules": [],
+                "salt": "b2ba88c74ad34c288ec10ba78e150afd",
+                "version": 8
             }
         }
     }
 }
-
