@@ -19,11 +19,11 @@
 <h2><a name="types">Data Types</a></h2>
 
 <h3 class="typedecl"><a name="type-instance">instance()</a></h3>
-<p><tt>instance() = #{sdk_key =&gt; string(), base_uri =&gt; string(), events_uri =&gt; string(), stream_uri =&gt; string(), feature_store =&gt; atom(), events_capacity =&gt; pos_integer(), events_flush_interval =&gt; pos_integer(), events_dispatcher =&gt; atom(), user_keys_capacity =&gt; pos_integer(), inline_users_in_events =&gt; boolean(), private_attributes =&gt; <a href="#type-private_attributes">private_attributes()</a>, stream =&gt; boolean(), polling_interval =&gt; pos_integer(), polling_update_requestor =&gt; atom(), offline =&gt; boolean(), redis_host =&gt; string(), redis_port =&gt; pos_integer(), redis_database =&gt; integer(), redis_password =&gt; string(), redis_prefix =&gt; string(), cache_ttl =&gt; integer(), use_ldd =&gt; boolean()}</tt></p>
+<p><tt>instance() = #{sdk_key =&gt; string(), base_uri =&gt; string(), events_uri =&gt; string(), stream_uri =&gt; string(), feature_store =&gt; atom(), events_capacity =&gt; pos_integer(), events_flush_interval =&gt; pos_integer(), events_dispatcher =&gt; atom(), user_keys_capacity =&gt; pos_integer(), inline_users_in_events =&gt; boolean(), private_attributes =&gt; <a href="#type-private_attributes">private_attributes()</a>, stream =&gt; boolean(), polling_interval =&gt; pos_integer(), polling_update_requestor =&gt; atom(), offline =&gt; boolean(), redis_host =&gt; string(), redis_port =&gt; pos_integer(), redis_database =&gt; integer(), redis_password =&gt; string(), redis_prefix =&gt; string(), cache_ttl =&gt; integer(), use_ldd =&gt; boolean(), send_events =&gt; boolean(), file_datasource =&gt; boolean(), file_paths =&gt; [string()], file_auto_update =&gt; boolean(), file_poll_interval =&gt; pos_integer(), file_allow_duplicate_keys =&gt; boolean()}</tt></p>
 
 
 <h3 class="typedecl"><a name="type-private_attributes">private_attributes()</a></h3>
-<p><tt>private_attributes() = all | [<a href="ldclient_user.html#type-attribute">ldclient_user:attribute()</a>]</tt></p>
+<p><tt>private_attributes() = all | [<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-attribute">ldclient_user:attribute()</a>]</tt></p>
 
 
 <h2><a name="index">Function Index</a></h2>
@@ -41,22 +41,26 @@
 <h3 class="function"><a name="get_event_schema-0">get_event_schema/0</a></h3>
 <div class="spec">
 <p><tt>get_event_schema() -&gt; string()</tt><br></p>
+<p> </p>
 </div>
 
 <h3 class="function"><a name="get_registered_tags-0">get_registered_tags/0</a></h3>
 <div class="spec">
 <p><tt>get_registered_tags() -&gt; [atom()]</tt><br></p>
+<p> </p>
 </div><p>Get all registered tags
  </p>
 
 <h3 class="function"><a name="get_user_agent-0">get_user_agent/0</a></h3>
 <div class="spec">
 <p><tt>get_user_agent() -&gt; string()</tt><br></p>
+<p> </p>
 </div>
 
 <h3 class="function"><a name="get_value-2">get_value/2</a></h3>
 <div class="spec">
 <p><tt>get_value(Tag::atom(), Key::atom()) -&gt; undefined | term()</tt><br></p>
+<p> </p>
 </div><p><p>Gets application environment variable value</p>
  
   This is a convenience function to retrieve application environment variables
@@ -66,6 +70,7 @@
 <h3 class="function"><a name="init-0">init/0</a></h3>
 <div class="spec">
 <p><tt>init() -&gt; ok</tt><br></p>
+<p> </p>
 </div><p><p>Initialize settings environment map</p>
  
   Initializes an empty map for instance settings in application environment.</p>
@@ -73,12 +78,14 @@
 <h3 class="function"><a name="register-2">register/2</a></h3>
 <div class="spec">
 <p><tt>register(Tag::atom(), Settings::<a href="#type-instance">instance()</a>) -&gt; ok</tt><br></p>
+<p> </p>
 </div><p>Register settings for a new client instance
  </p>
 
 <h3 class="function"><a name="unregister-1">unregister/1</a></h3>
 <div class="spec">
 <p><tt>unregister(Tag::atom()) -&gt; ok</tt><br></p>
+<p> </p>
 </div><p>Unregister settings for a client instance
  </p>
 <hr>

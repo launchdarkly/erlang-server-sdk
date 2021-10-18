@@ -52,6 +52,7 @@
 <h3 class="function"><a name="event_format-1">event_format/1</a></h3>
 <div class="spec">
 <p><tt>event_format(User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
 </div><p><p>Formats a user for use in an event.</p>
  
   Returns the user with first_name and last_name attributes changed to firstName and
@@ -60,6 +61,7 @@
 <h3 class="function"><a name="get-2">get/2</a></h3>
 <div class="spec">
 <p><tt>get(Attribute::<a href="#type-attribute">attribute()</a>, User::<a href="#type-user">user()</a>) -&gt; term()</tt><br></p>
+<p> </p>
 </div><p><p>Get an attribute value of a user</p>
  
   Lookup includes custom attributes. Returns <code>null</code> if attribute doesn't exist.</p>
@@ -67,16 +69,19 @@
 <h3 class="function"><a name="new-1">new/1</a></h3>
 <div class="spec">
 <p><tt>new(Key::<a href="#type-key">key()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
 </div>
 
 <h3 class="function"><a name="new_from_map-1">new_from_map/1</a></h3>
 <div class="spec">
 <p><tt>new_from_map(Map::map()) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
 </div>
 
 <h3 class="function"><a name="scrub-2">scrub/2</a></h3>
 <div class="spec">
-<p><tt>scrub(User::<a href="#type-user">user()</a>, GlobalPrivateAttributes::<a href="ldclient_config.html#type-private_attributes">ldclient_config:private_attributes()</a>) -&gt; {<a href="#type-user">user()</a>, <a href="#type-private_attribute_names">private_attribute_names()</a>}</tt><br></p>
+<p><tt>scrub(User::<a href="#type-user">user()</a>, GlobalPrivateAttributes::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_config.html#type-private_attributes">ldclient_config:private_attributes()</a>) -&gt; {<a href="#type-user">user()</a>, <a href="#type-private_attribute_names">private_attribute_names()</a>}</tt><br></p>
+<p> </p>
 </div><p><p>Scrub private attributes from user</p>
  
   Returns the scrubbed user and the list of attributes that were actually
@@ -85,6 +90,7 @@
 <h3 class="function"><a name="set-3">set/3</a></h3>
 <div class="spec">
 <p><tt>set(Attribute::<a href="#type-attribute">attribute()</a>, Value::any(), User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
 </div><p><p>Set an attribute value for a user</p>
  
   Sets given attribute to given value and returns the new user. This function
@@ -93,6 +99,7 @@
 <h3 class="function"><a name="set_private_attribute_names-2">set_private_attribute_names/2</a></h3>
 <div class="spec">
 <p><tt>set_private_attribute_names(AttributeNames::[<a href="#type-attribute">attribute()</a>], User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
 </div><p><p>Sets a list of private attribute names for a user</p>
  
   Any attributes that are on this list will not be sent to and indexed by
