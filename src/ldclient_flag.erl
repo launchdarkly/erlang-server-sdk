@@ -8,6 +8,7 @@
 
 %% API
 -export([new/1]).
+-export([new_simple/2]).
 -export([get_variation/2]).
 
 %% Types
@@ -92,6 +93,17 @@ new(RawFlagMap) ->
     },
     FlagMap = maps:merge(FlagTemplate, RawFlagMap),
     new_from_template(FlagMap).
+
+-spec new_simple(Key :: key(), Value :: variation_value()) -> flag().
+new_simple(Key, Value) ->
+    new(#{
+        <<"key">> => Key,
+        <<"on">> => true,
+        <<"variations">> => [Value],
+        <<"fallthrough">> => #{
+            <<"variation">> => 0
+        }
+    }).
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().
 get_variation(_Flag, null) -> null;

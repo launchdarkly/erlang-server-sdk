@@ -19,7 +19,10 @@
     parse_flag_invalid_fallthrough/1,
     parse_segment_empty/1,
     parse_segment_key_only/1,
-    parse_segment_full/1
+    parse_segment_full/1,
+    parse_flag_rollout_kind/1,
+    parse_flag_invalid_kind/1,
+    parse_flag_experiment_kind/1
 ]).
 
 %%====================================================================
@@ -36,7 +39,10 @@ all() ->
         parse_flag_invalid_fallthrough,
         parse_segment_empty,
         parse_segment_key_only,
-        parse_segment_full
+        parse_segment_full,
+        parse_flag_rollout_kind,
+        parse_flag_invalid_kind,
+        parse_flag_experiment_kind
     ].
 
 init_per_suite(Config) ->
@@ -64,16 +70,21 @@ parse_flag_empty(_) ->
     FlagExpected = #{
         debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucketBy => key, variations => []},
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            seed => null,
+            kind => rollout
+        },
         key                      => <<>>,
-        offVariation            => 0,
+        offVariation             => 0,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
-        trackEvents             => false,
-        trackEventsFallthrough => false,
+        trackEvents              => false,
+        trackEventsFallthrough   => false,
         variations               => [],
         version                  => 0
     },
@@ -86,7 +97,12 @@ parse_flag_key_only(_) ->
     FlagExpected = #{
         debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucketBy => key, variations => []},
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            seed => null,
+            kind => rollout
+        },
         key                      => <<"flag-key-only">>,
         offVariation            => 0,
         on                       => false,
@@ -142,10 +158,11 @@ parse_flag_full(_) ->
         <<"deleted">> => false,
         <<"fallthrough">> => #{
             <<"rollout">> => #{
+                <<"kind">> => <<"experiment">>,
                 <<"bucketBy">> => <<"foo">>,
                 <<"variations">> => [
-                    #{<<"variation">> => 0, <<"weight">> => 0},
-                    #{<<"variation">> => 1, <<"weight">> => 40000},
+                    #{<<"variation">> => 0, <<"weight">> => 0, <<"untracked">> => true},
+                    #{<<"variation">> => 1, <<"weight">> => 40000, <<"untracked">> => false},
                     #{<<"variation">> => 2, <<"weight">> => 60000}
                 ]
             }
@@ -189,10 +206,12 @@ parse_flag_full(_) ->
         fallthrough              => #{
             bucketBy => <<"foo">>,
             variations => [
-                #{variation => 0, weight => 0},
-                #{variation => 1, weight => 40000},
-                #{variation => 2, weight => 60000}
-            ]
+                #{variation => 0, weight => 0, untracked => true},
+                #{variation => 1, weight => 40000, untracked => false},
+                #{variation => 2, weight => 60000, untracked => false}
+            ],
+            kind => experiment,
+            seed => null
         },
         key                      => <<"flag-full">>,
         offVariation            => 2,
@@ -259,7 +278,14 @@ parse_flag_ignore_invalid(_) ->
     FlagExpected = #{
         debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucketBy => <<"foo">>, variations => [#{variation => 1, weight => 0}]},
+        fallthrough              => #{
+            kind => rollout,
+            seed => null,
+            bucketBy => <<"foo">>,
+            variations => [
+                #{variation => 1, weight => 0, untracked => false}
+            ]
+        },
         key                      => <<"flag-ignore-invalid">>,
         offVariation            => 2,
         on                       => true,
@@ -282,7 +308,12 @@ parse_flag_invalid_fallthrough(_) ->
     FlagExpected = #{
         debugEventsUntilDate  => null,
         deleted                  => false,
-        fallthrough              => #{bucketBy => key, variations => []},
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            seed => null,
+            kind => rollout
+        },
         key                      => <<"flag-invalid-fallthrough">>,
         offVariation            => 0,
         on                       => false,
@@ -374,3 +405,120 @@ parse_segment_full(_) ->
         version  => 5
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
+
+parse_flag_invalid_kind(_) ->
+    FlagRaw = #{
+        <<"debugEventsUntilDate">> => 1234567,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{
+            <<"rollout">> => #{
+                <<"kind">> => <<"invalid">>,
+                <<"variations">> => []
+            }
+        },
+        <<"key">> => <<"flag-full">>,
+        <<"offVariation">> => 2,
+        <<"on">> => true,
+        <<"salt">> => <<"flag-full-salt">>,
+        <<"version">> => 9
+    },
+    FlagExpected = #{
+        debugEventsUntilDate  => 1234567,
+        deleted                  => false,
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            kind => rollout,
+            seed => null
+        },
+        key                      => <<"flag-full">>,
+        offVariation            => 2,
+        on                       => true,
+        prerequisites            => [],
+        rules                    => [],
+        salt                     => <<"flag-full-salt">>,
+        targets                  => [],
+        trackEvents             => false,
+        trackEventsFallthrough => false,
+        variations               => [],
+        version                  => 9
+    },
+    FlagExpected = ldclient_flag:new(FlagRaw).
+
+parse_flag_rollout_kind(_) ->
+    FlagRaw = #{
+        <<"debugEventsUntilDate">> => 1234567,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{
+            <<"rollout">> => #{
+                <<"kind">> => <<"rollout">>,
+                <<"variations">> => []
+            }
+        },
+        <<"key">> => <<"flag-full">>,
+        <<"offVariation">> => 2,
+        <<"on">> => true,
+        <<"salt">> => <<"flag-full-salt">>,
+        <<"version">> => 9
+    },
+    FlagExpected = #{
+        debugEventsUntilDate  => 1234567,
+        deleted                  => false,
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            kind => rollout,
+            seed => null
+        },
+        key                      => <<"flag-full">>,
+        offVariation            => 2,
+        on                       => true,
+        prerequisites            => [],
+        rules                    => [],
+        salt                     => <<"flag-full-salt">>,
+        targets                  => [],
+        trackEvents             => false,
+        trackEventsFallthrough => false,
+        variations               => [],
+        version                  => 9
+    },
+    FlagExpected = ldclient_flag:new(FlagRaw).
+
+parse_flag_experiment_kind(_) ->
+    FlagRaw = #{
+        <<"debugEventsUntilDate">> => 1234567,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{
+            <<"rollout">> => #{
+                <<"kind">> => <<"experiment">>,
+                <<"variations">> => []
+            }
+        },
+        <<"key">> => <<"flag-full">>,
+        <<"offVariation">> => 2,
+        <<"on">> => true,
+        <<"salt">> => <<"flag-full-salt">>,
+        <<"version">> => 9
+    },
+    FlagExpected = #{
+        debugEventsUntilDate  => 1234567,
+        deleted                  => false,
+        fallthrough              => #{
+            bucketBy => key,
+            variations => [],
+            kind => experiment,
+            seed => null
+        },
+        key                      => <<"flag-full">>,
+        offVariation            => 2,
+        on                       => true,
+        prerequisites            => [],
+        rules                    => [],
+        salt                     => <<"flag-full-salt">>,
+        targets                  => [],
+        trackEvents             => false,
+        trackEventsFallthrough => false,
+        variations               => [],
+        version                  => 9
+    },
+    FlagExpected = ldclient_flag:new(FlagRaw).

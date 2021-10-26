@@ -26,7 +26,9 @@
     fail_and_retry/1,
     payload_id_differs/1,
     alias_event_is_serialized/1,
-    alias_event_is_serialized_with_anonymous_users/1
+    alias_event_is_serialized_with_anonymous_users/1,
+    add_flag_eval_events_flush_in_experiment_fallthrough/1,
+    add_flag_eval_events_flush_in_experiment_rule_match/1
 ]).
 
 %%====================================================================
@@ -50,7 +52,9 @@ all() ->
         fail_and_retry,
         payload_id_differs,
         alias_event_is_serialized,
-        alias_event_is_serialized_with_anonymous_users
+        alias_event_is_serialized_with_anonymous_users,
+        add_flag_eval_events_flush_in_experiment_fallthrough,
+        add_flag_eval_events_flush_in_experiment_rule_match
     ].
 
 init_per_suite(Config) ->
@@ -163,6 +167,70 @@ get_simple_flag_experimentation_fallthrough() ->
         <<"on">> => true,
         <<"prerequisites">> => [],
         <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => true,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
+    }.
+
+get_simple_flag_experiment_allocation_v2_fallthrough() ->
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"rollout">> => #{
+            <<"kind">> => <<"experiment">>,
+            <<"seed">>  => 61,
+            <<"variations">> => [
+                #{
+                    <<"variation">> => 0,
+                    <<"weight">> => 10000
+                }
+            ]
+        }},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [],
+        <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
+        <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
+        <<"targets">> => [],
+        <<"trackEvents">> => false,
+        <<"trackEventsFallthrough">> => false,
+        <<"variations">> => [true,false],
+        <<"version">> => 5
+    }.
+
+get_simple_flag_experiment_allocation_v2_rule() ->
+    #{
+        <<"clientSide">> => false,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => false,
+        <<"fallthrough">> => #{<<"variation">> => 0},
+        <<"key">> => <<"abc">>,
+        <<"offVariation">> => 1,
+        <<"on">> => true,
+        <<"prerequisites">> => [],
+        <<"rules">> => [#{
+            <<"clauses">> => [],
+            <<"id">> => <<"12345">>,
+            <<"variation">> => 0,
+            <<"trackEvents">> => false,
+            <<"rollout">> => #{
+                <<"kind">> => <<"experiment">>,
+                <<"seed">>  => 61,
+                <<"variations">> => [
+                    #{
+                        <<"variation">> => 0,
+                        <<"weight">> => 10000
+                    }
+                ]
+            }
+        }],
         <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
         <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
         <<"targets">> => [],
@@ -814,5 +882,107 @@ alias_event_is_serialized_with_anonymous_users(_) ->
             <<"previousKey">> := <<"another">>,
             <<"contextKind">> := <<"anonymousUser">>,
             <<"previousContextKind">> := <<"anonymousUser">>
+        }
+    ] = ActualEvents.
+
+add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
+    FlagBin = get_simple_flag_experiment_allocation_v2_fallthrough(),
+    Flag = ldclient_flag:new(FlagBin),
+    Event = ldclient_event:new_flag_eval(
+        0,
+        <<"a">>,
+        <<"default-value">>,
+        #{key => <<"experiment-fallthrough">>},
+        {fallthrough, in_experiment},
+        Flag
+    ),
+    Events = [Event],
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
+                            <<"unknown">> := false,
+                            <<"value">> := <<"a">>,
+                            <<"variation">> := 0,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"experiment-fallthrough">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"feature">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            <<"reason">> := #{<<"kind">> := <<"FALLTHROUGH">>, <<"inExperiment">> := true},
+            <<"userKey">> := <<"experiment-fallthrough">>,
+            <<"value">> := <<"a">>,
+            <<"variation">> := 0,
+            <<"version">> := 5,
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+add_flag_eval_events_flush_in_experiment_rule_match(_) ->
+    FlagBin = get_simple_flag_experiment_allocation_v2_rule(),
+    Flag = ldclient_flag:new(FlagBin),
+    Event = ldclient_event:new_flag_eval(
+        0,
+        <<"a">>,
+        <<"default-value">>,
+        #{key => <<"experiment-rule">>},
+        {rule_match, 0, <<"id">>, in_experiment},
+        Flag
+    ),
+    Events = [Event],
+    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
+                            <<"unknown">> := false,
+                            <<"value">> := <<"a">>,
+                            <<"variation">> := 0,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"experiment-rule">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"feature">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            <<"reason">> := #{<<"kind">> := <<"RULE_MATCH">>, <<"ruleIndex">> := 0, <<"ruleId">> := <<"id">>, <<"inExperiment">> := true},
+            <<"userKey">> := <<"experiment-rule">>,
+            <<"value">> := <<"a">>,
+            <<"variation">> := 0,
+            <<"version">> := 5,
+            <<"creationDate">> := _
         }
     ] = ActualEvents.

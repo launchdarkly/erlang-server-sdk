@@ -155,7 +155,7 @@ check_rule_weight(Rule, User) ->
     check_user_bucket(Rule, User).
 
 check_user_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, User) ->
-    Bucket = ldclient_rollout:bucket_user(SegmentKey, SegmentSalt, User, BucketBy),
+    Bucket = ldclient_rollout:bucket_user(null, SegmentKey, SegmentSalt, User, BucketBy),
     check_user_bucket_result(Bucket, Weight).
 
 check_user_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;

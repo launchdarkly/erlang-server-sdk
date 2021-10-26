@@ -24,10 +24,12 @@
 -type variation_index() :: null | non_neg_integer().
 -type reason() ::
     target_match
-    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
+    | {rule_match, RuleIndex :: non_neg_integer(), in_experiment}
+    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary(), InExperiment :: true}
     | {prerequisite_failed, FlagKeys :: [binary()]}
     | {error, error_type()}
     | fallthrough
+    | {fallthrough, in_experiment}
     | off.
 -type error_type() :: client_not_ready | flag_not_found | malformed_flag
     | user_not_specified | wrong_type | exception.
@@ -231,56 +233,62 @@ flag_for_user_prerequisites({fail, Reason}, #{offVariation := OffVariation} = Fl
 flag_for_user_prerequisites({fail, Reason}, _Flag, _User, _FeatureStore, _Tag, DefaultValue, Events) ->
     % prerequisite failed, but offVariation is null or not set
     {{null, DefaultValue, Reason}, Events};
-flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, FeatureStore, Tag, _DefaultValue, Events) ->
-    check_targets(Targets, Flag, User, FeatureStore, Tag, Events).
+flag_for_user_prerequisites(success, #{targets := Targets} = Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
+    check_targets(Targets, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-check_targets([], Flag, User, FeatureStore, Tag, Events) ->
-    flag_for_user_targets(no_match, Flag, User, FeatureStore, Tag, Events);
-check_targets([#{values := Values, variation := Variation}|Rest], Flag, #{key := UserKey} = User, FeatureStore, Tag, Events) ->
+check_targets([], Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
+    flag_for_user_targets(no_match, Flag, User, FeatureStore, Tag, DefaultValue, Events);
+check_targets([#{values := Values, variation := Variation}|Rest], Flag, #{key := UserKey} = User, FeatureStore, Tag, DefaultValue, Events) ->
     Result = {lists:member(UserKey, Values), Variation},
-    check_target_result(Result, Rest, Flag, User, FeatureStore, Tag, Events).
+    check_target_result(Result, Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-check_target_result({false, _}, Rest, Flag, User, FeatureStore, Tag, Events) ->
-    check_targets(Rest, Flag, User, FeatureStore, Tag, Events);
-check_target_result({true, Variation}, _Rest, Flag, User, FeatureStore, Tag, Events) ->
+check_target_result({false, _}, Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
+    check_targets(Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events);
+check_target_result({true, Variation}, _Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
     % Target matched: short-circuit
-    flag_for_user_targets({match, Variation}, Flag, User, FeatureStore, Tag, Events).
+    flag_for_user_targets({match, Variation}, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-flag_for_user_targets({match, Variation}, Flag, _User, _FeatureStore, _Tag, Events) ->
+flag_for_user_targets({match, Variation}, Flag, _User, _FeatureStore, _Tag, _DefaultValue, Events) ->
     Reason = target_match,
     result_for_variation_index(Variation, Reason, Flag, Events);
-flag_for_user_targets(no_match, #{rules := Rules} = Flag, User, FeatureStore, Tag, Events) ->
-    check_rules(Rules, Flag, User, FeatureStore, Tag, Events, 0).
+flag_for_user_targets(no_match, #{rules := Rules} = Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
+    check_rules(Rules, Flag, User, FeatureStore, Tag, DefaultValue, Events, 0).
 
-check_rules([], Flag, User, _FeatureStore, _Tag, Events, _) ->
-    flag_for_user_rules(no_match, Flag, User, Events);
-check_rules([Rule|Rest], Flag, User, FeatureStore, Tag, Events, Index) ->
+check_rules([], Flag, User, _FeatureStore, _Tag, DefaultValue, Events, _) ->
+    flag_for_user_rules(no_match, Flag, User, DefaultValue, Events);
+check_rules([Rule|Rest], Flag, User, FeatureStore, Tag, DefaultValue, Events, Index) ->
     Result = ldclient_rule:match_user(Rule, User, FeatureStore, Tag),
-    check_rule_result({Result, Rule, Index}, Rest, Flag, User, FeatureStore, Tag, Events).
+    check_rule_result({Result, Rule, Index}, Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-check_rule_result({no_match, _Rule, Index}, Rest, Flag, User, FeatureStore, Tag, Events) ->
-    check_rules(Rest, Flag, User, FeatureStore, Tag, Events, Index + 1);
-check_rule_result({match, Rule, Index}, _Rest, Flag, User, _FeatureStore, _Tag, Events) ->
+check_rule_result({no_match, _Rule, Index}, Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
+    check_rules(Rest, Flag, User, FeatureStore, Tag, DefaultValue, Events, Index + 1);
+check_rule_result({match, Rule, Index}, _Rest, Flag, User, _FeatureStore, _Tag, DefaultValue, Events) ->
     % Rule matched: short-circuit
-    flag_for_user_rules({match, Rule, Index}, Flag, User, Events).
+    flag_for_user_rules({match, Rule, Index}, Flag, User, DefaultValue, Events).
 
-flag_for_user_rules({match, #{id := Id, variationOrRollout := VorR}, Index}, Flag, User, Events) ->
+flag_for_user_rules({match, #{id := Id, variationOrRollout := VorR}, Index}, Flag, User, DefaultValue, Events) ->
     Reason = {rule_match, Index, Id},
-    flag_for_user_variation_or_rollout(VorR, Reason, Flag, User, Events);
-flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, Events) ->
-    flag_for_user_variation_or_rollout(Fallthrough, fallthrough, Flag, User, Events).
+    flag_for_user_variation_or_rollout(VorR, Reason, Flag, User, DefaultValue, Events);
+flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, DefaultValue, Events) ->
+    flag_for_user_variation_or_rollout(Fallthrough, fallthrough, Flag, User, DefaultValue, Events).
 
-flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, Events) when is_integer(Variation) ->
+flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, _DefaultValue, Events) when is_integer(Variation) ->
     result_for_variation_index(Variation, Reason, Flag, Events);
-flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, Events) when is_map(Rollout) ->
-    Result = ldclient_rollout:rollout_user(Rollout, Flag, User),
-    flag_for_user_rollout_result(Result, Reason, Flag, Events).
+flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, DefaultValue, Events) when is_map(Rollout) ->
+    {Result, InExperiment} = ldclient_rollout:rollout_user(Rollout, Flag, User),
+    UpdatedReason = experimentize_reason(InExperiment, Reason),
+    flag_for_user_rollout_result(Result, UpdatedReason, Flag, DefaultValue, Events);
+flag_for_user_variation_or_rollout(null, _Reason, #{key := FlagKey}, _User, DefaultValue, Events) ->
+    error_logger:warning_msg("Data inconsistency in feature flag ~p: rule object with no variation or rollout", [FlagKey]),
+    Reason = {error, malformed_flag},
+    {{null, DefaultValue, Reason}, Events}.
 
-flag_for_user_rollout_result(null, _Reason, #{key := FlagKey}, Events) ->
+flag_for_user_rollout_result(null, _Reason, #{key := FlagKey}, DefaultValue, Events) ->
     error_logger:warning_msg("Data inconsistency in feature flag ~p: variation/rollout object with no variation or rollout", [FlagKey]),
     Reason = {error, malformed_flag},
-    {{null, null, Reason}, Events};
-flag_for_user_rollout_result(Variation, Reason, Flag, Events) ->
+    {{null, DefaultValue, Reason}, Events};
+
+flag_for_user_rollout_result(Variation, Reason, Flag, _DefaultValue, Events) ->
     result_for_variation_index(Variation, Reason, Flag, Events).
 
 result_for_variation_index(Variation, Reason, Flag, Events) ->
@@ -292,3 +300,11 @@ result_for_variation_value(null, _Variation, _Reason, _Flag, Events) ->
     {{null, null, Reason}, Events};
 result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events) ->
     {{Variation, VariationValue, Reason}, Events}.
+
+-spec experimentize_reason(InExperiment :: boolean(), Reason :: reason()) -> reason().
+experimentize_reason(true, fallthrough) ->
+    {fallthrough, in_experiment};
+experimentize_reason(true, {rule_match, RuleIndex, RuleUUID}) ->
+    {rule_match, RuleIndex, RuleUUID, in_experiment};
+experimentize_reason(_InExperiment, Reason) ->
+    Reason.

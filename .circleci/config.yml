@@ -1,26 +1,40 @@
-version: 2
+version: 2.1
 
 workflows:
-  version: 2
+  version: 2.1
   test:
     jobs:
       # elixir 8 is based on otp 21
       # elixir 12 is based on otp 24
       # test the full range
-      - test-elixir-8
-      - test-elixir-9
-      - test-elixir-10
-      - test-elixir-11
-      - test-elixir-12
+      - test-elixir-8:
+           install-rebar3: true
+      - test-elixir-9:
+           install-rebar3: true
+      - test-elixir-10:
+           install-rebar3: true
+      - test-elixir-11:
+           install-rebar3: true
+      - test-elixir-12:
+           install-rebar3: true
       - test-21
       - test-22
       - test-23
       - test-24
 
 erlang-docker-template: &erlang-docker-template
+  parameters:
+    install-rebar3:
+      type: boolean
+      default: false
   steps:
     - checkout:
         path: ~/ldclient
+    - when:
+        condition: << parameters.install-rebar3 >>
+        steps:
+          - run: sudo curl https://s3.amazonaws.com/rebar3/rebar3 --output /usr/local/bin/rebar3
+          - run: sudo chmod 777 /usr/local/bin/rebar3
     - run:
         name: install dependencies and compile
         command: make compile
@@ -48,27 +62,27 @@ jobs:
   test-elixir-8:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:1.8
+      - image: cimg/elixir:1.8
       - image: redis
   test-elixir-9:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:1.9
+      - image: cimg/elixir:1.9
       - image: redis
   test-elixir-10:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:1.10
+      - image: cimg/elixir:1.10
       - image: redis
   test-elixir-11:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:1.11
+      - image: cimg/elixir:1.11
       - image: redis
   test-elixir-12:
     <<: *erlang-docker-template
     docker:
-      - image: circleci/elixir:1.12
+      - image: cimg/elixir:1.12
       - image: redis
 
   test-21:

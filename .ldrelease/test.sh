@@ -2,5 +2,5 @@
 
 set -e
 
-make tests
+make release-tests
 make dialyze

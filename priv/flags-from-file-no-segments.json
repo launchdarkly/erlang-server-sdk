@@ -1,0 +1,67 @@
+{
+  "flags": {
+    "keep-it-on": {
+      "clientSide": false,
+      "debugEventsUntilDate": null,
+      "deleted": false,
+      "fallthrough": {
+        "variation": 0
+      },
+      "key": "keep-it-off",
+      "offVariation": 1,
+      "on": true,
+      "variations": [
+        true,
+        false
+      ],
+      "version": 6
+    },
+    "segment-me": {
+      "clientSide": false,
+      "deleted": false,
+      "fallthrough": {
+        "variation": 0
+      },
+      "key": "segment-me",
+      "offVariation": 1,
+      "on": true,
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "this-value-does-not-matter",
+              "negate": false,
+              "op": "segmentMatch",
+              "values": [
+                "test-included"
+              ]
+            }
+          ],
+          "id": "ab4a9fb3-7e85-429f-8078-23aa70094540",
+          "trackEvents": false,
+          "variation": 1
+        },
+        {
+          "clauses": [
+            {
+              "attribute": "this-value-does-not-matter",
+              "negate": true,
+              "op": "segmentMatch",
+              "values": [
+                "test-included"
+              ]
+            }
+          ],
+          "id": "489a185d-caaf-4db9-b192-e09e927d070c",
+          "trackEvents": false,
+          "variation": 1
+        }
+      ],
+      "variations": [
+        true,
+        false
+      ],
+      "version": 5
+    }
+  }
+}

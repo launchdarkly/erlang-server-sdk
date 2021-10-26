@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.2.0] - 2021-10-18
+### Added:
+- The SDK now supports the ability to control the proportion of traffic allocation to an experiment. This works in conjunction with a new platform feature now available to early access customers.
+- The SDK now supports the ability to read flags from a file.
+
+## [1.1.3] - 2021-09-27
+### Fixed:
+- When a rule was missing both the rollout and the variation, and that rule was matched, then variation 0 would be returned instead of the default value.
+- When a fall-through was missing both a rollout and a variation, then null would be returned instead of the default value.
+
 ## [1.1.2] - 2021-09-13
 ### Fixed:
 - The SDK now forces connections to use HTTP/1.1 instead of the newer HTTP/2 protocol as an underlying dependency does not yet support HTTP/2. This change does not impact current behavior as LaunchDarkly’s servers do not yet accept requests with HTTP/2; however, this SDK change ensures operational continuity when LaunchDarkly’s services enable HTTP/2 compatibility.
