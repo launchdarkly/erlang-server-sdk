@@ -1,7 +1,7 @@
 # LaunchDarkly Server-Side SDK for Erlang/Elixir
 
 [![Circle CI](https://img.shields.io/circleci/project/launchdarkly/erlang-server-sdk.png)](https://circleci.com/gh/launchdarkly/erlang-server-sdk)
-
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/launchdarkly_server_sdk/)
 ## LaunchDarkly overview
 
 [LaunchDarkly](https://www.launchdarkly.com) is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster. [Get started](https://docs.launchdarkly.com/home/getting-started) using LaunchDarkly today!
