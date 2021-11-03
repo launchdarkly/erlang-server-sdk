@@ -9,25 +9,44 @@
 -behaviour(ldclient_event_dispatch).
 
 %% Behavior callbacks
--export([send/4]).
+-export([init/2, send/4]).
+
+%% Internal type for ETag cache state
+-type state() :: #{
+headers => list(),
+http_options => list()
+}.
 
 %%===================================================================
 %% Behavior callbacks
 %%===================================================================
 
+-spec init(Tag :: atom(), SdkKey :: string()) -> state().
+init(Tag, SdkKey) ->
+    Options = ldclient_config:get_value(Tag, http_options),
+    HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
+    Headers = ldclient_http_options:httpc_append_custom_headers([
+        {"Authorization", SdkKey},
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
+        {"User-Agent", ldclient_config:get_user_agent()}
+    ], Options),
+    #{
+        headers => Headers,
+        http_options => HttpOptions
+    }.
+
 %% @doc Send events to LaunchDarkly event server
 %%
 %% @end
--spec send(JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string()) -> 
+-spec send(State :: state(), JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string()) ->
     ok | {error, temporary, string()} | {error, permanent, string()}.
-send(JsonEvents, PayloadId, Uri, SdkKey) ->
+send(State, JsonEvents, PayloadId, Uri) ->
+    #{headers := BaseHeaders, http_options := HttpOptions} = State,
     Headers = [
-        {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
-        {"User-Agent", ldclient_config:get_user_agent()},
-        {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)}
+        {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)} |
+        BaseHeaders
     ],
-    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, [], []),
+    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, HttpOptions, []),
     process_request(Request).
 
 %%===================================================================

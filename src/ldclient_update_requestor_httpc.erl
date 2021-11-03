@@ -9,36 +9,47 @@
 -behaviour(ldclient_update_requestor).
 
 %% Behavior callbacks
--export([init/0, all/3]).
+-export([init/2, all/2]).
 
 %% Internal type for ETag cache state
--type state() :: #{string() => binary()}.
+-type state() :: #{
+    etag_state => #{string() => binary()},
+    headers => list(),
+    http_options => list()
+}.
 
 %%===================================================================
 %% Behavior callbacks
 %%===================================================================
 
-%% Initializes ETag cache to empty map
--spec init() -> state().
-init() -> #{}.
+-spec init(Tag :: atom(), SdkKey :: string()) -> state().
+init(Tag, SdkKey) ->
+    Options = ldclient_config:get_value(Tag, http_options),
+    HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
+    Headers = ldclient_http_options:httpc_append_custom_headers([
+        {"Authorization", SdkKey},
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
+        {"User-Agent", ldclient_config:get_user_agent()}
+    ], Options),
+    #{
+        %% Initializes ETag cache to empty map
+        etag_state => #{},
+        headers => Headers,
+        http_options => HttpOptions
+    }.
 
 %% @doc Send events to LaunchDarkly event server
 %%
 %% @end
--spec all(Uri :: string(), SdkKey :: string(), State :: state()) ->
+-spec all(Uri :: string(), State :: state()) ->
                  {ldclient_update_requestor:response(), state()}.
-all(Uri, SdkKey, State) ->
-    Headers = [
-        {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
-        {"User-Agent", ldclient_config:get_user_agent()}
-    ],
-    ETagHeaders = case maps:find(Uri, State) of
+all(Uri, State) ->
+    #{etag_state := EtagState, headers := Headers, http_options := HttpOptions} = State,
+    ETagHeaders = case maps:find(Uri, EtagState) of
         error -> Headers;
         {ok, Etag} -> [{"If-None-Match", Etag}|Headers]
     end,
-    HTTPOptions = [{connect_timeout, 2000}],
-    Result = httpc:request(get, {Uri, ETagHeaders}, HTTPOptions, [{body_format, binary}]),
+    Result = httpc:request(get, {Uri, ETagHeaders}, HttpOptions, [{body_format, binary}]),
     case Result of
         {ok, {StatusLine = {_, StatusCode, _}, ResponseHeaders, Body}} ->
             if
@@ -46,7 +57,7 @@ all(Uri, SdkKey, State) ->
                 StatusCode < 300 ->
                     case proplists:lookup("etag", [{string:casefold(K), V} || {K, V} <- ResponseHeaders]) of
                         none -> {{ok, Body}, State};
-                        {_, ETag} -> {{ok, Body}, State#{Uri => ETag}}
+                        {_, ETag} -> {{ok, Body}, State#{etag_state => EtagState#{Uri => ETag}}}
                     end;
                 StatusCode < 400 -> {{ok, Body}, State};
                 true -> {{error, bad_status_error(StatusLine)}, State}

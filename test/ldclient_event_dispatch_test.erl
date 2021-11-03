@@ -9,18 +9,23 @@
 -behaviour(ldclient_event_dispatch).
 
 %% Behavior callbacks
--export([send/4]).
+-export([init/2, send/4]).
 
 %%===================================================================
 %% Behavior callbacks
 %%===================================================================
 
+-spec init(Tag :: atom(), SdkKey :: string()) -> any().
+init(_Tag, SdkKey) ->
+    #{sdk_key => SdkKey}.
+
 %% @doc Send events to test event server process
 %%
 %% @end
--spec send(OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string())
+-spec send(State :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string())
     -> ok | {error, temporary, string()}.
-send(OutputEvents, PayloadId, _Uri, SdkKey) ->
+send(State, OutputEvents, PayloadId, _Uri) ->
+    #{sdk_key := SdkKey} = State,
     Result = case SdkKey of
         "sdk-key-events-fail" ->
             {error, temporary, "Testing event send failure."};
