@@ -18,10 +18,11 @@
     conn := pid() | undefined,
     backoff := backoff:backoff(),
     last_attempted := non_neg_integer(),
-    sdk_key := string(),
     feature_store := atom(),
     storage_tag := atom(),
-    stream_uri := string()
+    stream_uri := string(),
+    gun_options := gun:opts(),
+    headers := map()
 }.
 
 -ifdef(TEST).
@@ -49,16 +50,23 @@ init([Tag]) ->
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     Backoff = backoff:type(backoff:init(1000, 30000, self(), listen), jitter),
+    HttpOptions = ldclient_config:get_value(Tag, http_options),
+    GunOptions = ldclient_http_options:gun_parse_http_options(HttpOptions),
+    Headers = ldclient_http_options:gun_append_custom_headers(#{
+        <<"authorization">> => SdkKey,
+        <<"user-agent">> => ldclient_config:get_user_agent()
+    }, HttpOptions),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
         conn => undefined,
         backoff => Backoff,
         last_attempted => 0,
-        sdk_key => SdkKey,
         feature_store => FeatureStore,
         storage_tag => Tag,
-        stream_uri => StreamUri
+        stream_uri => StreamUri,
+        gun_options => GunOptions,
+        headers => Headers
     },
     self() ! {listen},
     {ok, State}.
@@ -111,16 +119,18 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_listen(state()) -> state().
 do_listen(#{
-    sdk_key := SdkKey,
     feature_store := FeatureStore,
     storage_tag := Tag,
     stream_uri := Uri,
     backoff := Backoff,
-    last_attempted := LastAttempted} = State
+    last_attempted := LastAttempted,
+    gun_options := GunOptions,
+    headers := Headers
+    } = State
 ) ->
     Now = erlang:system_time(milli_seconds),
     NewState = State#{last_attempted := Now},
-    try do_listen(Uri, FeatureStore, Tag, SdkKey) of
+    try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers) of
         {error, Code, Reason} ->
             NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
             NewState#{backoff := NewBackoff};
@@ -152,13 +162,9 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), string()) -> {ok, pid()} | {error, atom(), term()}.
-do_listen(Uri, FeatureStore, Tag, SdkKey) ->
+-spec do_listen(string(), atom(), atom(), GunOpts :: gun:opts(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
+do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
-    GunOpts = #{
-        retry => 0,
-        protocols => [http]
-    },
     Opts = #{gun_opts => GunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
@@ -181,10 +187,6 @@ do_listen(Uri, FeatureStore, Tag, SdkKey) ->
                     shotgun:close(Pid)
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
-            Headers = #{
-                <<"authorization">> => SdkKey,
-                <<"user-agent">> => ldclient_config:get_user_agent()
-            },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     shotgun:close(Pid),

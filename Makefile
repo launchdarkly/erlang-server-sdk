@@ -23,7 +23,7 @@ doc:
 
 tests:
 	docker run --name ld-test-redis -p 6379:6379 -d redis
-	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
+	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct --cover
 	docker rm --force ld-test-redis
 
 #This is used in running releaser. In this environment we do not want to run the redis tests.
@@ -33,6 +33,9 @@ release-tests:
 #This is used on CircleCI because the Redis Docker container is already started unlike the local tests command
 circle-tests:
 	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
+
+tls-tests:
+	@$(REBAR3) ct --dir="test-tls" --logdir logs/ct
 
 #This is for local debugging if your tests fail and the Redis Docker container is not torn down properly
 clean-redis:
