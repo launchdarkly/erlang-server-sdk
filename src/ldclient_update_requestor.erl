@@ -20,7 +20,7 @@
 %% state value. It takes the destination URI, the SDK key, along with a state
 %% value from `init' or the previous invocation of `all' to allow for features
 %% such as ETag caching.
--callback all(Uri :: string(), State :: any()) -> {response(), any()}.
+-callback all(Uri :: string(), SdkKey :: string(), State :: any()) -> {response(), any()}.
 
 %% `init' should return an initial value for the `State' argument to `all'
--callback init(Tag :: atom(), SdkKey :: string()) -> any().
+-callback init() -> any().

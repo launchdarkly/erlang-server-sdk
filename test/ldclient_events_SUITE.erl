@@ -284,7 +284,7 @@ receive_events() ->
         after 2000 ->
             {error, <<>>, <<>>}
     end,
-    ok = Ok,
+    Ok = ok,
     true = is_binary(ActualEventsBin),
     true = is_binary(PayloadId),
     true = uuid:is_v4(PayloadId),

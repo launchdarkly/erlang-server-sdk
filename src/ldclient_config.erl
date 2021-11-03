@@ -16,17 +16,6 @@
 -export([unregister/1]).
 -export([get_user_agent/0]).
 -export([get_event_schema/0]).
--export([tls_basic_linux_options/0]).
--export([tls_ca_certfile_options/1]).
--export([with_tls_revocation/1]).
--export([tls_basic_certifi_options/0]).
--export([tls_basic_options/0]).
-
--type http_options() :: #{
-    tls_options => [ssl:tls_client_option()] | undefined,
-    connect_timeout => pos_integer() | undefined,
-    custom_headers => [{Key :: string(), Value:: string()}] | undefined
-}.
 
 %% Types
 -type instance() :: #{
@@ -57,15 +46,13 @@
     file_paths => [string()],
     file_auto_update => boolean(),
     file_poll_interval => pos_integer(),
-    file_allow_duplicate_keys => boolean(),
-    http_options => http_options()
+    file_allow_duplicate_keys => boolean()
 }.
 % Settings stored for each running SDK instance
 
 -type private_attributes() :: all | [ldclient_user:attribute()].
 
 -export_type([private_attributes/0]).
--export_type([http_options/0]).
 
 %% Constants
 -define(DEFAULT_BASE_URI, "https://sdk.launchdarkly.com").
@@ -98,11 +85,6 @@
 -define(DEFAULT_FILE_AUTO_UPDATE, false).
 -define(DEFAULT_FILE_POLL_INTERVAL, 1000).
 -define(DEFAULT_FILE_ALLOW_DUPLICATE_KEYS, false).
-
--define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
--define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
--define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
--define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
 
 %%===================================================================
 %% API
@@ -153,7 +135,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     FileAutoUpdate = maps:get(file_auto_update, Options, ?DEFAULT_FILE_AUTO_UPDATE),
     FilePollInterval = maps:get(file_poll_interval, Options, ?DEFAULT_FILE_POLL_INTERVAL),
     FileAllowDuplicateKeys = maps:get(file_allow_duplicate_keys, Options, ?DEFAULT_FILE_ALLOW_DUPLICATE_KEYS),
-    HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -182,8 +163,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         file_paths => FilePaths,
         file_auto_update => FileAutoUpdate,
         file_poll_interval => FilePollInterval,
-        file_allow_duplicate_keys => FileAllowDuplicateKeys,
-        http_options => HttpOptions
+        file_allow_duplicate_keys => FileAllowDuplicateKeys
     }.
 
 %% @doc Get all registered tags
@@ -230,110 +210,11 @@ get_user_agent() ->
 get_event_schema() ->
     ?EVENT_SCHEMA.
 
-%% @doc Provide basic options for using TLS.
-%% This will try to use the a certificate store located at
-%% `/etc/ssl/certs/ca-certificates.crt`, but if that file
-%% does not exist, then it will use the bundled certifi store.
-%%
-%% @end
--spec tls_basic_options() -> [ssl:tls_client_option()].
-tls_basic_options() ->
-    tls_basic_options(filelib:is_regular(?HTTP_DEFAULT_LINUX_CASTORE)).
-
-%% @doc Provide basic options for using TLS with the default linux store.
-%% This will try to use the a certificate store located at
-%% `/etc/ssl/certs/ca-certificates.crt`.
-%%
-%% @end
--spec tls_basic_linux_options() -> [ssl:tls_client_option()].
-tls_basic_linux_options() ->
-    [
-        {cacertfile, ?HTTP_DEFAULT_LINUX_CASTORE}
-        | tls_base_options()].
-
-%% @doc Provide basic options for using TLS with the given store.
-%%
-%% @end
--spec tls_ca_certfile_options(CaStorePath :: string()) -> [ssl:tls_client_option()].
-tls_ca_certfile_options(CaStorePath) ->
-    [
-        {cacertfile, CaStorePath}
-        | tls_base_options()].
-
-%% @doc Append the specified TLS options with certificate revocation.
-%% The crl_cache does not actually cache at this time, so this will
-%% result in an additional request per TLS handshake.
-%%
-%% @end
--spec with_tls_revocation(Options :: [ssl:tls_client_option()]) -> [ssl:tls_client_option()].
-with_tls_revocation(Options) ->
-    [{crl_check, true},
-        {crl_cache,
-            {ssl_crl_cache,
-                {internal, [{http, 1000}]}
-            }
-        } | Options].
-
-%% @doc Provide basic TLS options using the bundled certifi store.
-%%
-%% @end
--spec tls_basic_certifi_options() -> [ssl:tls_client_option()].
-tls_basic_certifi_options() ->
-    CaCerts = certifi:cacerts(),
-    [
-        {cacerts, CaCerts}
-        | tls_base_options()].
 %%===================================================================
 %% Internal functions
 %%===================================================================
-
--spec parse_http_options(HttpOptionsMap :: map()) -> http_options().
-parse_http_options(undefined) -> parse_http_options(#{});
-parse_http_options(HttpOptionsMap) ->
-    TlsOptions = maps:get(tls_options, HttpOptionsMap, ?HTTP_DEFAULT_TLS_OPTIONS),
-    ConnectTimeout = maps:get(connect_timeout, HttpOptionsMap, ?HTTP_DEFAULT_CONNECT_TIMEOUT),
-    CustomHeaders = maps:get(custom_headers, HttpOptionsMap, ?HTTP_DEFAULT_CUSTOM_HEADERS),
-    #{
-        tls_options => TlsOptions,
-        connect_timeout => ConnectTimeout,
-        custom_headers => CustomHeaders
-    }.
 
 -spec get_all() -> #{Tag :: atom() => instance()}.
 get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
-
--spec tls_base_options() -> [ssl:tls_client_option()].
-tls_base_options() ->
-    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2'),
-    CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
-        {key_exchange, fun
-                           (ecdhe_ecdsa) -> true;
-                           (ecdhe_rsa) -> true;
-                           (_) -> false
-                       end
-        },
-        {mac, fun
-                  (sha) -> false;
-                  (_) -> true
-              end
-        }
-    ]),
-
-    [{verify, verify_peer},
-        {ciphers, CipherSuites},
-        {depth, 3},
-        {customize_hostname_check, [
-            {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
-        ]}].
-
--spec tls_basic_options(CaStoreExists :: boolean()) -> [ssl:tls_client_option()].
-tls_basic_options(true) ->
-    tls_basic_linux_options();
-tls_basic_options(false) ->
-    error_logger:warning_msg("TLS options are falling back to using the certifi store.
-    This means the OS certificate store was not in the default location (/etc/ssl/certs/ca-certificates.crt).
-    Please specify a custom location. You can use tls_ca_certfile_options, or fully specify the tls_options.
-    You may see this warning in development on Mac/Windows."),
-    tls_basic_certifi_options().
