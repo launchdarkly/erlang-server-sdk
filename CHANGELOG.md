@@ -2,6 +2,54 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.3.0] - 2021-11-03
+### Added:
+- Support for configuring HTTP options. Including:
+     - The ability to specify custom headers.
+
+     ```
+      ldclient_config:parse_options("sdk-key", #{
+        http_options => #{
+            custom_headers => [
+                {"Basic-String-Header", "String"},
+                {"Binary-String-Header", "Binary"}
+            ]}
+        }),
+    ```
+    - The ability to specify a custom connect timeout.
+ 
+    ```
+    ldclient_config:parse_options("sdk-key", #{
+        http_options => #{
+            connect_timeout => 2000
+        }
+    }),
+    ```
+    - The ability to specify a custom TLS configuration.
+    The default behavior for OTP is to use `verify_none` for TLS verification. If no configuration is specified, then the SDK will inherit this behavior.
+
+    ```
+    ldclient_config:parse_options("sdk-key", #{
+        http_options => #{
+            %% This is a list of tls_client_options()
+            %% https://www.erlang.org/doc/man/ssl.html#type-tls_client_option
+            tls_options => ldclient_config:tls_basic_options()
+        }
+    }),
+    ```
+    - A number of TLS configuration helpers. A full TLS configuration can be specified, but these methods provide a number of basic configurations.
+        - `ldclient_config:tls_basic_options() -> [ssl:tls_client_option()]`  
+        Create a basic TLS configuration which will try to use a default location for certificate authority store.
+        If that store is not present, then instead the configuration will use a certifi store which is a Rebar3 dependency.
+        - `ldclient_config:tls_basic_linux_options() -> [ssl:tls_client_option()]`
+        Create a basic TLS configuration which will use a default location for a certificate store. If the store is not present, then it will produce an error.
+        - `ldclient_config:tls_ca_certfile_options(CaStorePath :: string()) -> [ssl:tls_client_option()]`
+        Create a basic TLS configuration with the specified certificate store. If the store is not present, then it will produce an error.
+        - `ldclient_config:with_tls_revocation(Options :: [ssl:tls_client_option()]) -> [ssl:tls_client_option()]`
+        Decorate a configuration with revocation checks. Currently revocation checks are not cached in OTP, so this will result in additional requests for each HTTP request.
+        - `ldclient_config:tls_basic_certifi_options() -> [ssl:tls_client_option()]`
+        Create a basic TLS configuration which will use the certifi store specified in the Rebar3 dependencies.
+
 ## [1.2.0] - 2021-10-18
 ### Added:
 - The SDK now supports the ability to control the proportion of traffic allocation to an experiment. This works in conjunction with a new platform feature now available to early access customers.
