@@ -23,9 +23,7 @@
     dispatcher := atom(),
     inline_users := boolean(),
     global_private_attributes := ldclient_config:private_attributes(),
-    events_uri := string(),
-    tag := atom(),
-    dispatcher_state := any()
+    events_uri := string()
 }.
 
 %%===================================================================
@@ -69,9 +67,7 @@ init([Tag]) ->
         dispatcher => Dispatcher,
         inline_users => InlineUsers,
         global_private_attributes => GlobalPrivateAttributes,
-        events_uri => EventsUri,
-        tag => Tag,
-        dispatcher_state =>  Dispatcher:init(Tag, SdkKey)
+        events_uri => EventsUri
     },
     {ok, State}.
 
@@ -88,17 +84,17 @@ handle_call(_Request, _From, State) ->
 
 handle_cast({send_events, Events, SummaryEvent},
     #{
+        sdk_key := SdkKey,
         dispatcher := Dispatcher,
         inline_users := InlineUsers,
         global_private_attributes := GlobalPrivateAttributes,
-        events_uri := Uri,
-        dispatcher_state := DispatcherState
+        events_uri := Uri
     } = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events, InlineUsers, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     PayloadId = uuid:get_v4(),
-    _ = case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
+    _ = case send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey) of
         ok ->
             ok;
         {error, temporary, _Reason} ->
@@ -110,13 +106,8 @@ handle_cast({send_events, Events, SummaryEvent},
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents, PayloadId}, State) ->
-    #{
-        dispatcher := Dispatcher,
-        events_uri := Uri,
-        dispatcher_state := DispatcherState
-    } = State,
-    _ = send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri),
+handle_info({send, OutputEvents, PayloadId}, #{sdk_key := SdkKey, dispatcher := Dispatcher, events_uri := Uri} = State) ->
+    _ = send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -334,13 +325,13 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string()) ->
+-spec send(OutputEvents :: list(), PayloadId :: uuid:uuid(), Dispatcher :: atom(), string(), string()) ->
     ok | {error, temporary, string()} | {error, permanent, string()}.
-send(_, _, [], _, _) ->
+send([], _, _, _, _) ->
     ok;
-send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) ->
+send(OutputEvents, PayloadId, Dispatcher, Uri, SdkKey) ->
     JsonEvents = jsx:encode(OutputEvents),
-    Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri).
+    Dispatcher:send(JsonEvents, PayloadId, Uri, SdkKey).
 
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->

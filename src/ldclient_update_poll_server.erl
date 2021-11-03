@@ -61,7 +61,7 @@ init([Tag]) ->
         feature_store => FeatureStore,
         storage_tag => Tag,
         requestor => Requestor,
-        requestor_state => Requestor:init(Tag, SdkKey),
+        requestor_state => Requestor:init(),
         poll_uri => PollUri,
         poll_interval => PollInterval
     },
@@ -112,12 +112,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%===================================================================
 
 -spec poll(state()) -> state().
-poll(#{ feature_store := FeatureStore,
+poll(#{ sdk_key := SdkKey,
+        feature_store := FeatureStore,
         requestor := Requestor,
         requestor_state := RequestorState,
         poll_uri := Uri,
         storage_tag := Tag } = State) ->
-    {Result, NewRequestorState} = Requestor:all(Uri, RequestorState),
+    {Result, NewRequestorState} = Requestor:all(Uri, SdkKey, RequestorState),
     ok = process_response(Result, FeatureStore, Tag, Uri),
     true = ldclient_update_processor_state:set_initialized_state(Tag, true),
     State#{requestor_state := NewRequestorState}.

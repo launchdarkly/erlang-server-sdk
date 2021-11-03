@@ -11,8 +11,5 @@
 %% `send' must dispatch the batch of events. It takes the list of events, the
 %% destination URI and SDK key. It must return success or temporary or
 %% permanent failure.
--callback send(State:: any(), OutputEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string()) ->
+-callback send(OutputEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string(), SdkKey :: string()) ->
     ok | {error, temporary, string()} | {error, permanent, string()}.
-
-%% `init' should return an initial value for the `State' argument to `send'
--callback init(Tag :: atom(), SdkKey :: string()) -> any().
