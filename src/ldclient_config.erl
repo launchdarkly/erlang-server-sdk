@@ -232,7 +232,7 @@ get_event_schema() ->
 
 %% @doc Provide basic options for using TLS.
 %% This will try to use the a certificate store located at
-%% `/etc/ssl/certs/ca-certificates.crt`, but if that file
+%% /etc/ssl/certs/ca-certificates.crt, but if that file
 %% does not exist, then it will use the bundled certifi store.
 %%
 %% @end
@@ -242,7 +242,7 @@ tls_basic_options() ->
 
 %% @doc Provide basic options for using TLS with the default linux store.
 %% This will try to use the a certificate store located at
-%% `/etc/ssl/certs/ca-certificates.crt`.
+%% /etc/ssl/certs/ca-certificates.crt.
 %%
 %% @end
 -spec tls_basic_linux_options() -> [ssl:tls_client_option()].
