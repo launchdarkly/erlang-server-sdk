@@ -26,7 +26,21 @@
     stream => boolean(),
     polling_interval => pos_integer(),
     polling_update_requestor => atom(),
-    offline => boolean()
+    offline => boolean(),
+    redis_host => string(),
+    redis_port => pos_integer(),
+    redis_database => integer(),
+    redis_password => string(),
+    redis_prefix => string(),
+    use_ldd => boolean(),
+    cache_ttl => integer(),
+    send_events => boolean(),
+    file_datasource => boolean(),
+    file_paths => [string()],
+    file_auto_update => boolean(),
+    file_poll_interval => pos_integer(),
+    file_allow_duplicate_keys => boolean(),
+    http_options => ldclient_config:http_options()
 }.
 %% Options for starting an SDK instance
 
