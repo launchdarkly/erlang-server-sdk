@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.3.1] - 2021-11-09
+### Fixed:
+- Updated the `options()` typings for `ldclient_instance:start` to include missing configuration options. These included redis configuration, ld relay configuration, cache ttl, file data source configuration, and the http options. This is not a functionality change, but will correct issues reported by the dialyzer.
+
 ## [1.3.0] - 2021-11-03
 ### Added:
 - Support for configuring HTTP options. Including:
