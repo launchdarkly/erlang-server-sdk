@@ -7,7 +7,7 @@ compile:
 	@$(REBAR3) compile
 
 dialyze:
-	@$(REBAR3) dialyzer
+	@$(REBAR3) as usage dialyzer
 
 deps:
 	@$(REBAR3) get-deps
