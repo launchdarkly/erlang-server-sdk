@@ -207,7 +207,7 @@ check_modified([FileToCheck | RestOfFiles], Modified, State) ->
 load_files_if_modified(Files, State) ->
     case check_modified(Files, false, State) of
         {true, UpdatedState} -> load_files(Files, UpdatedState);
-        {false, UpdatedState} -> {error, UpdatedState}
+        {false, UpdatedState} -> {ok, UpdatedState}
     end.
 
 -spec load_regular_file(FilePath :: string(), IsRegularFile :: boolean(), State :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()) ->
