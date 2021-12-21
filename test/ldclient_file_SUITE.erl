@@ -210,8 +210,6 @@ check_file_watcher(_) ->
     {{0, true, fallthrough}, _} = ldclient_eval:flag_key_for_user(watch_files, <<"test-flag">>, #{key => <<"user123">>}, "foo"),
     %The timestamp for the modified time is in seconds. So we wait a moment to get a new timestamp compared to creation.
     timer:sleep(1200),
-    %Sleep long enough for the gen_server to stop retrying/recovering to demonstrate the failure
-    timer:sleep(5000),
     file:write_file("tmpfile.json", ["{\"flagValues\": {\"test-flag\": false}}"]),
     timer:sleep(1000),
     {{0, false, fallthrough}, _} = ldclient_eval:flag_key_for_user(watch_files, <<"test-flag">>, #{key => <<"user123">>}, "foo").
