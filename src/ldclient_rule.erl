@@ -48,9 +48,9 @@ match_user(#{clauses := Clauses}, User, FeatureStore, Tag) ->
 %%===================================================================
 
 -spec new_from_template(map()) -> rule().
-new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"variation">> := Variation}) ->
+new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"variationOrRollout">> := Variation}) when is_integer(Variation) ->
     #{id => Id, clauses => parse_clauses(Clauses), trackEvents => TrackEvents, variationOrRollout => Variation};
-new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"rollout">> := #{
+new_from_template(#{<<"id">> := Id, <<"clauses">> := Clauses, <<"trackEvents">> := TrackEvents, <<"variationOrRollout">> := #{
         <<"variations">> := Variations
     } = Rollout}) when is_list(Variations) ->
     #{
