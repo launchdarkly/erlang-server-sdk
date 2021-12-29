@@ -115,7 +115,7 @@ init_per_suite(Config) ->
         file_paths => ["tmpfile.json"],
         feature_store => ldclient_storage_map,
         file_auto_update => true,
-        file_poll_interval => 500
+        file_poll_interval => 50
     },
     ldclient:start_instance("", watch_files, OptionsWatchFiles),
 
