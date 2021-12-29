@@ -22,7 +22,8 @@
     check_with_missing_file/1,
     check_with_only_missing_file/1,
     check_with_duplicate_flags/1,
-    check_with_duplicate_flags_allowed/1
+    check_with_duplicate_flags_allowed/1,
+    load_non_modified_file/1
 ]).
 
 all() ->
@@ -38,7 +39,8 @@ all() ->
         check_with_missing_file,
         check_with_only_missing_file,
         check_with_duplicate_flags,
-        check_with_duplicate_flags_allowed
+        check_with_duplicate_flags_allowed,
+        load_non_modified_file
     ].
 
 init_per_suite(Config) ->
@@ -115,7 +117,7 @@ init_per_suite(Config) ->
         file_paths => ["tmpfile.json"],
         feature_store => ldclient_storage_map,
         file_auto_update => true,
-        file_poll_interval => 500
+        file_poll_interval => 50
     },
     ldclient:start_instance("", watch_files, OptionsWatchFiles),
 
@@ -227,3 +229,8 @@ check_with_duplicate_flags(_) ->
 check_with_duplicate_flags_allowed(_) ->
     % With duplicate flags, and allowing duplicate flags, the store should work.
     {{0, <<"value-1">>, fallthrough}, _} = ldclient_eval:flag_key_for_user(duplicate_flags_allowed, <<"my-string-flag-key">>, #{key => <<"user123">>}, "foo").
+
+load_non_modified_file(_) ->
+    {ok, State} = ldclient_update_file_server:init([default]),
+    {ok, NewState} = ldclient_update_file_server:load_files_if_modified([code:priv_dir(ldclient) ++ "/flags-from-file.json"], State),
+    {ok, NewState} = ldclient_update_file_server:load_files_if_modified([code:priv_dir(ldclient) ++ "/flags-from-file.json"], NewState).
