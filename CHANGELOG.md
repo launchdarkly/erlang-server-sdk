@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.3.2] - 2021-12-30
+### Fixed:
+- The file `file_auto_update` feature was not working correctly. If the flag files did not contain any changes between polling intervals, then the file system watcher would crash. (Thanks, [matt-glover](https://github.com/launchdarkly/erlang-server-sdk/pull/52)!)
+
 ## [1.3.1] - 2021-11-09
 ### Fixed:
 - Updated the `options()` typings for `ldclient_instance:start` to include missing configuration options. These included redis configuration, ld relay configuration, cache ttl, file data source configuration, and the http options. This is not a functionality change, but will correct issues reported by the dialyzer.
