@@ -3,6 +3,11 @@
 %%
 %% Acts as an interface to most common SDK functions: starting and stopping
 %% client instances, and evaluating feature flags for users.
+%%
+%% Most use cases only need a single client instance for the lifetime of
+%% their application. Consider using multiple instances only if you need to
+%% simultaneously access more than one environment. Do not start an instance
+%% every time you need to make a variation or other SDK call.
 %% @end
 %%-------------------------------------------------------------------
 
