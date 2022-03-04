@@ -41,4 +41,23 @@ tls-tests:
 clean-redis:
 	docker rm --force ld-test-redis
 
-.PHONY: all compile dialyze deps rel run doc tests clean-redis circle-tests
+build-contract-tests:
+	@mkdir -p test-service/_checkouts
+	@rm -f $(CURDIR)/test-service/_checkouts/ldclient
+	@ln -sf $(CURDIR)/ $(CURDIR)/test-service/_checkouts/ldclient
+	@cd test-service && $(REBAR3) dialyzer
+	@cd test-service && $(REBAR3) as prod release
+
+start-contract-test-service:
+	@$(CURDIR)/test-service/_build/prod/rel/ts/bin/ts foreground
+
+start-contract-test-service-bg:
+	@$(CURDIR)/test-service/_build/prod/rel/ts/bin/ts daemon
+
+run-contract-tests:
+	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v1.0.0/downloader/run.sh \
+      | VERSION=v1 PARAMS="-url http://localhost:8000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
+
+contract-tests: build-contract-tests start-contract-test-service-bg run-contract-tests
+
+.PHONY: all compile dialyze deps rel run doc tests clean-redis circle-tests start-contract-test-service start-contract-test-service-bg run-contract-tests contract-tests

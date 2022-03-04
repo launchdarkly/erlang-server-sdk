@@ -154,9 +154,13 @@ check_attribute_against_clause_value(UserValue, before, ClauseValue)
     % One of the values is neither binary nor integer
     false;
 check_attribute_against_clause_value(UserValue, before, ClauseValue) ->
-    UserDate = parse_date_to_int(UserValue),
-    ClauseDate = parse_date_to_int(ClauseValue),
-    UserDate < ClauseDate;
+    try
+        UserDate = parse_date_to_int(UserValue),
+        ClauseDate = parse_date_to_int(ClauseValue),
+        UserDate < ClauseDate
+    catch _:_ ->
+        false
+    end;
 check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
     when
     is_binary(UserValue) =/= true, is_integer(UserValue) =/= true;
@@ -164,9 +168,13 @@ check_attribute_against_clause_value(UserValue, 'after', ClauseValue)
     % One of the values is neither binary nor integer
     false;
 check_attribute_against_clause_value(UserValue, 'after', ClauseValue) ->
-    UserDate = parse_date_to_int(UserValue),
-    ClauseDate = parse_date_to_int(ClauseValue),
-    UserDate > ClauseDate;
+    try
+        UserDate = parse_date_to_int(UserValue),
+        ClauseDate = parse_date_to_int(ClauseValue),
+        UserDate > ClauseDate
+    catch _:_ ->
+        false
+    end;
 check_attribute_against_clause_value(UserValue, semVerEqual, ClauseValue)
     when is_binary(UserValue), is_binary(ClauseValue) ->
     check_semver_equal(parse_semver(UserValue), parse_semver(ClauseValue));

@@ -18,6 +18,7 @@
     add_flag_eval_events_flush_with_track_inline/1,
     add_flag_eval_events_flush_no_track/1,
     add_flag_eval_events_with_debug/1,
+    add_flag_eval_events_with_debug_track_events/1,
     add_identify_events/1,
     add_custom_events/1,
     add_custom_events_inline/1,
@@ -240,7 +241,7 @@ get_simple_flag_experiment_allocation_v2_rule() ->
         <<"version">> => 5
     }.
 
-get_simple_flag_debug() ->
+get_simple_flag_debug(TrackEvents) ->
     % Now + 30 secs
     DebugDate = erlang:system_time(milli_seconds) + 30000,
     #{
@@ -256,7 +257,7 @@ get_simple_flag_debug() ->
         <<"salt">> => <<"d0888ec5921e45c7af5bc10b47b033ba">>,
         <<"sel">> => <<"8b4d79c59adb4df492ebea0bf65dfd4c">>,
         <<"targets">> => [],
-        <<"trackEvents">> => false,
+        <<"trackEvents">> => TrackEvents,
         <<"trackEventsFallthrough">> => false,
         <<"variations">> => [true,false],
         <<"version">> => 5
@@ -322,7 +323,6 @@ add_flag_eval_events_flush_with_track(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -373,7 +373,6 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -423,7 +422,6 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -474,7 +472,6 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -525,7 +522,6 @@ add_flag_eval_events_flush_with_track_inline(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -571,7 +567,6 @@ add_flag_eval_events_flush_no_track(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -609,7 +604,6 @@ add_flag_eval_events_flush_no_track(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -625,7 +619,7 @@ add_flag_eval_events_flush_no_track(_) ->
     ] = ActualEvents2.
 
 add_flag_eval_events_with_debug(_) ->
-    FlagBin = get_simple_flag_debug(),
+    FlagBin = get_simple_flag_debug(false),
     Flag = ldclient_flag:new(FlagBin),
     Event = ldclient_event:new_flag_eval(
         5,
@@ -644,7 +638,57 @@ add_flag_eval_events_with_debug(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
+                            <<"value">> := <<"variation-value-5">>,
+                            <<"variation">> := 5,
+                            <<"version">> := 5
+                        }
+                    ],
+                    <<"default">> := <<"default-value">>
+                }
+            },
+            <<"kind">> := <<"summary">>,
+            <<"startDate">> := _,
+            <<"endDate">> := _
+        },
+        #{
+            <<"kind">> := <<"index">>,
+            <<"user">> := #{<<"key">> := <<"12345-debug">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"debug">>,
+            <<"key">> := <<"abc">>,
+            <<"default">> := <<"default-value">>,
+            % The reason should only be included with trackEvents (flag or rule), or if with_reason is specified.
+            %<<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
+            <<"user">> := #{<<"key">> := <<"12345-debug">>},
+            <<"value">> := <<"variation-value-5">>,
+            <<"variation">> := 5,
+            <<"version">> := 5,
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+add_flag_eval_events_with_debug_track_events(_) ->
+    FlagBin = get_simple_flag_debug(true),
+    Flag = ldclient_flag:new(FlagBin),
+    Event = ldclient_event:new_flag_eval(
+        5,
+        <<"variation-value-5">>,
+        <<"default-value">>,
+        #{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        target_match,
+        Flag
+    ),
+    Events = [Event],
+    {ActualEvents, _} = send_await_events(Events, #{flush => true}),
+    [
+        #{
+            <<"features">> := #{
+                <<"abc">> := #{
+                    <<"counters">> := [
+                        #{
+                            <<"count">> := 1,
                             <<"value">> := <<"variation-value-5">>,
                             <<"variation">> := 5,
                             <<"version">> := 5
@@ -696,45 +740,45 @@ add_identify_events(_) ->
     ] = ActualEvents.
 
 add_custom_events(_) ->
-    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
-    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
-    Event3 = ldclient_event:new_custom(<<"event-baz">>, #{key => <<"98765">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k3 => <<"v3">>}, 123),
+    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"123456">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
+    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcdef">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
+    Event3 = ldclient_event:new_custom(<<"event-baz">>, #{key => <<"987656">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k3 => <<"v3">>}, 123),
     Events = [Event1, Event2, Event3],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"user">> := #{<<"key">> := <<"123456">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-foo">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"12345">>,
+            <<"userKey">> := <<"123456">>,
             <<"data">> := #{<<"k1">> := <<"v1">>},
             <<"creationDate">> := _
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"user">> := #{<<"key">> := <<"abcdef">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-bar">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"abcde">>,
+            <<"userKey">> := <<"abcdef">>,
             <<"data">> := #{<<"k2">> := <<"v2">>},
             <<"creationDate">> := _
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"98765">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"user">> := #{<<"key">> := <<"987656">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-baz">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"98765">>,
+            <<"userKey">> := <<"987656">>,
             <<"data">> := #{<<"k3">> := <<"v3">>},
             <<"metricValue">> := 123,
             <<"creationDate">> := _
@@ -905,7 +949,6 @@ add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"a">>,
                             <<"variation">> := 0,
                             <<"version">> := 5
@@ -956,7 +999,6 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
                     <<"counters">> := [
                         #{
                             <<"count">> := 1,
-                            <<"unknown">> := false,
                             <<"value">> := <<"a">>,
                             <<"variation">> := 0,
                             <<"version">> := 5

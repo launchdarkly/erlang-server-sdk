@@ -175,9 +175,11 @@ add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} 
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
     EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, AddIndex),
     EventsWithFeature = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, EventsWithIndex, Capacity),
-    NewEvents = maybe_add_debug_event(AddDebug, Event, EventsWithFeature, Capacity),
+    NewEvents = maybe_add_debug_event(AddDebug, Event, Options, EventsWithFeature, Capacity),
     {NewEvents, NewSummaryEvent};
-add_event(_Tag, #{type := identify} = Event, _Options, Events, SummaryEvent, Capacity, _InlineUsers) ->
+add_event(Tag, #{type := identify, user := User} = Event, _Options, Events, SummaryEvent, Capacity, _InlineUsers) ->
+    % Notice the user, but do not conditionally add the index event.
+    ldclient_user_cache:notice_user(Tag, User),
     {add_raw_event(Event, Events, Capacity), SummaryEvent};
 add_event(Tag, #{type := custom, user := User, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity, InlineUsers) ->
     AddIndex = not InlineUsers,
@@ -285,11 +287,13 @@ should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}) ->
     Now = erlang:system_time(milli_seconds),
     DebugDate > Now.
 
--spec maybe_add_debug_event(boolean(), ldclient_event:event(), [ldclient_event:event()], pos_integer()) ->
+-spec maybe_add_debug_event(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
-maybe_add_debug_event(false, _, Events, _) -> Events;
-maybe_add_debug_event(true, #{data := EventData} = FeatureEvent, Events, Capacity) ->
-    add_raw_event(FeatureEvent#{data := EventData#{debug => true}}, Events, Capacity).
+maybe_add_debug_event(false, _, _Options, Events, _) -> Events;
+maybe_add_debug_event(true, #{data := EventData} = FeatureEvent,#{include_reasons := true}, Events, Capacity) ->
+    add_raw_event(FeatureEvent#{data := EventData#{debug => true}}, Events, Capacity);
+maybe_add_debug_event(true, #{data := EventData} = FeatureEvent, _Options, Events, Capacity) ->
+    add_raw_event(ldclient_event:strip_eval_reason(FeatureEvent#{data := EventData#{debug => true}}), Events, Capacity).
 
 -spec create_summary_event_key(ldclient_flag:key(), ldclient_flag:variation(), ldclient_flag:version()) ->
     counter_key().

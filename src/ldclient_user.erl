@@ -94,7 +94,7 @@ set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) -
 %% @end
 -spec scrub(user(), ldclient_config:private_attributes()) -> {user(), private_attribute_names()}.
 scrub(User, all) ->
-    AllStandardAttributes = [<<"key">>, <<"secondary">>, <<"ip">>, <<"country">>, <<"email">>, <<"first_name">>, <<"last_name">>, <<"avatar">>, <<"name">>, <<"anonymous">>],
+    AllStandardAttributes = [key, secondary, ip, country, email, first_name, last_name, avatar, name, anonymous],
     AllCustomAttributes = maps:keys(maps:get(custom, User, #{})),
     AllPrivateAttributes = lists:append(AllStandardAttributes, AllCustomAttributes),
     scrub(User#{private_attribute_names => AllPrivateAttributes});
@@ -154,8 +154,8 @@ get_attribute(<<"secondary">>) -> secondary;
 get_attribute(<<"ip">>) -> ip;
 get_attribute(<<"country">>) -> country;
 get_attribute(<<"email">>) -> email;
-get_attribute(<<"first_name">>) -> first_name;
-get_attribute(<<"last_name">>) -> last_name;
+get_attribute(<<"firstName">>) -> first_name;
+get_attribute(<<"lastName">>) -> last_name;
 get_attribute(<<"avatar">>) -> avatar;
 get_attribute(<<"name">>) -> name;
 get_attribute(<<"anonymous">>) -> anonymous;
@@ -172,6 +172,12 @@ set_attribute_value(Attr, Value, User) when is_binary(Attr) ->
 scrub_private_attributes(User, PrivateAttributeNames) ->
     scrub_private_attributes(User, PrivateAttributeNames, []).
 
+-spec format_attr_for_scrub(Attr :: atom() | binary()) -> binary().
+format_attr_for_scrub(first_name) -> <<"firstName">>;
+format_attr_for_scrub(last_name) -> <<"lastName">>;
+format_attr_for_scrub(Attr) when is_atom(Attr) -> atom_to_binary(Attr, utf8);
+format_attr_for_scrub(Attr) -> Attr.
+
 -spec scrub_private_attributes(user(), private_attribute_names(), private_attribute_names()) ->
     {user(), private_attribute_names()}.
 scrub_private_attributes(User, [], ScrubbedAttrNames) ->
@@ -179,7 +185,7 @@ scrub_private_attributes(User, [], ScrubbedAttrNames) ->
 scrub_private_attributes(User, [Attr|Rest], ScrubbedAttrNames) ->
     RealAttr = get_attribute(Attr),
     {NewUser, NewScrubbedAttrNames} = case scrub_private_attribute(RealAttr, User) of
-        {ScrubbedUser, true} -> {ScrubbedUser, [Attr|ScrubbedAttrNames]};
+        {ScrubbedUser, true} -> {ScrubbedUser, [format_attr_for_scrub(Attr)|ScrubbedAttrNames]};
         {SameUser, false} -> {SameUser, ScrubbedAttrNames}
     end,
     scrub_private_attributes(NewUser, Rest, NewScrubbedAttrNames).

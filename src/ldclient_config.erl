@@ -21,6 +21,7 @@
 -export([with_tls_revocation/1]).
 -export([tls_basic_certifi_options/0]).
 -export([tls_basic_options/0]).
+-export([get_version/0]).
 
 -type http_options() :: #{
     tls_options => [ssl:tls_client_option()] | undefined,
@@ -123,9 +124,9 @@ init() ->
 %% @end
 -spec parse_options(SdkKey :: string(), Options :: map()) -> instance().
 parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
-    BaseUri = maps:get(base_uri, Options, ?DEFAULT_BASE_URI),
-    EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
-    StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
+    BaseUri = string:trim(maps:get(base_uri, Options, ?DEFAULT_BASE_URI), trailing, "/"),
+    EventsUri = string:trim(maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI), trailing, "/"),
+    StreamUri = string:trim(maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI), trailing, "/"),
     FeatureStore = maps:get(feature_store, Options, ?DEFAULT_FEATURE_STORE),
     EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
@@ -225,6 +226,10 @@ unregister(Tag) when is_atom(Tag) ->
 -spec get_user_agent() -> string().
 get_user_agent() ->
     ?USER_AGENT ++ "/" ++ ?VERSION.
+
+-spec get_version() -> string().
+get_version() ->
+    ?VERSION.
 
 -spec get_event_schema() -> string().
 get_event_schema() ->

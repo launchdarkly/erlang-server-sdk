@@ -23,6 +23,16 @@
 -type event() :: feature_request() | identify() | index() | custom() | alias().
 
 -type event_type() :: identify | index | feature_request | custom | alias.
+
+-type event_data() ::
+    null
+    | boolean()
+    | integer()
+    | float()
+    | binary()
+    | list()
+    | map().
+
 %% Event type
 
 -type feature_request() :: #{
@@ -61,7 +71,7 @@
     timestamp    := non_neg_integer(),
     key          := binary(),
     user         := ldclient_user:user(),
-    data         => map(),
+    data         => event_data(),
     metric_value => number()
 }.
 
@@ -89,19 +99,19 @@
     Type :: event_type(),
     User :: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map()
+    Data :: event_data()
 ) -> event().
 new(identify, User, Timestamp, #{}) ->
     #{
         type      => identify,
         timestamp => Timestamp,
-        user      => ldclient_user:event_format(User)
+        user      => User
     };
 new(index, User, Timestamp, #{}) ->
     #{
         type      => index,
         timestamp => Timestamp,
-        user      => ldclient_user:event_format(User)
+        user      => User
     };
 new(feature_request, User, Timestamp, #{
     key                     := Key,                  % ldclient_flag:key()
@@ -118,7 +128,7 @@ new(feature_request, User, Timestamp, #{
     #{
         type      => feature_request,
         timestamp => Timestamp,
-        user      => ldclient_user:event_format(User),
+        user      => User,
         data      => #{
             key                     => Key,
             variation               => Variation,
@@ -139,14 +149,14 @@ new(feature_request, User, Timestamp, #{
     Key :: binary(),
     User:: ldclient_user:user(),
     Timestamp :: non_neg_integer(),
-    Data :: map()
+    Data :: event_data()
 ) -> event().
-new(custom, Key, User, Timestamp, Data) when is_map(Data) ->
+new(custom, Key, User, Timestamp, Data) ->
     #{
         type      => custom,
         timestamp => Timestamp,
         key       => Key,
-        user      => ldclient_user:event_format(User),
+        user      => User,
         data      => Data
     }.
 
@@ -240,23 +250,38 @@ new_identify(User) ->
 new_index(User, Timestamp) ->
     new(index, User, Timestamp, #{}).
 
--spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: map()) -> event().
-new_custom(Key, User, Data) when is_binary(Key), is_map(Data) ->
+-spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data()) -> event().
+new_custom(Key, User, undefined) when is_binary(Key) ->
     #{
         type      => custom,
         timestamp => erlang:system_time(milli_seconds),
         key       => Key,
-        user      => ldclient_user:event_format(User),
+        user      => User
+    };
+new_custom(Key, User, Data) when is_binary(Key) ->
+    #{
+        type      => custom,
+        timestamp => erlang:system_time(milli_seconds),
+        key       => Key,
+        user      => User,
         data      => Data
     }.
 
--spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: map(), MetricValue :: number()) -> event().
-new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_map(Data), is_number(MetricValue) ->
+-spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data(), MetricValue :: number()) -> event().
+new_custom(Key, User, undefined, MetricValue) when is_binary(Key), is_number(MetricValue) ->
     #{
         type         => custom,
         timestamp    => erlang:system_time(milli_seconds),
         key          => Key,
-        user         => ldclient_user:event_format(User),
+        user         => User,
+        metric_value => MetricValue
+    };
+new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_number(MetricValue) ->
+    #{
+        type         => custom,
+        timestamp    => erlang:system_time(milli_seconds),
+        key          => Key,
+        user         => User,
         data         => Data,
         metric_value => MetricValue
     }.
@@ -270,8 +295,8 @@ new_alias(User, PreviousUser) ->
     #{ 
         type            => alias,
         timestamp       => erlang:system_time(milli_seconds),
-        user            => ldclient_user:event_format(User),
-        previous_user   => ldclient_user:event_format(PreviousUser)
+        user            => User,
+        previous_user   => PreviousUser
     }.
 
 %%===================================================================
