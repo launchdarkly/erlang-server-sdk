@@ -25,12 +25,4 @@ start_link() ->
 init([]) ->
     MaxRestart = 10,
     MaxTime = 3600,
-    ChildSpec = {
-        ldclient_instance_sup,
-        {ldclient_instance_sup, start_link, []},
-        permanent,
-        5000, % shutdown time
-        supervisor,
-        [ldclient_instance_sup]
-    },
-    {ok, {{simple_one_for_one, MaxRestart, MaxTime}, [ChildSpec]}}.
+    {ok, {{one_for_one, MaxRestart, MaxTime}, []}}.

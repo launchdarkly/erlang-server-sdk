@@ -48,7 +48,7 @@ init_per_suite(Config) ->
 
     DataFileFlagsAndSegments = code:priv_dir(ldclient) ++ "/flags-from-file.json",
     OptionsFlagsAndSegments = #{
-        file_datasource => true,
+        file_datasource => true, %% use legacy file_datasource boolean flag
         send_events => false,
         file_paths => [DataFileFlagsAndSegments],
         feature_store => ldclient_storage_map
@@ -57,7 +57,7 @@ init_per_suite(Config) ->
 
     DataFileNoSegments = code:priv_dir(ldclient) ++ "/flags-from-file-no-segments.json",
     OptionsNoSegments = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileNoSegments],
         feature_store => ldclient_storage_map
@@ -66,7 +66,7 @@ init_per_suite(Config) ->
 
     DataFileNoFlags = code:priv_dir(ldclient) ++ "/flags-from-file-no-flags.json",
     OptionsNoFlags = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileNoFlags],
         feature_store => ldclient_storage_map
@@ -75,7 +75,7 @@ init_per_suite(Config) ->
 
     DataFileSimpleFlags = code:priv_dir(ldclient) ++ "/flags-from-file-simple.json",
     OptionsSimpleFlags = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileSimpleFlags],
         feature_store => ldclient_storage_map
@@ -84,7 +84,7 @@ init_per_suite(Config) ->
 
     DataFileSimpleFlagsYaml = code:priv_dir(ldclient) ++ "/flags-from-file-simple.yaml",
     OptionsSimpleFlagsYaml = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map
@@ -93,7 +93,7 @@ init_per_suite(Config) ->
 
     DataFileAllPropertiesYaml = code:priv_dir(ldclient) ++ "/flags-all-properties.yaml",
     OptionsAllPropertiesYaml = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileAllPropertiesYaml],
         feature_store => ldclient_storage_map
@@ -101,7 +101,7 @@ init_per_suite(Config) ->
     ldclient:start_instance("", all_properties_yaml, OptionsAllPropertiesYaml),
 
     OptionsMultipleDataFiles = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileFlagsAndSegments, DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map
@@ -112,7 +112,7 @@ init_per_suite(Config) ->
     _ = file:write_file("tmpfile.json", ["{\"flagValues\": {\"test-flag\": true}}"]),
 
     OptionsWatchFiles = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => ["tmpfile.json"],
         feature_store => ldclient_storage_map,
@@ -122,7 +122,7 @@ init_per_suite(Config) ->
     ldclient:start_instance("", watch_files, OptionsWatchFiles),
 
     OptionsMissingAndValidFile = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => ["thisisnotafile.json", DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map
@@ -130,7 +130,7 @@ init_per_suite(Config) ->
     ldclient:start_instance("", missing_and_valid_files, OptionsMissingAndValidFile),
 
     OptionsOnlyMissingFile = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => ["thisisnotafile.json", DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map
@@ -138,7 +138,7 @@ init_per_suite(Config) ->
     ldclient:start_instance("", missing_file, OptionsOnlyMissingFile),
 
     OptionsFilesWithDuplicateFlags = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileSimpleFlags, DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map
@@ -146,7 +146,7 @@ init_per_suite(Config) ->
     ldclient:start_instance("", duplicate_flags, OptionsFilesWithDuplicateFlags),
 
     OptionsFilesWithDuplicateFlagsAllowed = #{
-        file_datasource => true,
+        datasource => file,
         send_events => false,
         file_paths => [DataFileSimpleFlags, DataFileSimpleFlagsYaml],
         feature_store => ldclient_storage_map,
