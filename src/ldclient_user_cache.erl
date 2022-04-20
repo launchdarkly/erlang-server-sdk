@@ -23,6 +23,9 @@ get_local_reg_name(Tag) ->
 %%
 %% @end
 -spec notice_user(Tag :: atom(), User :: ldclient_user:user()) -> boolean().
+notice_user(_Tag, #{key := <<>>}) ->
+    % Empty user key always returns true so it's not indexed
+    true;
 notice_user(_Tag, #{key := null}) ->
     % Null user key always returns true so it's not indexed
     true;

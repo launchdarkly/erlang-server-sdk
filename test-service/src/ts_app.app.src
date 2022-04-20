@@ -1,0 +1,13 @@
+{application, ts_app,
+    [{description, "An OTP application"},
+        {vsn, "0.1.0"},
+        {mod, {ts_server, []}},
+        {applications,
+            [kernel,
+                stdlib,
+                cowboy
+            ]},
+        {env,[]},
+        {modules, []},
+        {start_phases, [{start_cowboy_http, []}]}
+    ]}.

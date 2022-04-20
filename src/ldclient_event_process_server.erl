@@ -165,16 +165,15 @@ format_event(
     {FormattedEvents, InlineUsers, GlobalPrivateAttributes}
 ) ->
     Kind = if Debug -> <<"debug">>; true -> <<"feature">> end,
-    OutputEvent = maybe_set_context_kind(Event, #{
+    OutputEvent = maybe_set_prereq_of(PrereqOf, maybe_set_context_kind(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
         <<"variation">> => Variation,
         <<"value">> => Value,
         <<"default">> => Default,
-        <<"version">> => Version,
-        <<"prereqOf">> => PrereqOf
-    }),
+        <<"version">> => Version
+    })),
     FormattedEvent = format_event_set_user(Kind, User, maybe_set_reason(Event, OutputEvent), InlineUsers, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
 format_event(#{type := identify, timestamp := Timestamp, user := User}, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
@@ -203,6 +202,15 @@ format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User,
     })),
     FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
+format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User} = Event, {FormattedEvents, InlineUsers, GlobalPrivateAttributes}) ->
+    Kind = <<"custom">>,
+    OutputEvent = maybe_set_context_kind(Event, maybe_set_metric_value(Event, #{
+        <<"kind">> => Kind,
+        <<"creationDate">> => Timestamp,
+        <<"key">> => Key
+    })),
+    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, InlineUsers, GlobalPrivateAttributes),
+    {[FormattedEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes};
 format_event(#{
     type := alias, 
     timestamp := Timestamp, 
@@ -220,32 +228,25 @@ format_event(#{
     },
     {[OutputEvent|FormattedEvents], InlineUsers, GlobalPrivateAttributes}.
 
+maybe_set_prereq_of(null, OutputEvent) -> OutputEvent;
+maybe_set_prereq_of(PrereqOf, OutputEvent) -> OutputEvent#{<<"prereqOf">> => PrereqOf}.
+
 -spec maybe_set_reason(ldclient_event:event(), #{binary() => any()}) -> #{binary() => any()}.
 maybe_set_reason(#{data := #{eval_reason := EvalReason}}, OutputEvent) ->
-    OutputEvent#{<<"reason">> => format_eval_reason(EvalReason)};
+    OutputEvent#{<<"reason">> => ldclient_eval_reason:format(EvalReason)};
 maybe_set_reason(_Event, OutputEvent) ->
     OutputEvent.
 
--spec format_eval_reason(ldclient_eval:reason()) -> map().
-format_eval_reason(target_match) -> #{<<"kind">> => <<"TARGET_MATCH">>};
-format_eval_reason({rule_match, RuleIndex, RuleId}) -> #{kind => <<"RULE_MATCH">>, ruleIndex => RuleIndex, ruleId => RuleId};
-format_eval_reason({rule_match, RuleIndex, RuleId, in_experiment}) -> #{kind => <<"RULE_MATCH">>, ruleIndex => RuleIndex, ruleId => RuleId, inExperiment => true};
-format_eval_reason({prerequisite_failed, [PrereqKey|_]}) -> #{kind => <<"PREREQUISITE_FAILED">>, prerequisiteKey => PrereqKey};
-format_eval_reason({error, client_not_ready}) -> #{kind => <<"ERROR">>, errorKind => <<"CLIENT_NOT_READY">>};
-format_eval_reason({error, flag_not_found}) -> #{kind => <<"ERROR">>, errorKind => <<"FLAG_NOT_FOUND">>};
-format_eval_reason({error, malformed_flag}) -> #{kind => <<"ERROR">>, errorKind => <<"MALFORMED_FLAG">>};
-format_eval_reason({error, user_not_specified}) -> #{kind => <<"ERROR">>, errorKind => <<"USER_NOT_SPECIFIED">>};
-format_eval_reason({error, wrong_type}) -> #{kind => <<"ERROR">>, errorKind => <<"WRONG_TYPE">>};
-format_eval_reason({error, exception}) -> #{kind => <<"ERROR">>, errorKind => <<"EXCEPTION">>};
-format_eval_reason(fallthrough) -> #{kind => <<"FALLTHROUGH">>};
-format_eval_reason({fallthrough, in_experiment}) -> #{kind => <<"FALLTHROUGH">>, inExperiment => true};
-format_eval_reason(off) -> #{kind => <<"OFF">>}.
+-spec maybe_set_private_attrs(ScrubbedUser :: map(), ScrubbedAttrNames :: ldclient:private_attributes()) -> map().
+maybe_set_private_attrs(ScrubbedUser, [] = _ScrubbedAttrNames) -> ScrubbedUser;
+maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames) ->
+    ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}.
 
 -spec format_event_set_user(binary(), ldclient_user:user(), map(), boolean(), ldclient_config:private_attributes()) -> map().
 format_event_set_user(<<"feature">>, User, OutputEvent, true, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{
-        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
     };
 format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent, false, _) ->
     OutputEvent#{<<"userKey">> => UserKey};
@@ -255,23 +256,23 @@ format_event_set_user(<<"feature">>, _User, OutputEvent, _, _) ->
 format_event_set_user(<<"debug">>, User, OutputEvent, _, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{
-        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
     };
 format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent, _, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{
         <<"key">> => UserKey,
-        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
     };
 format_event_set_user(<<"index">>, User, OutputEvent, _, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{
-        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
     };
 format_event_set_user(<<"custom">>, User, OutputEvent, true, GlobalPrivateAttributes) ->
     {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
     OutputEvent#{
-        <<"user">> => ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}
+        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
     };
 format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent, false, _) ->
     OutputEvent#{<<"userKey">> => UserKey}.
@@ -319,15 +320,23 @@ format_summary_event_counters(
     Acc
 ) ->
     FlagMap = maps:get(FlagKey, Acc, #{default => Default, counters => []}),
-    Counter = #{
+    CounterWithVersion = maybe_set_unknown(Version, #{
         value => FlagValue,
-        version => Version,
-        count => Count,
-        variation => Variation,
-        unknown => if Version == null -> true; true -> false end
-    },
+        count => Count
+    }),
+    CounterWithVariation = maybe_set_variation(Variation, CounterWithVersion),
+    Counter = maybe_add_version(Version, CounterWithVariation),
     NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
     Acc#{FlagKey => NewFlagMap}.
+
+maybe_set_unknown(null = _Version, Counter) -> Counter#{unknown => true};
+maybe_set_unknown(_Version, Counter) -> Counter.
+
+maybe_set_variation(null, Counter) -> Counter;
+maybe_set_variation(Variation, Counter) -> Counter#{variation => Variation}.
+
+maybe_add_version(null, Counter) -> Counter;
+maybe_add_version(Version, Counter) -> Counter#{version => Version}.
 
 -spec combine_events(OutputEvents :: list(), OutputSummaryEvent :: map()) -> list().
 combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> [];

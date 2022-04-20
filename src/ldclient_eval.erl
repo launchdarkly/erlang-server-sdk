@@ -9,6 +9,7 @@
 %% API
 -export([flag_key_for_user/4]).
 -export([all_flags_eval/2]).
+-export([all_flags_state/3]).
 
 %% Types
 -type result() :: {
@@ -24,6 +25,7 @@
 -type variation_index() :: null | non_neg_integer().
 -type reason() ::
     target_match
+    | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
     | {rule_match, RuleIndex :: non_neg_integer(), in_experiment}
     | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary(), InExperiment :: true}
     | {prerequisite_failed, FlagKeys :: [binary()]}
@@ -37,10 +39,17 @@
     flag_values => #{binary() => any()}
 }.
 
+-type all_flags_state_options() :: #{
+    with_reasons => boolean()
+%%    client_side_only => boolean(), % TODO: Support.
+%%    details_only_for_tracked_flags => boolean() % TODO: Support.
+}.
+
 -export_type([detail/0]).
 -export_type([reason/0]).
 -export_type([result_value/0]).
 -export_type([feature_flags_state/0]).
+-export_type([all_flags_state_options/0]).
 
 %%===================================================================
 %% API
@@ -80,6 +89,97 @@ flag_key_for_user(Tag, FlagKey, User, DefaultValue, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     FlagRecs = FeatureStore:get(Tag, features, FlagKey),
     flag_recs_for_user(FlagKey, FlagRecs, User, FeatureStore, Tag, DefaultValue).
+
+%% @doc Returns an object that encapsulates the state of all feature flags for a given user.
+%%
+%% This includes the flag values, and also metadata that can be used on the front end.
+%% The most common use case for this method is to bootstrap a set of client-side feature flags from a
+%% back-end service.
+%% @end
+-spec all_flags_state(
+    User :: ldclient_user:user(),
+    Options :: all_flags_state_options(),
+    Tag :: atom()
+) -> map().
+all_flags_state(User, Options, Tag) ->
+    all_flags_state(User, Options, Tag, get_state(Tag), get_initialization_state(Tag)).
+
+-spec all_flags_state(
+    User :: ldclient_user:user(),
+    Options :: all_flags_state_options(),
+    Tag :: atom(),
+    Offline :: atom(),
+    InitializationState :: atom()
+) -> map().
+all_flags_state(_User, _Options, _Tag, offline, _) ->
+    #{<<"$valid">> => false, <<"$flagsState">> => #{}};
+all_flags_state(_User, _Options, _Tag, _, not_initialized) ->
+    #{<<"$valid">> => false, <<"$flagsState">> => #{}};
+all_flags_state(User, #{with_reasons := WithReason} = _Options, Tag, _, initialized) ->
+    FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    AllFlags = [Flag || Flag <- FeatureStore:all(Tag, features)],
+    EvalFun = fun({FlagKey, #{version := Version} = Flag}, #{<<"$flagsState">> := FlagsState} = Acc) ->
+        {{VariationIndex, V, Reason}, _Events} = flag_key_for_user(Tag, FlagKey, User, null),
+        FlagState = maybe_add_track_events(Flag,
+            maybe_add_debug_events_until_date(Flag, #{
+                <<"version">> => Version})),
+        UpdatedFlagState = case is_integer(VariationIndex) of
+            true -> FlagState#{
+                <<"variation">> => VariationIndex
+            };
+            false -> FlagState
+        end,
+        FlagStateWithReason = maybe_add_reason(Flag, Reason, WithReason, UpdatedFlagState),
+        UpdatedFlagsState = maps:put(FlagKey, FlagStateWithReason, FlagsState),
+        Acc#{FlagKey => V, <<"$flagsState">> => UpdatedFlagsState}
+    end,
+    lists:foldl(EvalFun, #{
+        <<"$valid">> => true,
+        <<"$flagsState">> => #{}
+    }, AllFlags).
+
+-spec maybe_add_reason(Flag :: ldclient_flag:flag(), Reason :: reason(), WithReason :: boolean(), Map :: map()) -> map().
+maybe_add_reason(_Flag, Reason, true = _WithReason, Map) ->
+    Map#{<<"reason">> => ldclient_eval_reason:format(Reason)};
+maybe_add_reason(#{trackEventsFallthrough := true} = _Flag, fallthrough = Reason, _WithReason, Map) ->
+    Map#{
+        <<"trackReason">> => true,
+        <<"trackEvents">> => true,
+        <<"reason">> => ldclient_eval_reason:format(Reason)
+    };
+maybe_add_reason(_Flag, {fallthrough, in_experiment} = Reason, _WithReason, Map) ->
+    Map#{
+        <<"trackReason">> => true,
+        <<"reason">> => ldclient_eval_reason:format(Reason)
+    };
+maybe_add_reason(_Flag, {rule_match, _, in_experiment} = Reason, _WithReason, Map) ->
+    Map#{
+        <<"trackReason">> => true,
+        <<"reason">> => ldclient_eval_reason:format(Reason)
+    };
+maybe_add_reason(#{rules := Rules} = _Flag, {rule_match, RuleIndex, _RuleId} = Reason, _WithReason, Map) ->
+    MatchedRule = lists:nth(RuleIndex + 1, Rules),
+    case MatchedRule of
+        #{trackEvents := true} ->
+            Map#{
+                <<"trackEvents">> => true,
+                <<"trackReason">> => true,
+                <<"reason">> => ldclient_eval_reason:format(Reason)
+            };
+        _ ->
+            Map
+    end;
+maybe_add_reason(_Flag, _Reason, _WithReason, Map) ->
+    Map.
+
+-spec maybe_add_track_events(Flag :: ldclient_flag:flag(), Map :: map()) -> map().
+maybe_add_track_events(#{trackEvents := true} = _Flag, Map) ->
+    Map#{<<"trackEvents">> => true};
+maybe_add_track_events(_Flag, Map) -> Map.
+
+maybe_add_debug_events_until_date(#{debugEventsUntilDate := DebugEventsUntilDate} = _Flag, Map) when is_integer(DebugEventsUntilDate) ->
+    Map#{<<"debugEventsUntilDate">> => DebugEventsUntilDate};
+maybe_add_debug_events_until_date(_Flag, Map) -> Map.
 
 %% @doc Returns all flags for a given user
 %%
@@ -180,10 +280,15 @@ flag_for_user(Flag, User, FeatureStore, Tag, DefaultValue) ->
     {{Variation, VariationValue, Reason}, [FlagEvalEvent|Events]}.
 
 -spec flag_for_user_valid(ldclient_flag:flag(), ldclient_user:user(), atom(), atom(), result_value()) -> result().
-flag_for_user_valid(#{on := false, offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue)
+flag_for_user_valid(#{on := false, offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, DefaultValue)
     when is_integer(OffVariation), OffVariation >= 0 ->
-    result_for_variation_index(OffVariation, off, Flag, []);
-flag_for_user_valid(#{on := false}, _User, _FeatureStore, _Tag, DefaultValue) ->
+    result_for_variation_index(OffVariation, off, Flag, [], DefaultValue);
+flag_for_user_valid(#{on := false, offVariation := OffVariation} = _Flag, _User, _FeatureStore, _Tag, DefaultValue)
+    % offVariation is negative. The flag is malformed.
+    when is_integer(OffVariation), OffVariation =< 0 ->
+    Reason = {error, malformed_flag},
+    {{null, DefaultValue, Reason}, []};
+flag_for_user_valid(#{on := false} = _Flag, _User, _FeatureStore, _Tag, DefaultValue) ->
     % offVariation is null or not set
     {{null, DefaultValue, off}, []};
 flag_for_user_valid(#{prerequisites := Prerequisites} = Flag, User, FeatureStore, Tag, DefaultValue) ->
@@ -227,9 +332,9 @@ check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites,
 check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
     check_prerequisites(Prerequisites, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-flag_for_user_prerequisites({fail, Reason}, #{offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, _DefaultValue, Events)
+flag_for_user_prerequisites({fail, Reason}, #{offVariation := OffVariation} = Flag, _User, _FeatureStore, _Tag, DefaultValue, Events)
     when is_integer(OffVariation), OffVariation >= 0 ->
-    result_for_variation_index(OffVariation, Reason, Flag, Events);
+    result_for_variation_index(OffVariation, Reason, Flag, Events, DefaultValue);
 flag_for_user_prerequisites({fail, Reason}, _Flag, _User, _FeatureStore, _Tag, DefaultValue, Events) ->
     % prerequisite failed, but offVariation is null or not set
     {{null, DefaultValue, Reason}, Events};
@@ -248,9 +353,9 @@ check_target_result({true, Variation}, _Rest, Flag, User, FeatureStore, Tag, Def
     % Target matched: short-circuit
     flag_for_user_targets({match, Variation}, Flag, User, FeatureStore, Tag, DefaultValue, Events).
 
-flag_for_user_targets({match, Variation}, Flag, _User, _FeatureStore, _Tag, _DefaultValue, Events) ->
+flag_for_user_targets({match, Variation}, Flag, _User, _FeatureStore, _Tag, DefaultValue, Events) ->
     Reason = target_match,
-    result_for_variation_index(Variation, Reason, Flag, Events);
+    result_for_variation_index(Variation, Reason, Flag, Events, DefaultValue);
 flag_for_user_targets(no_match, #{rules := Rules} = Flag, User, FeatureStore, Tag, DefaultValue, Events) ->
     check_rules(Rules, Flag, User, FeatureStore, Tag, DefaultValue, Events, 0).
 
@@ -272,8 +377,8 @@ flag_for_user_rules({match, #{id := Id, variationOrRollout := VorR}, Index}, Fla
 flag_for_user_rules(no_match, #{fallthrough := Fallthrough} = Flag, User, DefaultValue, Events) ->
     flag_for_user_variation_or_rollout(Fallthrough, fallthrough, Flag, User, DefaultValue, Events).
 
-flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, _DefaultValue, Events) when is_integer(Variation) ->
-    result_for_variation_index(Variation, Reason, Flag, Events);
+flag_for_user_variation_or_rollout(Variation, Reason, Flag, _User, DefaultValue, Events) when is_integer(Variation) ->
+    result_for_variation_index(Variation, Reason, Flag, Events, DefaultValue);
 flag_for_user_variation_or_rollout(Rollout, Reason, Flag, User, DefaultValue, Events) when is_map(Rollout) ->
     {Result, InExperiment} = ldclient_rollout:rollout_user(Rollout, Flag, User),
     UpdatedReason = experimentize_reason(InExperiment, Reason),
@@ -288,17 +393,17 @@ flag_for_user_rollout_result(null, _Reason, #{key := FlagKey}, DefaultValue, Eve
     Reason = {error, malformed_flag},
     {{null, DefaultValue, Reason}, Events};
 
-flag_for_user_rollout_result(Variation, Reason, Flag, _DefaultValue, Events) ->
-    result_for_variation_index(Variation, Reason, Flag, Events).
+flag_for_user_rollout_result(Variation, Reason, Flag, DefaultValue, Events) ->
+    result_for_variation_index(Variation, Reason, Flag, Events, DefaultValue).
 
-result_for_variation_index(Variation, Reason, Flag, Events) ->
+result_for_variation_index(Variation, Reason, Flag, Events, DefaultValue) ->
     VariationValue = ldclient_flag:get_variation(Flag, Variation),
-    result_for_variation_value(VariationValue, Variation, Reason, Flag, Events).
+    result_for_variation_value(VariationValue, Variation, Reason, Flag, Events, DefaultValue).
 
-result_for_variation_value(null, _Variation, _Reason, _Flag, Events) ->
+result_for_variation_value(null, _Variation, _Reason, _Flag, Events, DefaultValue) ->
     Reason = {error, malformed_flag},
-    {{null, null, Reason}, Events};
-result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events) ->
+    {{null, DefaultValue, Reason}, Events};
+result_for_variation_value(VariationValue, Variation, Reason, _Flag, Events, _DefaultValue) ->
     {{Variation, VariationValue, Reason}, Events}.
 
 -spec experimentize_reason(InExperiment :: boolean(), Reason :: reason()) -> reason().

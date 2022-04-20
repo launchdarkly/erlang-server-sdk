@@ -21,6 +21,7 @@
 -export([with_tls_revocation/1]).
 -export([tls_basic_certifi_options/0]).
 -export([tls_basic_options/0]).
+-export([get_version/0]).
 
 -type http_options() :: #{
     tls_options => [ssl:tls_client_option()] | undefined,
@@ -58,6 +59,8 @@
     file_auto_update => boolean(),
     file_poll_interval => pos_integer(),
     file_allow_duplicate_keys => boolean(),
+    testdata_tag => atom(),
+    datasource => poll | stream | file | testdata | undefined,
     http_options => http_options()
 }.
 % Settings stored for each running SDK instance
@@ -98,6 +101,8 @@
 -define(DEFAULT_FILE_AUTO_UPDATE, false).
 -define(DEFAULT_FILE_POLL_INTERVAL, 1000).
 -define(DEFAULT_FILE_ALLOW_DUPLICATE_KEYS, false).
+-define(DEFAULT_TESTDATA_TAG, default).
+-define(DEFAULT_DATASOURCE, undefined).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
@@ -123,9 +128,9 @@ init() ->
 %% @end
 -spec parse_options(SdkKey :: string(), Options :: map()) -> instance().
 parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
-    BaseUri = maps:get(base_uri, Options, ?DEFAULT_BASE_URI),
-    EventsUri = maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI),
-    StreamUri = maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI),
+    BaseUri = string:trim(maps:get(base_uri, Options, ?DEFAULT_BASE_URI), trailing, "/"),
+    EventsUri = string:trim(maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI), trailing, "/"),
+    StreamUri = string:trim(maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI), trailing, "/"),
     FeatureStore = maps:get(feature_store, Options, ?DEFAULT_FEATURE_STORE),
     EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
@@ -153,6 +158,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     FileAutoUpdate = maps:get(file_auto_update, Options, ?DEFAULT_FILE_AUTO_UPDATE),
     FilePollInterval = maps:get(file_poll_interval, Options, ?DEFAULT_FILE_POLL_INTERVAL),
     FileAllowDuplicateKeys = maps:get(file_allow_duplicate_keys, Options, ?DEFAULT_FILE_ALLOW_DUPLICATE_KEYS),
+    TestDataTag = maps:get(testdata_tag, Options, ?DEFAULT_TESTDATA_TAG),
+    DataSource = maps:get(datasource, Options, ?DEFAULT_DATASOURCE),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     #{
         sdk_key => SdkKey,
@@ -183,7 +190,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         file_auto_update => FileAutoUpdate,
         file_poll_interval => FilePollInterval,
         file_allow_duplicate_keys => FileAllowDuplicateKeys,
-        http_options => HttpOptions
+        http_options => HttpOptions,
+        testdata_tag => TestDataTag,
+        datasource => DataSource
     }.
 
 %% @doc Get all registered tags
@@ -225,6 +234,10 @@ unregister(Tag) when is_atom(Tag) ->
 -spec get_user_agent() -> string().
 get_user_agent() ->
     ?USER_AGENT ++ "/" ++ ?VERSION.
+
+-spec get_version() -> string().
+get_version() ->
+    ?VERSION.
 
 -spec get_event_schema() -> string().
 get_event_schema() ->

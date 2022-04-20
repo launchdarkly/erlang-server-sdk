@@ -3,6 +3,11 @@
 %%
 %% Acts as an interface to most common SDK functions: starting and stopping
 %% client instances, and evaluating feature flags for users.
+%%
+%% Most use cases only need a single client instance for the lifetime of
+%% their application. Consider using multiple instances only if you need to
+%% simultaneously access more than one environment. Do not start an instance
+%% every time you need to make a variation or other SDK call.
 %% @end
 %%-------------------------------------------------------------------
 
@@ -23,6 +28,7 @@
 -export([variation_detail/4]).
 -export([all_flags_state/1]).
 -export([all_flags_state/2]).
+-export([all_flags_state/3]).
 -export([identify/1]).
 -export([identify/2]).
 -export([track/3]).
@@ -194,6 +200,19 @@ all_flags_state(User) ->
 all_flags_state(User, Tag) ->
     ldclient_eval:all_flags_eval(User, Tag).
 
+%% @doc Returns an object that encapsulates the state of all feature flags for a given user.
+%%
+%% This includes the flag values, and also metadata that can be used on the front end.
+%% The most common use case for this method is to bootstrap a set of client-side feature flags from a
+%% back-end service.
+%%
+%% If you are not using this to boostrap a client, then you likely want all_flags_state/1 or all_flags_state/2.
+%% @end
+-spec all_flags_state(User :: ldclient_user:user(),
+    Options :: ldclient_eval:all_flags_state_options(), Tag :: atom()) -> ldclient_eval:feature_flags_state().
+all_flags_state(User, Options, Tag) ->
+    ldclient_eval:all_flags_state(User, Options, Tag).
+
 %% @doc Identify reports details about a user
 %%
 %% This function uses the default client instance.
@@ -207,6 +226,8 @@ identify(User) ->
 %% This is useful to report user to a specific client instance.
 %% @end
 -spec identify(User :: ldclient_user:user(), Tag :: atom()) -> ok.
+identify(#{key := <<>>} = _User, Tag) when is_atom(Tag) ->
+    ok;
 identify(User, Tag) when is_atom(Tag) ->
     Event = ldclient_event:new_identify(User),
     ldclient_event_server:add_event(Tag, Event, #{}).
@@ -215,7 +236,7 @@ identify(User, Tag) when is_atom(Tag) ->
 %%
 %% Custom data can be attached to the event.
 %% @end
--spec track(Key :: binary(), User :: ldclient_user:user(), Data :: map()) -> ok.
+-spec track(Key :: binary(), User :: ldclient_user:user(), Data :: ldclient_event:event_data()) -> ok.
 track(Key, User, Data) when is_binary(Key), is_map(Data) ->
     track(Key, User, Data, ?DEFAULT_INSTANCE_NAME).
 
@@ -223,8 +244,8 @@ track(Key, User, Data) when is_binary(Key), is_map(Data) ->
 %%
 %% This is useful for specifying a specific client instance.
 %% @end
--spec track(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Tag :: atom()) -> ok.
-track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key), is_map(Data) ->
+-spec track(Key :: binary(), User :: ldclient_user:user(), Data :: ldclient_event:event_data(), Tag :: atom()) -> ok.
+track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key) ->
     Event = ldclient_event:new_custom(Key, User, Data),
     ldclient_event_server:add_event(Tag, Event, #{}).
 
@@ -235,7 +256,7 @@ track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key), is_map(Data) ->
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number()) -> ok.
+-spec track_metric(Key :: binary(), User :: ldclient_user:user(), ldclient_event:event_data(), Metric :: number()) -> ok.
 track_metric(Key, User, Data, Metric) ->
     track_metric(Key, User, Data, Metric, ?DEFAULT_INSTANCE_NAME).
 
@@ -246,7 +267,7 @@ track_metric(Key, User, Data, Metric) ->
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_metric(Key :: binary(), User :: ldclient_user:user(), Data :: map(), Metric :: number(), Tag :: atom()) -> ok.
+-spec track_metric(Key :: binary(), User :: ldclient_user:user(), ldclient_event:event_data(), Metric :: number(), Tag :: atom()) -> ok.
 track_metric(Key, User, Data, Metric, Tag) ->
     Event = ldclient_event:new_custom(Key, User, Data, Metric),
     ldclient_event_server:add_event(Tag, Event, #{}).

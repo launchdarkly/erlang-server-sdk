@@ -57,6 +57,24 @@ erlang-docker-template: &erlang-docker-template
         working_directory: ~/ldclient
     - store_test_results:
         path: ~/ldclient/test-results
+    - run:
+        name: make contract test output directory
+        command: mkdir /tmp/test-results
+    - run:
+        name: build contract tests
+        command: make build-contract-tests
+        working_directory: ~/ldclient
+    - run:
+        name: start contract test service
+        command: make start-contract-test-service
+        background: true
+        working_directory: ~/ldclient
+    - run:
+        name: run contract tests
+        command: TEST_HARNESS_PARAMS="-junit /tmp/test-results/contract-tests-junit.xml -skip-from test-service/testharness-suppressions.txt" make run-contract-tests
+        working_directory: ~/ldclient
+    - store_test_results:
+        path: /tmp/test-results/
 
 jobs:
   test-elixir-8:

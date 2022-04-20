@@ -9,11 +9,21 @@
 -behaviour(supervisor).
 
 %% Supervision
--export([start_link/5, init/1]).
+-export([start_link/5, init/1, child_spec/1, child_spec/2]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(Id, Module, Args, Type), {Id, {Module, start_link, Args}, permanent, 5000, Type, [Module]}).
 
+child_spec(Args) -> child_spec(?MODULE, Args).
+child_spec(Id, Args) ->
+    #{
+        id => Id,
+        start => {?MODULE, start_link, Args},
+        restart => permanent,
+        shutdown => 5000, % shutdown time
+        type => supervisor,
+        modules => [?MODULE]
+    }.
 %%===================================================================
 %% Supervision
 %%===================================================================

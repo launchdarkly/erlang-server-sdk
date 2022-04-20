@@ -40,7 +40,9 @@
     file_auto_update => boolean(),
     file_poll_interval => pos_integer(),
     file_allow_duplicate_keys => boolean(),
-    http_options => ldclient_config:http_options()
+    http_options => ldclient_config:http_options(),
+    testdata_tag => atom(),
+    datasource => atom()
 }.
 %% Options for starting an SDK instance
 
@@ -62,18 +64,17 @@ start(Tag, SdkKey, Options) ->
     ok = ldclient_config:register(Tag, Settings),
     % Start instance supervisor
     SupName = get_ref_from_tag(instance, Tag),
-    StartStream = maps:get(stream, Settings),
     UpdateSupName = get_ref_from_tag(instance_stream, Tag),
-    UpdateWorkerModule = get_update_processor(StartStream, maps:get(offline, Settings), maps:get(use_ldd, Settings), maps:get(file_datasource, Settings)),
+    UpdateWorkerModule = get_update_processor(Settings),
     EventsSupName = get_ref_from_tag(instance_events, Tag),
-    {ok, _} = supervisor:start_child(ldclient_sup, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag]),
+    {ok, _} = supervisor:start_child(ldclient_sup, ldclient_instance_sup:child_spec(SupName, [SupName, UpdateSupName, UpdateWorkerModule, EventsSupName, Tag])),
     % Start storage backend
     true = ldclient_update_processor_state:create_storage_initialized_state(Tag, false),
     FeatureStore = maps:get(feature_store, Settings),
     ok = FeatureStore:init(SupName, Tag, []),
     % Start stream client
     true = ldclient_update_processor_state:create_initialized_state(Tag, false),
-    ok = start_updater(UpdateSupName, UpdateWorkerModule, Tag).
+    start_updater(UpdateSupName, UpdateWorkerModule, Tag).
 
 %% @doc Stop a client instance
 %%
@@ -89,8 +90,8 @@ stop(Tag) when is_atom(Tag) ->
     ok = FeatureStore:terminate(Tag),
     % Terminate instance supervisors
     SupName = get_ref_from_tag(instance, Tag),
-    SupPid = erlang:whereis(SupName),
-    ok = supervisor:terminate_child(ldclient_sup, SupPid),
+    ok = supervisor:terminate_child(ldclient_sup, SupName),
+    ok = supervisor:delete_child(ldclient_sup, SupName),
     ldclient_update_processor_state:delete_initialized_state(Tag),
     ldclient_update_processor_state:delete_storage_initialized_state(Tag),
     ldclient_config:unregister(Tag).
@@ -147,9 +148,22 @@ start_updater(UpdateSupName, UpdateWorkerModule, Tag) ->
 %% @private
 %%
 %% @end
--spec get_update_processor(Stream :: boolean(), Offline :: boolean(), UseLdd :: boolean(), FileDataSource :: boolean()) -> atom().
-get_update_processor(_Stream, _Offline, _UseLdd, true) -> ldclient_update_file_server;
-get_update_processor(_Stream, _Offline, true, _FileDataSource) -> ldclient_update_null_server;
-get_update_processor(_Stream, true, _UseLdd, _FileDataSource) -> ldclient_update_null_server;
-get_update_processor(true, _Offline, _UseLdd, _FileDataSource) -> ldclient_update_stream_server;
-get_update_processor(false, _Offline, _UseLdd, _FileDataSource) -> ldclient_update_poll_server.
+-spec get_update_processor(Settings :: #{ stream := boolean(),
+                                          offline := boolean(),
+                                          use_ldd := boolean(),
+                                          file_datasource := boolean(),
+                                          datasource := atom(),
+                                          _ => _
+                                        }) -> atom().
+get_update_processor(#{ offline := true }) ->
+    ldclient_update_null_server;
+get_update_processor(#{ use_ldd := true }) ->
+    ldclient_update_null_server;
+get_update_processor(#{ datasource := DataSource }) when DataSource /= undefined ->
+    list_to_atom("ldclient_update_" ++ atom_to_list(DataSource) ++ "_server");
+get_update_processor(#{ file_datasource := true }) ->
+    ldclient_update_file_server;
+get_update_processor(#{ stream := false }) ->
+    ldclient_update_poll_server;
+get_update_processor(#{ stream := true }) ->
+    ldclient_update_stream_server.
