@@ -2,6 +2,24 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.4.0] - 2022-04-20
+### Added:
+- `ldclient:all_flags_state/3` to be used instead of `ldclient:all_flags_state/1 or /2` if you are passing flag data to the front end for use with the JavaScript SDK. It preserves some flag metadata that the front end requires in order to send analytics events correctly. It does NOT yet support selecting client-side-enabled flags.
+- `ldclient_testdata` is a new way to inject feature flag data programmatically into the SDK for testing—either with fixed values for each flag, or with targets and/or rules that can return different values for different users. Unlike the file data source, this mechanism does not use any external resources, only the data that your test code has provided.
+- Support for the [SDK test harness](https://github.com/launchdarkly/sdk-test-harness).
+
+### Fixed:
+- An issue with handling `firstName` and `lastName` in rules. The SDK uses `first_name` and `last_name` atoms for these fields and there was an issue with when the attribute names were converted. Now name conversion for attributes are done after evaluation and processing of private attributes.
+- `ldclient:track` and `ldclient:tack_metric` will not allow for types other than `map()` to be used for `data`.
+- The SDK was sending identify events for users with an empty key when it should not.
+- The SDK would send duplicate events for a user which had been identified and then was noticed by a feature evaluation. Now the event will be de-duplicated correctly within the LRU cache timeout.
+- Rule matches against dates in the user object, which could not be parsed, would cause evaluation to fail and return the default value. Now they will correctly result in the rule not matching instead.
+- The configuration was not trimming trailing `/` from URLs.
+
+### Changed:
+- Event fields which contained false or null will not generally be omitted from events for compactness.
+- Clarifications to documentation.
+
 ## [1.3.2] - 2021-12-30
 ### Fixed:
 - The file `file_auto_update` feature was not working correctly. If the flag files did not contain any changes between polling intervals, then the file system watcher would crash. (Thanks, [matt-glover](https://github.com/launchdarkly/erlang-server-sdk/pull/52)!)
