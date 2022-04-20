@@ -40,11 +40,18 @@
 -export_type([sdk_config_streaming_params/0]).
 -export_type([sdk_config_event_params/0]).
 
+-spec null_to_undefined(Item :: any()) -> any().
+null_to_undefined(null) -> undefined;
+null_to_undefined(Item) -> Item.
+
+-spec map_get_null_default(Name :: binary(), Map :: map(), Default :: any()) -> any().
+map_get_null_default(Name, Map, Default) ->  null_to_undefined(maps:get(Name, Map, Default)).
+
 -spec parse_config_params(Params :: map()) -> sdk_config_params().
 parse_config_params(Params) ->
-    Credential = maps:get(<<"credential">>, Params, undefined),
-    StartWaitTimeMS = maps:get(<<"startWaitTimeMs">>, Params, undefined),
-    InitCanFail = maps:get(<<"initCanFail">>, Params, undefined),
+    Credential = map_get_null_default(<<"credential">>, Params, undefined),
+    StartWaitTimeMS = map_get_null_default(<<"startWaitTimeMs">>, Params, undefined),
+    InitCanFail = map_get_null_default(<<"initCanFail">>, Params, undefined),
     Streaming = parse_config_streaming_params(Params),
     Events = parse_config_events_params(Params),
     #{
@@ -57,8 +64,8 @@ parse_config_params(Params) ->
 
 -spec parse_config_streaming_params(Params :: map()) -> sdk_config_streaming_params().
 parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) ->
-    BaseUri = maps:get(<<"baseUri">>, StreamingParams, undefined),
-    InitialRetryDelayMs = maps:get(<<"initialRetryDelayMs">>, StreamingParams, undefined),
+    BaseUri = map_get_null_default(<<"baseUri">>, StreamingParams, undefined),
+    InitialRetryDelayMs = map_get_null_default(<<"initialRetryDelayMs">>, StreamingParams, undefined),
     #{
         base_uri => BaseUri,
         initial_retry_delay_ms => InitialRetryDelayMs
@@ -66,14 +73,15 @@ parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) -
 parse_config_streaming_params(_Params) -> #{base_uri => undefined, initial_retry_delay_ms => undefined}.
 
 -spec parse_config_events_params(Params :: map()) -> sdk_config_event_params().
-parse_config_events_params(#{<<"events">> := EventParams} = _Params) ->
-    BaseUri = maps:get(<<"baseUri">>, EventParams, undefined),
-    Capacity = maps:get(<<"capacity">>, EventParams, undefined),
-    EnableDiagnostics = maps:get(<<"enableDiagnostics">>, EventParams, undefined),
-    AllAttributesPrivate = maps:get(<<"allAttributesPrivate">>, EventParams, undefined),
-    GlobalPrivateAttributes = maps:get(<<"globalPrivateAttributes">>, EventParams, undefined),
-    FlushIntervalMS = maps:get(<<"flushIntervalMs">>, EventParams, undefined),
-    InlineUsers = maps:get(<<"inlineUsers">>, EventParams, undefined),
+
+parse_config_events_params(#{<<"events">> := EventParams} = _Params) when EventParams =/= null  ->
+    BaseUri = map_get_null_default(<<"baseUri">>, EventParams, undefined),
+    Capacity = map_get_null_default(<<"capacity">>, EventParams, undefined),
+    EnableDiagnostics = map_get_null_default(<<"enableDiagnostics">>, EventParams, undefined),
+    AllAttributesPrivate = map_get_null_default(<<"allAttributesPrivate">>, EventParams, undefined),
+    GlobalPrivateAttributes = map_get_null_default(<<"globalPrivateAttributes">>, EventParams, undefined),
+    FlushIntervalMS = map_get_null_default(<<"flushIntervalMs">>, EventParams, undefined),
+    InlineUsers = map_get_null_default(<<"inlineUsers">>, EventParams, undefined),
     #{
         base_uri => BaseUri,
         capacity => Capacity,

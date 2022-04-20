@@ -165,15 +165,25 @@ parse_user(Container) ->
     parse_user_with_key(Container, <<"user">>).
 
 
+%% Treats null as not included.
 -spec parse_optional(InKey :: binary(), OutKey :: atom(),
     Input :: map(), Output :: map()) -> map().
 parse_optional(InKey, OutKey, Input, Output) ->
     Value = maps:get(InKey, Input, undefined),
-    add_if_defined(OutKey, Value, Output).
+    add_if_defined(OutKey, Value, Output, false).
 
--spec add_if_defined(Key :: atom(), Value :: any(), Output :: map()) -> map().
-add_if_defined(_Key, undefined, Output) -> Output;
-add_if_defined(Key, Value, Output) -> Output#{Key => Value}.
+%% Conditionally will include null values.
+-spec parse_optional(InKey :: binary(), OutKey :: atom(),
+    Input :: map(), Output :: map(), IncludeNull :: boolean()) -> map().
+parse_optional(InKey, OutKey, Input, Output, IncludeNull) ->
+    Value = maps:get(InKey, Input, undefined),
+    add_if_defined(OutKey, Value, Output, IncludeNull).
+
+
+-spec add_if_defined(Key :: atom(), Value :: any(), Output :: map(), IncludeNull :: boolean()) -> map().
+add_if_defined(_Key, undefined, Output, _) -> Output;
+add_if_defined(_Key, null, Output, false) -> Output;
+add_if_defined(Key, Value, Output, _) -> Output#{Key => Value}.
 
 -spec parse_evaluate_all(EvaluateAll :: map()) -> evaluate_all_flags_params().
 parse_evaluate_all(EvaluateAll) ->
@@ -196,7 +206,7 @@ parse_custom_event(CustomEvent) ->
         omit_null_value => maps:get(<<"omitNullData">>, CustomEvent, false)
     },
     CustomEventWithUser = maybe_add_user(parse_user(CustomEvent), CustomEventWithKey),
-    CustomEventWithData = parse_optional(<<"data">>, data, CustomEvent, CustomEventWithUser),
+    CustomEventWithData = parse_optional(<<"data">>, data, CustomEvent, CustomEventWithUser, true),
     CustomEventWithOmitNullData = parse_optional(<<"omitNullData">>, omit_null_data,
         CustomEvent, CustomEventWithData),
     CustomEventWithMetricValue = parse_optional(<<"metricValue">>, metric_value,
