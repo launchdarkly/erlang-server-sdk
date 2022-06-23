@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.5.0] - 2022-06-23
+### Changed:
+- Updated `certifi` to 2.9.0.
+- Updated `shotgun` to 0.5.3. This should obviate the need to override `shotgun` in `mix.exs` for Elixir projects.
+
+### Fixed:
+- Updated URI parsing to work with OTP 25. Removing the usage of `http_uri:parse` and replacing it with `uri_string:parse`.
+
 ## [1.4.0] - 2022-04-20
 ### Added:
 - `ldclient:all_flags_state/3` to be used instead of `ldclient:all_flags_state/1 or /2` if you are passing flag data to the front end for use with the JavaScript SDK. It preserves some flag metadata that the front end requires in order to send analytics events correctly. It does NOT yet support selecting client-side-enabled flags.
