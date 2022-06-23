@@ -17,10 +17,13 @@ workflows:
            install-rebar3: true
       - test-elixir-12:
            install-rebar3: true
+      - test-elixir-13:
+          install-rebar3: true
       - test-21
       - test-22
       - test-23
       - test-24
+      - test-25
 
 erlang-docker-template: &erlang-docker-template
   parameters:
@@ -33,8 +36,16 @@ erlang-docker-template: &erlang-docker-template
     - when:
         condition: << parameters.install-rebar3 >>
         steps:
-          - run: sudo curl https://s3.amazonaws.com/rebar3/rebar3 --output /usr/local/bin/rebar3
-          - run: sudo chmod 777 /usr/local/bin/rebar3
+          # Install rebar from source, because current rebar3 does not work
+          # with elixir 1.8-1.10 images.
+          - run: |
+              git clone https://github.com/erlang/rebar3.git
+              cd rebar3
+              git checkout 3.15.0
+              ./bootstrap
+              sudo cp ./rebar3 /usr/local/bin/rebar3
+              sudo chmod 777 /usr/local/bin/rebar3
+              rm -rf rebar3
     - run:
         name: install dependencies and compile
         command: make compile
@@ -102,6 +113,11 @@ jobs:
     docker:
       - image: cimg/elixir:1.12
       - image: redis
+  test-elixir-13:
+    <<: *erlang-docker-template
+    docker:
+      - image: cimg/elixir:1.13
+      - image: redis
 
   test-21:
     <<: *erlang-docker-template
@@ -123,3 +139,9 @@ jobs:
     docker:
       - image: circleci/erlang:24.0
       - image: redis
+  test-25:
+    <<: *erlang-docker-template
+    docker:
+      - image: circleci/erlang:25
+      - image: redis
+

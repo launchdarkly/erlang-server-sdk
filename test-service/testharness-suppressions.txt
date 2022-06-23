@@ -27,8 +27,8 @@ streaming/validation/drop and reconnect if stream event has well-formed JSON not
 streaming/validation/unrecognized data that can be safely ignored/unknown event name with JSON body
 streaming/validation/unrecognized data that can be safely ignored/unknown event name with non-JSON body
 streaming/validation/unrecognized data that can be safely ignored/patch event with unrecognized path kind
-data store/updates from stream/flag delete with higher version is applied
-data store/updates from stream/segment delete with higher version is applied
-data store/updates from stream/segment delete for previously nonexistent segment is applied
+streaming/updates/flag delete with higher version is applied
+streaming/updates/segment delete with higher version is applied
+streaming/updates/segment delete for previously nonexistent segment is applied
 events/debug events/should not see debug event/debugEventsUntilDate is after SDK time/SDK knows LD time is after debugEventsUntilDate/without reasons/type: any
 events/debug events/should not see debug event/debugEventsUntilDate is after SDK time/SDK knows LD time is after debugEventsUntilDate/with reasons/type: any

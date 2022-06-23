@@ -61,7 +61,7 @@ end_per_testcase(_, _Config) ->
 open_stream(Uri, HttpOptions) ->
     GunOpts = ldclient_http_options:gun_parse_http_options(HttpOptions),
     Opts = #{gun_opts => GunOpts},
-    {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
+    {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
             {error, gun_open_failed, "Could not open connection to host"};

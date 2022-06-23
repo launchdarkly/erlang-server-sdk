@@ -164,7 +164,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @end
 -spec do_listen(string(), atom(), atom(), GunOpts :: gun:opts(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
-    {ok, {Scheme, _UserInfo, Host, Port, Path, Query}} = http_uri:parse(Uri),
+    {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     Opts = #{gun_opts => GunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
