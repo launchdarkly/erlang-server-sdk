@@ -15,13 +15,19 @@
 
 <h2><a name="description">Description</a></h2><p><code>ldclient</code> module</p>
  
-  Acts as an interface to most common SDK functions: starting and stopping
-  client instances, and evaluating feature flags for users.
+  <p>Acts as an interface to most common SDK functions: starting and stopping  
+client instances, and evaluating feature flags for users.</p>
+ 
+  Most use cases only need a single client instance for the lifetime of
+  their application. Consider using multiple instances only if you need to
+  simultaneously access more than one environment. Do not start an instance
+  every time you need to make a variation or other SDK call.
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#alias-2">alias/2</a></td><td>Associates two users for analytics purposes.</td></tr>
 <tr><td valign="top"><a href="#alias-3">alias/3</a></td><td>Associates two users for analytics purposes.</td></tr>
 <tr><td valign="top"><a href="#all_flags_state-1">all_flags_state/1</a></td><td>Evaluate all flags for a given user and return their values.</td></tr>
 <tr><td valign="top"><a href="#all_flags_state-2">all_flags_state/2</a></td><td>Evaluate all flags for a given user and given client instance.</td></tr>
+<tr><td valign="top"><a href="#all_flags_state-3">all_flags_state/3</a></td><td>Returns an object that encapsulates the state of all feature flags for a given user.</td></tr>
 <tr><td valign="top"><a href="#identify-1">identify/1</a></td><td>Identify reports details about a user.</td></tr>
 <tr><td valign="top"><a href="#identify-2">identify/2</a></td><td>Identify reports details about a user.</td></tr>
 <tr><td valign="top"><a href="#initialized-1">initialized/1</a></td><td>Returns whether the LaunchDarkly client has initialized.</td></tr>
@@ -83,6 +89,18 @@
  
   Evaluates all existing flags, but does not create any events as a side
   effect of the evaluation. It returns a map of flag keys to evaluated values.</p>
+
+<h3 class="function"><a name="all_flags_state-3">all_flags_state/3</a></h3>
+<div class="spec">
+<p><tt>all_flags_state(User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Options::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-all_flags_state_options">ldclient_eval:all_flags_state_options()</a>, Tag::atom()) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-feature_flags_state">ldclient_eval:feature_flags_state()</a></tt><br></p>
+<p> </p>
+</div><p><p>Returns an object that encapsulates the state of all feature flags for a given user.</p>
+ 
+  <p>This includes the flag values, and also metadata that can be used on the front end.  
+The most common use case for this method is to bootstrap a set of client-side feature flags from a  
+back-end service.</p>
+ 
+  If you are not using this to boostrap a client, then you likely want all_flags_state/1 or all_flags_state/2.</p>
 
 <h3 class="function"><a name="identify-1">identify/1</a></h3>
 <div class="spec">
@@ -175,7 +193,7 @@ is in offline mode.</p>
 
 <h3 class="function"><a name="track-3">track/3</a></h3>
 <div class="spec">
-<p><tt>track(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::map()) -&gt; ok</tt><br></p>
+<p><tt>track(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>) -&gt; ok</tt><br></p>
 <p> </p>
 </div><p><p>Track reports that a user has performed an event</p>
  
@@ -183,7 +201,7 @@ is in offline mode.</p>
 
 <h3 class="function"><a name="track-4">track/4</a></h3>
 <div class="spec">
-<p><tt>track(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::map(), Tag::atom()) -&gt; ok</tt><br></p>
+<p><tt>track(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Tag::atom()) -&gt; ok</tt><br></p>
 <p> </p>
 </div><p><p>Track reports that a user has performed an event</p>
  
@@ -191,7 +209,7 @@ is in offline mode.</p>
 
 <h3 class="function"><a name="track_metric-4">track_metric/4</a></h3>
 <div class="spec">
-<p><tt>track_metric(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::map(), Metric::number()) -&gt; ok</tt><br></p>
+<p><tt>track_metric(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Metric::number()) -&gt; ok</tt><br></p>
 <p> </p>
 </div><p><p>Reports that a user has performed an event, and associates it with a numeric value.</p>
  
@@ -202,7 +220,7 @@ be returned as part of the custom event for Data Export.</p>
 
 <h3 class="function"><a name="track_metric-5">track_metric/5</a></h3>
 <div class="spec">
-<p><tt>track_metric(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::map(), Metric::number(), Tag::atom()) -&gt; ok</tt><br></p>
+<p><tt>track_metric(Key::binary(), User::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Metric::number(), Tag::atom()) -&gt; ok</tt><br></p>
 <p> </p>
 </div><p><p>Reports that a user has performed an event, and associates it with a numeric value.</p>
  

@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module ldclient_testdata</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module ldclient_testdata</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>TestData  server.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2><p>TestData  server</p>
+ 
+  <p>A mechanism for providing dynamically updatable feature flag state  
+in a simplified form to an SDK client in test scenarios.</p>
+ 
+  <p>Unlike the file data mechanism, this does not use any external resources.  
+It provides only the data that the application has put into it using  
+the update/2 function.</p>
+ 
+  <pre>     {ok, Flag} = ldclient_testdata:flag("flag-key-1"),
+     ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(true, Flag)),
+ 
+     Options = #{
+         datasource =&gt; testdata,
+         send_events =&gt; false,
+         feature_store =&gt; ldclient_storage_map
+     },
+     ldclient:start_instance(SdkKey, Options),
+ 
+     %% flags can be updated at any time:
+     {ok, Flag2} = ldclient_testdata:flag("flag-key-2"),
+     UpdatedFlag2 = ldclient_flagbuilder:fallthrough_variation(false,
+                    ldclient_flagbuilder:variation_for_user(&lt;&lt;"some-user-key"&gt;&gt;, true, Flag2)),</pre>
+ 
+  <p>The above example uses a simple boolean flag, but more complex configurations
+  are possible using the functions in <a docgen-rel="seeerl" docgen-href="ldclient_flagbuilder" href="ldclient_flagbuilder.html"><code>ldclient_flagbuilder</code></a>.</p>
+ 
+  <a docgen-rel="seeerl" docgen-href="ldclient_flagbuilder" href="ldclient_flagbuilder.html"><code>ldclient_flagbuilder</code></a> supports many of the ways a flag can be configured
+  on the LaunchDarkly dashboard, but does not currently support
+  <ol>
+    <li>rule operators other than "in" and "not in", or</li>
+    <li>percentage rollouts.</li>
+  </ol>
+ 
+  If the same <code>ldclient_testdata</code> instance is used to configure multiple <code>ldclient_instance</code> instances, any changes made to the data will propagate to all of the instances
+ 
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#child_spec-2">child_spec/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#flag-1">flag/1</a></td><td>Creates or copies a <a docgen-rel="seetype" docgen-href="ldclient_flagbuilder#flag_builder/0" href="ldclient_flagbuilder.html#type-flag_builder"><code>ldclient_flagbuilder:flag_builder()</code></a>  
+for building a test flag configuration.</td></tr>
+<tr><td valign="top"><a href="#flag-2">flag/2</a></td><td>Creates or copies a <a docgen-rel="seetype" docgen-href="ldclient_flagbuilder#flag_builder/0" href="ldclient_flagbuilder.html#type-flag_builder"><code>ldclient_flagbuilder:flag_builder()</code></a>  
+for building a test flag configuration.</td></tr>
+<tr><td valign="top"><a href="#update-1">update/1</a></td><td>Updates the test data with the specified flag configuration.</td></tr>
+<tr><td valign="top"><a href="#update-2">update/2</a></td><td>Updates the test data with the specified flag configuration.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="child_spec-2">child_spec/2</a></h3>
+<div class="spec">
+<p><tt>child_spec(Tag::atom(), Args::[term()]) -&gt; <a href="http://www.erlang.org/edoc/doc/stdlib/doc/supervisor.html#type-child_spec">supervisor:child_spec()</a></tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="flag-1">flag/1</a></h3>
+<div class="spec">
+<p><tt>flag(FlagKey::string()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
+<p><tt>FlagKey</tt>: the flag key<br>
+</p>
+<p>returns: a flag configuration builder</p>
+</div><p><p>Creates or copies a <a docgen-rel="seetype" docgen-href="ldclient_flagbuilder#flag_builder/0" href="ldclient_flagbuilder.html#type-flag_builder"><code>ldclient_flagbuilder:flag_builder()</code></a>  
+for building a test flag configuration.</p>
+ 
+  <p>If this flag key has already been defined in this <code>ldclient_testdata</code> instance,  
+then the builder starts with the same configuration that was last provided for this flag.</p>
+ 
+  <p>Otherwise, it starts with a new default configuration in which the flag has <code>true</code>
+  and <code>false</code> variations, is <code>true</code> for all users when targeting is turned on and
+  <code>false</code> otherwise, and currently has targeting turned on.</p>
+ 
+  <p>You can change any of those properties, and provide more complex behavior,
+  using the functions in <a docgen-rel="seeerl" docgen-href="ldclient_flagbuilder" href="ldclient_flagbuilder.html"><code>ldclient_flagbuilder</code></a>.</p>
+ 
+  Once you have set the desired configuration, pass the builder to <a docgen-rel="seemfa" docgen-href="#update/2" href="#update-2"><code>update/2</code></a>.
+ </p>
+<p><b>See also:</b> <a href="#update-1">update/1</a>.</p>
+
+<h3 class="function"><a name="flag-2">flag/2</a></h3>
+<div class="spec">
+<p><tt>flag(Tag::atom() | pid(), FlagKey::string()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
+<p><tt>Tag</tt>: the tag or pid of the <code>ldclient_testdata</code> instance<br>
+<tt>FlagKey</tt>: the flag key<br>
+</p>
+<p>returns: a flag configuration builder</p>
+</div><p><p>Creates or copies a <a docgen-rel="seetype" docgen-href="ldclient_flagbuilder#flag_builder/0" href="ldclient_flagbuilder.html#type-flag_builder"><code>ldclient_flagbuilder:flag_builder()</code></a>  
+for building a test flag configuration.</p>
+ 
+  <p>If this flag key has already been defined in this <code>ldclient_testdata</code> instance,  
+then the builder starts with the same configuration that was last provided for this flag.</p>
+ 
+  <p>Otherwise, it starts with a new default configuration in which the flag has <code>true</code>
+  and <code>false</code> variations, is <code>true</code> for all users when targeting is turned on and
+  <code>false</code> otherwise, and currently has targeting turned on.</p>
+ 
+  <p>You can change any of those properties, and provide more complex behavior,
+  using the functions in <a docgen-rel="seeerl" docgen-href="ldclient_flagbuilder" href="ldclient_flagbuilder.html"><code>ldclient_flagbuilder</code></a>.</p>
+ 
+  Once you have set the desired configuration, pass the builder to <a docgen-rel="seemfa" docgen-href="#update/2" href="#update-2"><code>update/2</code></a>.
+ </p>
+<p><b>See also:</b> <a href="#update-2">update/2</a>.</p>
+
+<h3 class="function"><a name="update-1">update/1</a></h3>
+<div class="spec">
+<p><tt>update(Flag::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>) -&gt; ok</tt><br></p>
+<p><tt>Flag</tt>: a flag configuration builder<br>
+</p>
+</div><p><p>Updates the test data with the specified flag configuration.</p>
+ 
+  This has the same effect as if a flag were added or modified on the LaunchDarkly dashboard.
+  It immediately propagates the flag change to any <code>ldclient_instance(s)</code> that you have
+  already configured to use this <code>ldclient_testdata</code>. If no <code>ldclient_instance</code> has
+  been started yet, it simply adds this flag to the test data which will be provided
+  to any <code>ldclient_instance</code> that you subsequently configure.
+ </p>
+<p><b>See also:</b> <a href="#flag-1">flag/1</a>.</p>
+
+<h3 class="function"><a name="update-2">update/2</a></h3>
+<div class="spec">
+<p><tt>update(Tag::atom() | pid(), Flag::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>) -&gt; ok</tt><br></p>
+<p><tt>Flag</tt>: a flag configuration builder<br>
+</p>
+</div><p><p>Updates the test data with the specified flag configuration.</p>
+ 
+  This has the same effect as if a flag were added or modified on the LaunchDarkly dashboard.
+  It immediately propagates the flag change to any <code>ldclient_instance(s)</code> that you have
+  already configured to use this <code>ldclient_testdata</code>. If no <code>ldclient_instance</code> has
+  been started yet, it simply adds this flag to the test data which will be provided
+  to any <code>ldclient_instance</code> that you subsequently configure.
+ </p>
+<p><b>See also:</b> <a href="#flag-2">flag/2</a>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc</i></p>
+</body>
+</html>
