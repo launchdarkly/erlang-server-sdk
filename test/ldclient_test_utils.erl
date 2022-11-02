@@ -141,7 +141,7 @@ get_simple_flag_delete() ->
             "\"targets\":[],",
             "\"trackEvents\":true,",
             "\"variations\":[true,false],",
-            "\"version\":5",
+            "\"version\":6",
             "}">>,
         #{
             <<"clientSide">> => false,
@@ -158,7 +158,7 @@ get_simple_flag_delete() ->
             <<"targets">> => [],
             <<"trackEvents">> => true,
             <<"variations">> => [true,false],
-            <<"version">> => 5
+            <<"version">> => 6
         }
     }.
 

@@ -263,33 +263,12 @@ get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> :=
     {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1}.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
-delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, ldclient_storage_redis, Tag) ->
-    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
-    UpdatedFlags = maps:map(MapFun, Flags),
-    UpdatedSegments = maps:map(MapFun, Segments),
-    ok = ldclient_storage_redis:upsert(Tag, features, UpdatedFlags),
-    ok = ldclient_storage_redis:upsert(Tag, segments, UpdatedSegments);
-delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, FeatureStore, Tag) ->
-    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
-    UpdatedFlags = maps:map(MapFun, Flags),
-    UpdatedSegments = maps:map(MapFun, Segments),
-    ParsedFlags = maps:map(
-        fun(_K, V) -> ldclient_flag:new(V) end
-        , UpdatedFlags),
-    ParsedSegments = maps:map(
-        fun(_K, V) -> ldclient_segment:new(V) end
-        , UpdatedSegments),
-    ok = FeatureStore:upsert(Tag, features, ParsedFlags),
-    ok = FeatureStore:upsert(Tag, segments, ParsedSegments);
 delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
     ok = maybe_delete_item(FeatureStore, Tag, features, Key, Version);
-delete_items(#{<<"path">> := <<"/flags/",Key/binary>>}, FeatureStore, Tag) ->
-    ok = maybe_delete_item(FeatureStore, Tag, features, Key, undefined);
 delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
     ok = maybe_delete_item(FeatureStore, Tag, segments, Key, Version);
-delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, FeatureStore, Tag) ->
-    ok = maybe_delete_item(FeatureStore, Tag, segments, Key, undefined).
-
+delete_items(_Path, _FeatureStore, _Tag) ->
+    error_logger:error_msg("Invalid delete path").
 
 -spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
 maybe_patch_item(ldclient_storage_redis, Tag, Bucket, Key, Item, _ParseFunction) ->
@@ -333,7 +312,7 @@ maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
                 Overwrite ->
-                    NewItem = #{Key => maps:put(deleted, true, ExistingItem)},
+                    NewItem = #{Key => ExistingItem#{deleted => true, version => NewVersion}},
                     FeatureStore:upsert(Tag, Bucket, NewItem);
                 true ->
                     ok
