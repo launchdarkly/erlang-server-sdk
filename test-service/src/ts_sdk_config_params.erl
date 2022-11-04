@@ -110,7 +110,17 @@ to_ldclient_options(Configuration) ->
     WithPrivateAttributes = add_private_attributes(Configuration, WithEventsCapacity),
     WithFlushInterval = add_events_flush_interval(Configuration, WithPrivateAttributes),
     WithInlineUsers = add_inline_users(Configuration, WithFlushInterval),
-    WithInlineUsers.
+    WithStreamRetryDelay = add_stream_retry_delay(Configuration, WithInlineUsers),
+    WithStreamRetryDelay.
+
+-spec add_stream_retry_delay(Configuration :: sdk_config_params(), Options:: map()) -> map().
+add_stream_retry_delay(#{streaming := #{
+    initial_retry_delay_ms := InitialRetryDelayMs
+}} = _Configuration, Options) when is_integer(InitialRetryDelayMs) ->
+    Options#{
+        stream_initial_retry_delay_ms => InitialRetryDelayMs
+    };
+add_stream_retry_delay(_Configuration, Options) -> Options.
 
 -spec add_stream_uri(Configuration :: sdk_config_params(), Options :: map()) -> map().
 add_stream_uri(#{streaming := #{

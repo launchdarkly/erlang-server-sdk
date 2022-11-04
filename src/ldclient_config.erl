@@ -61,7 +61,8 @@
     file_allow_duplicate_keys => boolean(),
     testdata_tag => atom(),
     datasource => poll | stream | file | testdata | undefined,
-    http_options => http_options()
+    http_options => http_options(),
+    stream_initial_retry_delay_ms => non_neg_integer()
 }.
 % Settings stored for each running SDK instance
 
@@ -103,6 +104,7 @@
 -define(DEFAULT_FILE_ALLOW_DUPLICATE_KEYS, false).
 -define(DEFAULT_TESTDATA_TAG, default).
 -define(DEFAULT_DATASOURCE, undefined).
+-define(DEFAULT_STREAM_RETRY_DELAY, 1000).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
@@ -160,6 +162,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     FileAllowDuplicateKeys = maps:get(file_allow_duplicate_keys, Options, ?DEFAULT_FILE_ALLOW_DUPLICATE_KEYS),
     TestDataTag = maps:get(testdata_tag, Options, ?DEFAULT_TESTDATA_TAG),
     DataSource = maps:get(datasource, Options, ?DEFAULT_DATASOURCE),
+    StreamInitialRetryDelayMs = maps:get(stream_initial_retry_delay_ms, Options, ?DEFAULT_STREAM_RETRY_DELAY),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     #{
         sdk_key => SdkKey,
@@ -192,7 +195,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         file_allow_duplicate_keys => FileAllowDuplicateKeys,
         http_options => HttpOptions,
         testdata_tag => TestDataTag,
-        datasource => DataSource
+        datasource => DataSource,
+        stream_initial_retry_delay_ms => StreamInitialRetryDelayMs
     }.
 
 %% @doc Get all registered tags

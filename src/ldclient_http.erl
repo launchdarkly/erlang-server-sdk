@@ -6,7 +6,10 @@
 -module(ldclient_http).
 
 %% API
--export([uri_parse/1]).
+-export([
+    uri_parse/1,
+    is_http_error_code_recoverable/1
+]).
 
 -spec port_for_scheme(Port :: undefined | inet:port_number(), Scheme :: atom()) -> inet:port_number().
 port_for_scheme(undefined, undefined) ->
@@ -30,3 +33,10 @@ uri_parse(URL) ->
     #{scheme:=Scheme,host:=Host,port:=Port,path:=Path,query:=Query} = Merged,
     SchemeAtom = list_to_atom(Scheme),
     {ok, {SchemeAtom, Host, port_for_scheme(Port, SchemeAtom), Path, Query}}.
+
+-spec is_http_error_code_recoverable(StatusCode :: integer()) -> temporary | permanent.
+is_http_error_code_recoverable(400) -> temporary;
+is_http_error_code_recoverable(408) -> temporary;
+is_http_error_code_recoverable(429) -> temporary;
+is_http_error_code_recoverable(StatusCode) when StatusCode >= 500 -> temporary;
+is_http_error_code_recoverable(_) -> permanent.

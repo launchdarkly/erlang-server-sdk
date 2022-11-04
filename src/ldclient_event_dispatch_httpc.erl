@@ -63,17 +63,10 @@ process_request({ok, {{_Version, StatusCode, _ReasonPhrase}, _Headers, _Body}}) 
     ok;
 process_request({ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}}) ->
     Reason = format_response(Version, StatusCode, ReasonPhrase),
-    HttpErrorType = is_http_error_code_recoverable(StatusCode),
+    HttpErrorType = ldclient_http:is_http_error_code_recoverable(StatusCode),
     {error, HttpErrorType, Reason}.
 
 -spec format_response(Version :: string(), StatusCode :: integer(), ReasonPhrase :: string()) ->
     string().
 format_response(Version, StatusCode, ReasonPhrase) ->
     io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase]).
-
--spec is_http_error_code_recoverable(StatusCode :: integer()) -> temporary | permanent.
-is_http_error_code_recoverable(400) -> temporary;
-is_http_error_code_recoverable(408) -> temporary;
-is_http_error_code_recoverable(429) -> temporary;
-is_http_error_code_recoverable(StatusCode) when StatusCode >= 500 -> temporary;
-is_http_error_code_recoverable(_) -> permanent.
