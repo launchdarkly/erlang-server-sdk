@@ -82,7 +82,7 @@ erlang-docker-template: &erlang-docker-template
         working_directory: ~/ldclient
     - run:
         name: run contract tests
-        command: TEST_HARNESS_PARAMS="-junit /tmp/test-results/contract-tests-junit.xml -skip-from test-service/testharness-suppressions.txt" make run-contract-tests
+        command: TEST_HARNESS_PARAMS="-junit /tmp/test-results/contract-tests-junit.xml" make run-contract-tests
         working_directory: ~/ldclient
     - store_test_results:
         path: /tmp/test-results/

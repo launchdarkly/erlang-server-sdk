@@ -12,7 +12,7 @@
 %% destination URI and SDK key. It must return success or temporary or
 %% permanent failure.
 -callback send(State:: any(), OutputEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string()) ->
-    ok | {error, temporary, string()} | {error, permanent, string()}.
+    ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
 
 %% `init' should return an initial value for the `State' argument to `send'
 -callback init(Tag :: atom(), SdkKey :: string()) -> any().

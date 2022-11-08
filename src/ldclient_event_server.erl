@@ -139,7 +139,6 @@ handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEve
     ok = ldclient_event_process_server:send_events(Tag, Events, SummaryEvent),
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
-
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -170,7 +169,7 @@ code_change(_OldVsn, State, _Extra) ->
     {[ldclient_event:event()], summary_event()}.
 add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity, InlineUsers) ->
     AddFull = should_add_full_event(Event),
-    AddDebug = should_add_debug_event(Event),
+    AddDebug = should_add_debug_event(Event, Tag),
     AddIndex = not (AddFull and InlineUsers),
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
     EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, AddIndex),
@@ -281,11 +280,12 @@ add_index_event(User, Timestamp, Events, Capacity) ->
     IndexEvent = ldclient_event:new_index(User, Timestamp),
     add_raw_event(IndexEvent, Events, Capacity).
 
--spec should_add_debug_event(ldclient_event:event()) -> boolean().
-should_add_debug_event(#{data := #{debugEventsUntilDate := null}}) -> false;
-should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}) ->
+-spec should_add_debug_event(ldclient_event:event(), Tag :: atom()) -> boolean().
+should_add_debug_event(#{data := #{debugEventsUntilDate := null}}, _Tag) -> false;
+should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}, Tag) ->
+    LastServerTime = ldclient_event_process_server:get_last_server_time(Tag),
     Now = erlang:system_time(milli_seconds),
-    DebugDate > Now.
+    (DebugDate > Now) and (DebugDate >  LastServerTime).
 
 -spec maybe_add_debug_event(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
