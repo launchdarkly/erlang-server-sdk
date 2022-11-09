@@ -21,7 +21,6 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     user_keys_capacity => pos_integer(),
-    inline_users_in_events => boolean(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),

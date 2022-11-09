@@ -19,8 +19,6 @@ handle_command(Tag, #{command := identify_event, identify_event := IdentifyEvent
     handle_identify_event_command(Tag, IdentifyEvent);
 handle_command(Tag, #{command := custom_event, custom_event := CustomEvent} = _Command) ->
     handle_custom_event_command(Tag, CustomEvent);
-handle_command(Tag, #{command := alias_event, alias_event := AliasEvent} = _Command) ->
-    handle_alias_event_command(Tag, AliasEvent);
 handle_command(Tag, #{command := evaluate_all, evaluate_all := EvaluateAll} = _Command) ->
     handle_evaluate_all_command(Tag, EvaluateAll);
 handle_command(_Tag, _Command) ->
@@ -78,8 +76,3 @@ handle_custom_event_command(_Tag, _CustomEvent) ->
     % This combination doesn't seem valid, but this can be extended if it is.
     % No tests trigger this condition currently.
     ok.
-
--spec handle_alias_event_command(Tag :: atom(),
-    AliasEvent :: ts_command_params:alias_event_params()) -> ok.
-handle_alias_event_command(Tag, #{user := User, previous_user := PreviousUser} = _AliasEvent) ->
-    ldclient:alias(User, PreviousUser, Tag).

@@ -23,7 +23,6 @@ init_with_all_options() ->
         events_flush_interval => 5000,
         events_dispatcher => ldclient_event_dispatch_test,
         user_keys_capacity => 1,
-        inline_users_in_events => false,
         private_attributes => all,
         stream => false,
         polling_interval => 5000,

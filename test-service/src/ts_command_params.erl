@@ -14,7 +14,7 @@
     format_evaluate_flag_response/1
 ]).
 
--type command() :: evaluate | evaluate_all | identify_event | custom_event | alias_event | flush_events.
+-type command() :: evaluate | evaluate_all | identify_event | custom_event | flush_events.
 
 -type command_params() :: #{
     command := command(),
@@ -22,7 +22,6 @@
     evaluate_all => evaluate_all_flags_params(),
     custom_event => custom_event_params(),
     identify_event => identify_event_params(),
-    alias_event  => alias_event_params()
 }.
 
 -type evaluate_flag_params() :: #{
@@ -64,11 +63,6 @@
     user := ldclient_user:user()
 }.
 
--type alias_event_params() :: #{
-    user := ldclient_user:user(),
-    previous_user := ldclient_user:user()
-}.
-
 -export_type([command_params/0]).
 -export_type([evaluate_flag_params/0]).
 -export_type([evaluate_flag_response/0]).
@@ -76,7 +70,6 @@
 -export_type([evaluate_all_flags_response/0]).
 -export_type([custom_event_params/0]).
 -export_type([identify_event_params/0]).
--export_type([alias_event_params/0]).
 
 -spec parse_command(Command :: map()) -> command_params().
 parse_command(#{<<"command">> := <<"evaluate">>,
@@ -98,11 +91,6 @@ parse_command(#{<<"command">> := <<"customEvent">>,
     <<"customEvent">> := CustomEvent} = _Command) -> #{
         command => custom_event,
         custom_event => parse_custom_event(CustomEvent)
-    };
-parse_command(#{<<"command">> := <<"aliasEvent">>,
-    <<"aliasEvent">> := AliasEvent} = _Command) -> #{
-        command => alias_event,
-        alias_event => parse_alias_event(AliasEvent)
     };
 parse_command(#{<<"command">> := <<"flushEvents">>} = _Command) -> #{
     command => flush_events
@@ -129,8 +117,7 @@ maybe_add_user(User, Map) -> Map#{user => User}.
     identify_event_params()
     | custom_event_params()
     | evaluate_flag_params()
-    | evaluate_all_flags_params()
-    | alias_event_params(),
+    | evaluate_all_flags_params(),
     UserKey :: binary()) -> ldclient_user:user() | undefined.
 parse_user_with_key(Container, UserKey) ->
     #{UserKey := User} = Container,
@@ -159,8 +146,7 @@ parse_user_map(User) ->
 identify_event_params()
 | custom_event_params()
 | evaluate_flag_params()
-| evaluate_all_flags_params()
-| alias_event_params()) -> ldclient_user:user() | undefined.
+| evaluate_all_flags_params()) -> ldclient_user:user() | undefined.
 parse_user(Container) ->
     parse_user_with_key(Container, <<"user">>).
 
@@ -212,14 +198,6 @@ parse_custom_event(CustomEvent) ->
     CustomEventWithMetricValue = parse_optional(<<"metricValue">>, metric_value,
         CustomEvent, CustomEventWithOmitNullData),
     CustomEventWithMetricValue.
-
--spec parse_alias_event(AliasEvent :: map()) -> alias_event_params().
-parse_alias_event(AliasEvent) ->
-    #{
-        user => parse_user(AliasEvent),
-        previous_user => parse_user_with_key(AliasEvent, <<"previousUser">>)
-    }
-.
 
 -spec format_evaluate_flag_response(Result ::
     ldclient_eval:detail()

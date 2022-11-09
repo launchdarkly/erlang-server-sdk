@@ -15,19 +15,15 @@
     add_flag_eval_events_flush_with_track_no_reasons/1,
     add_flag_eval_events_flush_with_track_experimentation_rule/1,
     add_flag_eval_events_flush_with_track_experimentation_fallthrough/1,
-    add_flag_eval_events_flush_with_track_inline/1,
     add_flag_eval_events_flush_no_track/1,
     add_flag_eval_events_with_debug/1,
     add_flag_eval_events_with_debug_track_events/1,
     add_identify_events/1,
     add_custom_events/1,
-    add_custom_events_inline/1,
     auto_flush/1,
     exceed_capacity/1,
     fail_and_retry/1,
     payload_id_differs/1,
-    alias_event_is_serialized/1,
-    alias_event_is_serialized_with_anonymous_users/1,
     add_flag_eval_events_flush_in_experiment_fallthrough/1,
     add_flag_eval_events_flush_in_experiment_rule_match/1
 ]).
@@ -42,18 +38,14 @@ all() ->
         add_flag_eval_events_flush_with_track_no_reasons,
         add_flag_eval_events_flush_with_track_experimentation_rule,
         add_flag_eval_events_flush_with_track_experimentation_fallthrough,
-        add_flag_eval_events_flush_with_track_inline,
         add_flag_eval_events_flush_no_track,
         add_flag_eval_events_with_debug,
         add_identify_events,
         add_custom_events,
-        add_custom_events_inline,
         auto_flush,
         exceed_capacity,
         fail_and_retry,
         payload_id_differs,
-        alias_event_is_serialized,
-        alias_event_is_serialized_with_anonymous_users,
         add_flag_eval_events_flush_in_experiment_fallthrough,
         add_flag_eval_events_flush_in_experiment_rule_match
     ].
@@ -72,11 +64,6 @@ init_per_suite(Config) ->
     },
     ldclient:start_instance("", another1, Another1Options),
     ldclient:start_instance("sdk-key-events-fail", failer, Another1Options),
-    InlineOptions = Options#{
-        stream => false,
-        inline_users_in_events => true
-    },
-    ldclient:start_instance("", inliner, InlineOptions),
     Config.
 
 end_per_suite(_) ->
@@ -502,51 +489,6 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         }
     ] = ActualEvents.
 
-add_flag_eval_events_flush_with_track_inline(_) ->
-    FlagBin = get_simple_flag_track(),
-    Flag = ldclient_flag:new(FlagBin),
-    Event = ldclient_event:new_flag_eval(
-        5,
-        <<"variation-value-5">>,
-        <<"default-value">>,
-        #{key => <<"12345-track-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
-        target_match,
-        Flag
-    ),
-    Events = [Event],
-    {ActualEvents, _} = send_await_events(Events, #{flush => true, include_reasons => true}, inliner),
-    [
-        #{
-            <<"features">> := #{
-                <<"abc">> := #{
-                    <<"counters">> := [
-                        #{
-                            <<"count">> := 1,
-                            <<"value">> := <<"variation-value-5">>,
-                            <<"variation">> := 5,
-                            <<"version">> := 5
-                        }
-                    ],
-                    <<"default">> := <<"default-value">>
-                }
-            },
-            <<"kind">> := <<"summary">>,
-            <<"startDate">> := _,
-            <<"endDate">> := _
-        },
-        #{
-            <<"kind">> := <<"feature">>,
-            <<"key">> := <<"abc">>,
-            <<"default">> := <<"default-value">>,
-            <<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
-            <<"user">> := #{<<"key">> := <<"12345-track-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
-            <<"value">> := <<"variation-value-5">>,
-            <<"variation">> := 5,
-            <<"version">> := 5,
-            <<"creationDate">> := _
-        }
-    ] = ActualEvents.
-
 add_flag_eval_events_flush_no_track(_) ->
     FlagBin = get_simple_flag_no_track(),
     Flag = ldclient_flag:new(FlagBin),
@@ -785,28 +727,6 @@ add_custom_events(_) ->
         }
     ] = ActualEvents.
 
-add_custom_events_inline(_) ->
-    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"12345-custom-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
-    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcde-custom-inline">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
-    Events = [Event1, Event2],
-    {ActualEvents, _} = send_await_events(Events, #{flush => true}, inliner),
-    [
-        #{
-            <<"key">> := <<"event-foo">>,
-            <<"kind">> := <<"custom">>,
-            <<"user">> := #{<<"key">> := <<"12345-custom-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
-            <<"data">> := #{<<"k1">> := <<"v1">>},
-            <<"creationDate">> := _
-        },
-        #{
-            <<"key">> := <<"event-bar">>,
-            <<"kind">> := <<"custom">>,
-            <<"user">> := #{<<"key">> := <<"abcde-custom-inline">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
-            <<"data">> := #{<<"k2">> := <<"v2">>},
-            <<"creationDate">> := _
-        }
-    ] = ActualEvents.
-
 auto_flush(_) ->
     Event1 = ldclient_event:new_identify(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
     Event2 = ldclient_event:new_identify(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
@@ -894,40 +814,6 @@ payload_id_differs(_) ->
         }
     ] = ActualEvents2,
     false = PayloadId1 =:= PayloadId2.
-
-alias_event_is_serialized(_) ->
-    Event = ldclient_event:new_alias(
-        #{key => <<"user">>},
-        #{key => <<"another">>}    
-    ),
-    {ActualEvents, _} = send_await_events([Event], #{flush => true}),
-    [
-        #{
-            <<"kind">> := <<"alias">>,
-            <<"creationDate">> := _,
-            <<"key">> := <<"user">>,
-            <<"previousKey">> := <<"another">>,
-            <<"contextKind">> := <<"user">>,
-            <<"previousContextKind">> := <<"user">>
-        }
-    ] = ActualEvents.
-
-alias_event_is_serialized_with_anonymous_users(_) ->
-    Event = ldclient_event:new_alias(
-        #{key => <<"user">>, anonymous => true},
-        #{key => <<"another">>, anonymous => true}    
-    ),
-    {ActualEvents, _} = send_await_events([Event], #{flush => true}),
-    [
-        #{
-            <<"kind">> := <<"alias">>,
-            <<"creationDate">> := _,
-            <<"key">> := <<"user">>,
-            <<"previousKey">> := <<"another">>,
-            <<"contextKind">> := <<"anonymousUser">>,
-            <<"previousContextKind">> := <<"anonymousUser">>
-        }
-    ] = ActualEvents.
 
 add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
     FlagBin = get_simple_flag_experiment_allocation_v2_fallthrough(),

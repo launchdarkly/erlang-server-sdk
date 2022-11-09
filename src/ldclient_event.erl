@@ -17,12 +17,11 @@
 -export([new_custom/3]).
 -export([new_custom/4]).
 -export([strip_eval_reason/1]).
--export([new_alias/2]).
 
 %% Types
--type event() :: feature_request() | identify() | index() | custom() | alias().
+-type event() :: feature_request() | identify() | index() | custom().
 
--type event_type() :: identify | index | feature_request | custom | alias.
+-type event_type() :: identify | index | feature_request | custom.
 
 -type event_data() ::
     null
@@ -73,13 +72,6 @@
     user         := ldclient_user:user(),
     data         => event_data(),
     metric_value => number()
-}.
-
--type alias() :: #{
-    type            := alias,
-    timestamp       := non_neg_integer(),
-    user            := ldclient_user:user(),
-    previous_user   := ldclient_user:user()
 }.
 
 -export_type([event/0]).
@@ -289,15 +281,6 @@ new_custom(Key, User, Data, MetricValue) when is_binary(Key), is_number(MetricVa
 -spec strip_eval_reason(ldclient_event:event()) -> ldclient_event:event().
 strip_eval_reason(#{type := feature_request, data := Data} = Event) ->
     Event#{data => maps:remove(eval_reason, Data)}.
-
--spec new_alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user()) -> event().
-new_alias(User, PreviousUser) -> 
-    #{ 
-        type            => alias,
-        timestamp       => erlang:system_time(milli_seconds),
-        user            => User,
-        previous_user   => PreviousUser
-    }.
 
 %%===================================================================
 %% Internal functions

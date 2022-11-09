@@ -40,7 +40,6 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     user_keys_capacity => pos_integer(),
-    inline_users_in_events => boolean(),
     private_attributes => private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
@@ -80,7 +79,6 @@
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
 -define(DEFAULT_USER_KEYS_CAPACITY, 1000).
--define(DEFAULT_INLINE_USERS_IN_EVENTS, false).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
@@ -138,7 +136,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
-    InlineUsersInEvents = maps:get(inline_users_in_events, Options, ?DEFAULT_INLINE_USERS_IN_EVENTS),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
@@ -174,7 +171,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
         user_keys_capacity => UserKeysCapacity,
-        inline_users_in_events => InlineUsersInEvents,
         private_attributes => PrivateAttributes,
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
