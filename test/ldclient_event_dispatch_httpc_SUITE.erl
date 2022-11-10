@@ -77,7 +77,7 @@ authorization_header_set_on_request(_) ->
     PayloadId = uuid:get_v4(),
     State = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
     bookish_spork:stub_request([200, #{}, <<>>]),
-    ok = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
+    {ok, _} = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
     {ok, Request} = bookish_spork:capture_request(),
     "sdk-key" = bookish_spork_request:header(Request, "authorization").
 
@@ -85,7 +85,7 @@ custom_headers_appended(_) ->
     PayloadId = uuid:get_v4(),
     State = ldclient_event_dispatch_httpc:init(custom, "sdk-key"),
     bookish_spork:stub_request([200, #{}, <<>>]),
-    ok = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
+    {ok, _} = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
     {ok, Request} = bookish_spork:capture_request(),
     %% Includes non-custom headers.
     "sdk-key" = bookish_spork_request:header(Request, "authorization"),
@@ -97,7 +97,7 @@ tls_request(_) ->
     PayloadId = uuid:get_v4(),
     State = ldclient_event_dispatch_httpc:init(tls, "sdk-key"),
     bookish_spork:stub_request([200, #{}, <<>>]),
-    ok = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
+    {ok, _} = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, ?MOCK_URI),
     {ok, _} = bookish_spork:capture_request().
 
 handle_date_in_headers(_) ->
@@ -114,14 +114,14 @@ handles_correct_rfc1123_dates(_) ->
 
 handles_incorrect_rfc1123_dates(_) ->
     %% Day needs to be 2 digits. Bookish spork doesn't do this right.
-    undefined = ldclient_event_dispatch_httpc:get_server_time([{"date", "Mon, 7 Nov 2022 18:43:12 GMT"}]),
-    undefined = ldclient_event_dispatch_httpc:get_server_time([{"date", "potato"}]).
+    0 = ldclient_event_dispatch_httpc:get_server_time([{"date", "Mon, 7 Nov 2022 18:43:12 GMT"}]),
+    0 = ldclient_event_dispatch_httpc:get_server_time([{"date", "potato"}]).
 
 handles_incorrect_date_types(_) ->
-    undefined = ldclient_event_dispatch_httpc:get_server_time([{"date", <<"Mon, 7 Nov 2022 18:43:12 GMT">>}]),
-    undefined = ldclient_event_dispatch_httpc:get_server_time([1667846592000]),
-    undefined = ldclient_event_dispatch_httpc:get_server_time([{"date", [[]]}]).
+    0 = ldclient_event_dispatch_httpc:get_server_time([{"date", <<"Mon, 7 Nov 2022 18:43:12 GMT">>}]),
+    0 = ldclient_event_dispatch_httpc:get_server_time([1667846592000]),
+    0 = ldclient_event_dispatch_httpc:get_server_time([{"date", [[]]}]).
 
 handles_no_date_present(_) ->
-    undefined = ldclient_event_dispatch_httpc:get_server_time([{"whatever", "value"}]),
-    undefined = ldclient_event_dispatch_httpc:get_server_time([]).
+    0 = ldclient_event_dispatch_httpc:get_server_time([{"whatever", "value"}]),
+    0 = ldclient_event_dispatch_httpc:get_server_time([]).
