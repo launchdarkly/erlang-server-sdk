@@ -190,7 +190,7 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     {error, temporary, Reason};
                 {ok, #{status_code := StatusCode}} when StatusCode >= 400 ->
                     {error, ldclient_http:is_http_error_code_recoverable(StatusCode), StatusCode};
-                {ok, Ref} ->
+                {ok, _Ref} ->
                     {ok, Pid}
             end
     end.
