@@ -39,7 +39,7 @@
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
-    user_keys_capacity => pos_integer(),
+    context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
@@ -78,7 +78,7 @@
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
--define(DEFAULT_USER_KEYS_CAPACITY, 1000).
+-define(DEFAULT_CONTEXT_KEYS_CAPACITY, 1000).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
@@ -135,7 +135,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
-    UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
+    ContextKeysCapacity = maps:get(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
@@ -170,7 +170,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_capacity => EventsCapacity,
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
-        user_keys_capacity => UserKeysCapacity,
+        context_keys_capacity => ContextKeysCapacity,
         private_attributes => PrivateAttributes,
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,

@@ -20,7 +20,7 @@
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
-    user_keys_capacity => pos_integer(),
+    context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
