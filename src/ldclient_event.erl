@@ -250,7 +250,8 @@ new_identify(User) ->
 new_index(User, Timestamp) ->
     new(index, User, Timestamp, #{}).
 
--spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data()) -> event().
+-spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data() | undefined) -> event().
+new_custom(Key, User, null) when is_binary(Key) -> new_custom(Key, User, undefined);
 new_custom(Key, User, undefined) when is_binary(Key) ->
     #{
         type      => custom,
@@ -267,7 +268,8 @@ new_custom(Key, User, Data) when is_binary(Key) ->
         data      => Data
     }.
 
--spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data(), MetricValue :: number()) -> event().
+-spec new_custom(Key :: binary(), User :: ldclient_user:user(), Data :: event_data() | undefined, MetricValue :: number()) -> event().
+new_custom(Key, User, null, MetricValue) when is_binary(Key), is_number(MetricValue) -> new_custom(Key, User, undefined, MetricValue);
 new_custom(Key, User, undefined, MetricValue) when is_binary(Key), is_number(MetricValue) ->
     #{
         type         => custom,
