@@ -29,7 +29,10 @@
     can_validate_single_context/1,
     can_validate_multi_context/1,
     can_set_private_attributes/1,
-    can_get_built_in_attributes/1
+    can_get_built_in_attributes/1,
+    can_create_context_from_basic_user/1,
+    can_create_context_from_full_user_custom/1,
+    can_allow_empty_key_for_user/1
 ]).
 
 %%====================================================================
@@ -56,7 +59,10 @@ all() ->
         can_validate_single_context,
         can_validate_multi_context,
         can_set_private_attributes,
-        can_get_built_in_attributes
+        can_get_built_in_attributes,
+        can_create_context_from_basic_user,
+        can_create_context_from_full_user_custom,
+        can_allow_empty_key_for_user
     ].
 
 init_per_suite(Config) ->
@@ -235,28 +241,29 @@ can_create_multi_context_from_map(_) ->
     }).
 
 can_validate_single_context(_) ->
-    true = ldclient_context:is_valid(#{key => <<"good-key">>}),
-    true = ldclient_context:is_valid(#{key => <<"good-key">>, kind => <<"good-kind">>}),
-    false = ldclient_context:is_valid(#{key => <<>>, kind => <<"good-kind">>}),
-    false = ldclient_context:is_valid(#{key => 17, kind => <<"good-kind">>}),
-    false = ldclient_context:is_valid(#{key => <<"good-key">>, kind => <<"bad$kind">>}).
+    true = ldclient_context:is_valid(#{key => <<"good-key">>}, false),
+    true = ldclient_context:is_valid(#{key => <<"good-key">>, kind => <<"good-kind">>}, false),
+    false = ldclient_context:is_valid(#{key => <<>>, kind => <<"good-kind">>}, false),
+    false = ldclient_context:is_valid(#{key => 17, kind => <<"good-kind">>}, false),
+    false = ldclient_context:is_valid(#{key => <<"good-key">>, kind => <<"bad$kind">>}, false),
+    false = ldclient_context:is_valid(#{key => <<>>}, false).
 
 can_validate_multi_context(_) ->
     true = ldclient_context:is_valid(#{
         kind => <<"multi">>,
         <<"user">> => #{key => <<"user-key">>},
         <<"org">> => #{key => <<"org-key">>}
-    }),
+    }, false),
     false = ldclient_context:is_valid(#{
         kind => <<"multi">>,
         <<"user">> => <<"not-a-context">>,
         <<"org">> => #{key => <<"org-key">>}
-    }),
+    }, false),
     false = ldclient_context:is_valid(#{
         kind => <<"multi">>,
         <<"us$er">> => #{key => <<"user-key">>},
         <<"org">> => #{key => <<"org-key">>}
-    }).
+    }, false).
 
 can_set_private_attributes(_) ->
     #{private_attributes := [<<"attr1">>, <<"attr2">>]} =
@@ -283,3 +290,61 @@ can_get_built_in_attributes(_) ->
     true = ldclient_context:get(<<"user">>, <<"anonymous">>, TestContext),
     null = ldclient_context:get(<<"user">>, <<"kind">>, TestContext),
     null = ldclient_context:get(<<"user">>, <<"private_attributes">>, TestContext).
+
+can_create_context_from_basic_user(_) ->
+    #{
+        kind := <<"user">>,
+        key := <<"user-key">>
+    } = ldclient_context:new_from_user(ldclient_user:new(<<"user-key">>)).
+
+can_create_context_from_full_user_custom(_) ->
+    Key = <<"12345">>,
+    Ip = "1.2.3.4",
+    Country = <<"some-country">>,
+    Email = "foo@bar.com",
+    FirstName = "a",
+    LastName = "z",
+    Avatar = "ratavA",
+    Name = "foobar",
+    Anonymous = false,
+    CustomKey1 = <<"custom-key1">>,
+    CustomKey2 = <<"custom-key2">>,
+    CustomValue1 = <<"custom-foo">>,
+    CustomValue2 = <<"custom-bar">>,
+    CustomMap = #{
+        CustomKey1 => CustomValue1,
+        CustomKey2 => CustomValue2
+    },
+    User = #{
+        key => Key,
+        ip => Ip,
+        country => Country,
+        email => Email,
+        first_name => FirstName,
+        last_name => LastName,
+        avatar => Avatar,
+        name => Name,
+        anonymous => Anonymous,
+        custom => CustomMap
+    },
+    Context = ldclient_context:new_from_user(User),
+    true = ldclient_context:is_valid(Context, false),
+    #{
+        key := Key,
+        kind := <<"user">>,
+        <<"ip">> := Ip,
+        <<"country">> := Country,
+        <<"email">> := Email,
+        <<"firstName">> := FirstName,
+        <<"lastName">> := LastName,
+        <<"avatar">> := Avatar,
+        <<"name">> := Name,
+        <<"anonymous">> := Anonymous,
+        CustomKey1 := CustomValue1,
+        CustomKey2 := CustomValue2
+    } = Context.
+
+can_allow_empty_key_for_user(_) ->
+    true = ldclient_context:is_valid(
+        ldclient_context:new_from_user(
+            ldclient_context:new_from_user(ldclient_user:new(<<>>))), true).

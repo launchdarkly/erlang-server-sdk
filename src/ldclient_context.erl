@@ -22,7 +22,8 @@
     set_private_attributes/2,
     set_private_attributes/3,
     new_from_map/1,
-    is_valid/1
+    is_valid/2,
+    new_from_user/1
 ]).
 
 %% Types
@@ -267,13 +268,34 @@ new_from_map(#{kind := <<"multi">>} = MapContext) ->
     lists:foldl(fun(Kind, Acc) ->
                     #{Kind := ContextPart} = MapContext,
                     Acc#{ensure_binary(Kind) => format_context_part(ContextPart)}
-                end, #{kind => <<"multi">>, valid => true}, Kinds);
+                end, #{kind => <<"multi">>}, Kinds);
 new_from_map(#{kind := _Kind} = MapContext) ->
     format_context_part(MapContext);
 %% There isn't a kind, or the kind is not keyed with a kind atom.
 new_from_map(MapContext) ->
     Kind = maps:get(kind, MapContext, maps:get(<<"kind">>, MapContext, <<"user">>)),
     new_from_map(MapContext#{kind => ensure_binary(Kind)}).
+
+%% @doc Create a context from an {@link ldclient_user:user()}.
+%%
+%% This function is primarily intended for use by the SDK. It will be used when calling variation methods with
+%% {@link ldclient_user:user()}. An {@link ldclient_user:user()} is detected by the lack of kind.
+%%
+%% Creating contexts directly, using {@link ldclient_context:new/1}, {@link ldclient_context:new/2},
+%% {@link ldclient_context:new_from_map/1}, or creating {@link context()}, will avoid this conversion.
+%%
+%% The user needs to be a valid {@link ldclient_user:user()}. A map can be converted to a user using
+%% {@link ldclient_user:new_from_map/1}. If the user does not have at least a key, then an empty map
+%% is returned and it will not validate. An invalid context will result in default values from variation methods.
+%% @end
+-spec new_from_user(User :: ldclient_user:user()) -> context().
+new_from_user(#{key := null} = _User) -> #{};
+new_from_user(#{key := Key} = User) when is_binary(Key) ->
+    attributes_from_user(User, #{
+    kind => <<"user">>,
+    key => Key
+});
+new_from_user(_User) -> #{}.
 
 %% @doc Set an attribute value with the specified key in a single kind context.
 %%
@@ -415,9 +437,13 @@ get_kinds(#{kind := Kind}) -> [Kind].
 %% @doc Verify a context is valid.
 %%
 %% This will ensure that the context, or contexts of a multi context, have:
+%%
 %% 1.) Valid keys. Key must exist, must be a binary, and cannot be empty.
+%%     An exception is made for contexts created from an {@link ldclient_user:user()}.
+%%
 %% 2.) Valid kind. Kind must exist, must be a binary, and must be composed of ASCII letters, numbers, as well as
-%%     '-', '.', and '_'.
+%%     '-', '.', and '_'. A context created from a {@link ldclient_user:user()} will have a `<<"user">>' kind.
+%%
 %% 3.) All parts of a multi context meet #1 and #2.
 %%
 %% Other aspects of the context may be invalid, and evaluation will proceed, but those invalid
@@ -427,20 +453,20 @@ get_kinds(#{kind := Kind}) -> [Kind].
 %% Evaluations which are done against an invalid context will return default values with a reason
 %% of user_not_specified.
 %% @end
--spec is_valid(Context :: context()) -> boolean().
-is_valid(#{kind := <<"multi">>} = Context) ->
+-spec is_valid(Context :: context(), AllowEmptyKey :: boolean()) -> boolean().
+is_valid(#{kind := <<"multi">>} = Context, _AllowEmptyKey) ->
     Kinds = get_kinds(Context), %% Will be original type atom()/binary() at this point.
     lists:foldl(fun(Kind, ValidAcc) ->
                             #{Kind := ContextPart} = Context,
                             ValidAcc and is_valid_kind(Kind) and is_valid_part(ContextPart)
                         end, true, Kinds);
-is_valid(#{key := Key, kind := Kind} = _Context) when is_binary(Kind), is_binary(Key) ->
-    is_valid_kind(Kind) and is_valid_context_key(Key);
+is_valid(#{key := Key, kind := Kind} = _Context, AllowEmptyKey) when is_binary(Kind), is_binary(Key) ->
+    is_valid_kind(Kind) and is_valid_context_key(Key, AllowEmptyKey);
 %% Had a kind, but that kind was not binary. So the context is not valid.
-is_valid(#{kind := _Kind} = _Context) -> false;
+is_valid(#{kind := _Kind} = _Context, _AllowEmptyKey) -> false;
 %% No kind, but does have a key and it is binary.
-is_valid(#{key := Key} = _Context) when is_binary(Key) -> true;
-is_valid(_Context) -> false.
+is_valid(#{key := Key} = _Context, AllowEmptyKey) when is_binary(Key) -> is_valid_context_key(Key, AllowEmptyKey);
+is_valid(_Context, _AllowEmpty) -> false.
 
 %%===================================================================
 %% Internal functions
@@ -558,10 +584,57 @@ binary_keys(MaybeMap) when is_map(MaybeMap) ->
               end, #{}, MaybeMap);
 binary_keys(MaybeMap) -> MaybeMap.
 
--spec is_valid_context_key(Key :: binary()) -> boolean().
-is_valid_context_key(<<"">>) -> false;
-is_valid_context_key(Key) when is_binary(Key) -> true.
+%% Verify a context key. Contexts created from ldclient_user:user() may have empty
+%% keys. Directly created contexts must not have empty keys.
+-spec is_valid_context_key(Key :: binary(), AllowEmpty :: boolean()) -> boolean().
+%% Empty key is not valid.
+is_valid_context_key(<<>> = _Key, true = _AllowEmpty) -> true;
+is_valid_context_key(<<>> = _Key, false = _AllowEmpty) -> false;
+is_valid_context_key(Key, _AllowEmpty)  when is_binary(Key) -> true.
+
 
 -spec is_valid_part(ContextPart :: context_part()) -> boolean().
 is_valid_part(#{key := Key} = _ContextPart) when is_binary(Key) -> true;
 is_valid_part(_ContextPart) -> false.
+
+-spec attributes_from_custom(Custom :: null | map(), Context :: context()) -> context().
+attributes_from_custom(null = _Custom, Context) -> Context;
+attributes_from_custom(Custom, Context) ->
+    maps:fold(fun(Key,Value, ContextAcc) ->
+        case Key of
+            %% Key and kind will have already been set, and
+            %% we do not want to override them.
+            key -> ContextAcc;
+            kind -> ContextAcc;
+            Key -> ContextAcc#{Key => Value}
+        end
+              end, Context, Custom).
+
+-spec attributes_from_user(User :: ldclient_user:user(), Context :: context()) -> context().
+attributes_from_user(User, Context) ->
+    %% Process custom before top level. The top level will replace
+    %% any custom attributes with conflicting names.
+    Custom = maps:get(custom, User, null),
+    ContextWithCustom = attributes_from_custom(Custom, Context),
+    maps:fold(fun(Key,Value, ContextAcc) ->
+        case Key of
+            %% These fields are already processed.
+            custom -> ContextAcc;
+            key -> ContextAcc;
+            kind -> ContextAcc;
+            private_attribute_names -> ContextAcc;
+            %% Fields which need to be converted from an atom to a binary.
+            secondary -> ContextAcc; %% No longer supported.
+            ip -> ContextAcc#{<<"ip">> => Value};
+            country -> ContextAcc#{<<"country">> => Value};
+            email -> ContextAcc#{<<"email">> => Value};
+            first_name -> ContextAcc#{<<"firstName">> => Value};
+            last_name -> ContextAcc#{<<"lastName">> => Value};
+            avatar -> ContextAcc#{<<"avatar">> => Value};
+            anonymous -> ContextAcc#{<<"anonymous">> => Value};
+            name -> ContextAcc#{<<"name">> => Value};
+            %% There were no other supported top level keys in users.
+            %% TODO: Should we log something?
+            Key -> ContextAcc
+        end
+              end, ContextWithCustom, User).
