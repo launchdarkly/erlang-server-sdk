@@ -15,7 +15,8 @@
     cannot_unescape_invalid_components/1,
     can_create_attribute_references/1,
     handles_bad_attribute_references/1,
-    can_create_attribute_references_from_legacy_names/1
+    can_create_attribute_references_from_legacy_names/1,
+    handles_invalid_legacy_name/1
 ]).
 
 %%====================================================================
@@ -28,7 +29,8 @@ all() ->
         cannot_unescape_invalid_components,
         can_create_attribute_references,
         handles_bad_attribute_references,
-        can_create_attribute_references_from_legacy_names
+        can_create_attribute_references_from_legacy_names,
+        handles_invalid_legacy_name
     ].
 
 init_per_suite(Config) ->
@@ -75,7 +77,9 @@ handles_bad_attribute_references(_) ->
     #{valid := false} = ldclient_attribute_reference:new(<<"/potato/">>),
     #{valid := false} = ldclient_attribute_reference:new(<<"/potato//yukon">>),
     #{valid := false} = ldclient_attribute_reference:new(<<"">>),
-    #{valid := false} = ldclient_attribute_reference:new(<<"/potato~3">>).
+    #{valid := false} = ldclient_attribute_reference:new(<<"/potato~3">>),
+    #{valid := false} = ldclient_attribute_reference:new(<<"/">>),
+    #{valid := false} = ldclient_attribute_reference:new(false).
 
 can_create_attribute_references_from_legacy_names(_) ->
     #{valid := true, components := [<<"potato">>], binary := <<"potato">>} =
@@ -86,3 +90,6 @@ can_create_attribute_references_from_legacy_names(_) ->
         ldclient_attribute_reference:new_from_legacy(<<"/~/potato">>),
     #{valid := true, components := [<<"pot//ato">>], binary := <<"pot//ato">>} =
     ldclient_attribute_reference:new_from_legacy(<<"pot//ato">>).
+
+handles_invalid_legacy_name(_) ->
+    #{valid := false} = ldclient_attribute_reference:new_from_legacy(<<"">>).
