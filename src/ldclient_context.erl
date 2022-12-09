@@ -23,7 +23,8 @@
     set_private_attributes/3,
     new_from_map/1,
     is_valid/2,
-    new_from_user/1
+    new_from_user/1,
+    get_canonical_key/1
 ]).
 
 %% Types
@@ -468,6 +469,21 @@ is_valid(#{kind := _Kind} = _Context, _AllowEmptyKey) -> false;
 is_valid(#{key := Key} = _Context, AllowEmptyKey) when is_binary(Key) -> is_valid_context_key(Key, AllowEmptyKey);
 is_valid(_Context, _AllowEmpty) -> false.
 
+%% @doc A string that describes the entire Context based on Kind and Key values.
+%%
+%% This value is used whenever LaunchDarkly needs a string identifier based on all of the Kind and
+%% Key values in the context; the SDK may use this for caching previously seen contexts, for instance.
+%% @end
+-spec get_canonical_key(Context :: context()) -> binary().
+get_canonical_key(#{kind := <<"user">>, key := Key} = _Context) -> Key;
+get_canonical_key(#{kind := <<"multi">>} = Context) ->
+    SortedParts = lists:keysort(1,maps:to_list(Context)),
+    lists:foldl(fun({Kind, Value}, Acc) ->
+                canonical_part(Kind, Value, Acc)
+              end, <<>>, SortedParts);
+get_canonical_key(#{kind := Kind, key := Key} = _Context) ->
+    encode_kind_key_pair(Kind, Key).
+
 %%===================================================================
 %% Internal functions
 %%===================================================================
@@ -597,6 +613,32 @@ is_valid_context_key(Key, _AllowEmpty)  when is_binary(Key) -> true.
 is_valid_part(#{key := Key} = _ContextPart) when is_binary(Key) -> true;
 is_valid_part(_ContextPart) -> false.
 
+%% Encode a key for use in a canonical key.
+-spec encode_key(Key :: binary()) -> binary().
+encode_key(Key) -> encode_key(Key, <<>>).
+
+-spec encode_key(Key :: binary(), Acc :: binary()) -> binary().
+encode_key(<<>>, Acc) -> Acc;
+encode_key(<<"%", T/binary>>, Acc) -> encode_key(T, <<Acc/binary, "%25">>);
+encode_key(<<":", T/binary>>, Acc) -> encode_key(T, <<Acc/binary, "%3A">>);
+encode_key(<<H,T/binary>>, Acc) -> encode_key(T,<<Acc/binary, H>>).
+
+%% In a multi-context each key-value pair needs to be extracted and turned into a kind:key string.
+%% The kind part of the context should be ignored.
+-spec canonical_part(Kind :: binary() | kind, Value :: map(), Acc :: binary()) -> binary().
+canonical_part(kind, _Value, Acc) -> Acc;
+canonical_part(Kind, #{key := Key} = _Value, <<>> = _Acc) ->
+    Pair = encode_kind_key_pair(Kind, Key),
+    <<Pair/binary>>;
+canonical_part(Kind, #{key := Key} = _Value, Acc) ->
+    Pair = encode_kind_key_pair(Kind, Key),
+    <<Acc/binary, ":", Pair/binary>>.
+
+%% Encode a kind and key into a canonical key component.
+-spec encode_kind_key_pair(Kind :: binary(), Key :: binary()) -> binary().
+encode_kind_key_pair(Kind, Key) ->
+    EncodedKey = encode_key(Key),
+    <<Kind/binary, ":", EncodedKey/binary>>.
 -spec attributes_from_custom(Custom :: null | map(), Context :: context()) -> context().
 attributes_from_custom(null = _Custom, Context) -> Context;
 attributes_from_custom(Custom, Context) ->

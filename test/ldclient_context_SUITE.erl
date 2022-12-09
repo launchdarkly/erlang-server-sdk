@@ -30,6 +30,8 @@
     can_validate_multi_context/1,
     can_set_private_attributes/1,
     can_get_built_in_attributes/1,
+    can_encode_context_key/1,
+    can_get_canonical_key/1,
     can_create_context_from_basic_user/1,
     can_create_context_from_full_user_custom/1,
     can_allow_empty_key_for_user/1
@@ -60,6 +62,8 @@ all() ->
         can_validate_multi_context,
         can_set_private_attributes,
         can_get_built_in_attributes,
+        can_encode_context_key,
+        can_get_canonical_key,
         can_create_context_from_basic_user,
         can_create_context_from_full_user_custom,
         can_allow_empty_key_for_user
@@ -291,6 +295,37 @@ can_get_built_in_attributes(_) ->
     null = ldclient_context:get(<<"user">>, <<"kind">>, TestContext),
     null = ldclient_context:get(<<"user">>, <<"private_attributes">>, TestContext).
 
+can_encode_context_key(_) ->
+    <<"my%25silly%3Akey%25%3A%3A%25">> = ldclient_context:encode_key(<<"my%silly:key%::%">>),
+    <<"my-less-silly-key">> = ldclient_context:encode_key(<<"my-less-silly-key">>).
+
+can_get_canonical_key(_) ->
+    <<"test">> = ldclient_context:get_canonical_key(#{kind => <<"user">>, key => <<"test">>}),
+    <<"org:orgtest">> = ldclient_context:get_canonical_key(#{kind => <<"org">>, key => <<"orgtest">>}),
+    <<"org:orgtest:user:usertest:zebra:a1">> = ldclient_context:get_canonical_key(
+        #{
+            kind => <<"multi">>,
+            <<"zebra">> => #{key => <<"a1">>},
+            <<"user">> => #{key => <<"usertest">>},
+            <<"org">> => #{key => <<"orgtest">>}
+        }
+    ),
+    %% Map order should not affect key.
+    <<"org:orgtest:user:usertest:zebra:a1">> = ldclient_context:get_canonical_key(
+        #{
+            kind => <<"multi">>,
+            <<"org">> => #{key => <<"orgtest">>},
+            <<"zebra">> => #{key => <<"a1">>},
+            <<"user">> => #{key => <<"usertest">>}
+        }
+    ),
+    <<"org:org%25%3Atest:user:user%25%3Atest">> = ldclient_context:get_canonical_key(
+        #{
+            kind => <<"multi">>,
+            <<"user">> => #{key => <<"user%:test">>},
+            <<"org">> => #{key => <<"org%:test">>}
+        }
+    ).
 can_create_context_from_basic_user(_) ->
     #{
         kind := <<"user">>,
