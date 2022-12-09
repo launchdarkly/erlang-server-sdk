@@ -18,7 +18,6 @@
 %% Types
 -type user() :: #{
     key := key(),
-    secondary => binary(),
     ip => binary(),
     country => binary(),
     email => binary(),
@@ -94,7 +93,7 @@ set_private_attribute_names(AttributeNames, User) when is_list(AttributeNames) -
 %% @end
 -spec scrub(user(), ldclient_config:private_attributes()) -> {user(), private_attribute_names()}.
 scrub(User, all) ->
-    AllStandardAttributes = [key, secondary, ip, country, email, first_name, last_name, avatar, name, anonymous],
+    AllStandardAttributes = [key, ip, country, email, first_name, last_name, avatar, name, anonymous],
     AllCustomAttributes = maps:keys(maps:get(custom, User, #{})),
     AllPrivateAttributes = lists:append(AllStandardAttributes, AllCustomAttributes),
     scrub(User#{private_attribute_names => AllPrivateAttributes});
@@ -139,7 +138,6 @@ get_attribute_value(Attr, _) when is_binary(Attr) ->
 
 -spec get_attribute(attribute()) -> attribute().
 get_attribute(key) -> key;
-get_attribute(secondary) -> secondary;
 get_attribute(ip) -> ip;
 get_attribute(country) -> country;
 get_attribute(email) -> email;
@@ -150,7 +148,6 @@ get_attribute(name) -> name;
 get_attribute(anonymous) -> anonymous;
 get_attribute(Attribute) when is_atom(Attribute) -> atom_to_binary(Attribute, utf8);
 get_attribute(<<"key">>) -> key;
-get_attribute(<<"secondary">>) -> secondary;
 get_attribute(<<"ip">>) -> ip;
 get_attribute(<<"country">>) -> country;
 get_attribute(<<"email">>) -> email;

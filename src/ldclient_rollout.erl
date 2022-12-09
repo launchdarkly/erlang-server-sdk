@@ -84,8 +84,7 @@ extract_variation(#{variation := Variation}, InExperiment) ->
 -spec bucket_user(seed(), ldclient_flag:key(), binary(), ldclient_user:user(), ldclient_user:attribute()) -> float().
 bucket_user(Seed, Key, Salt, User, BucketBy) ->
     UserValue = ldclient_user:get(BucketBy, User),
-    UserSecondary = ldclient_user:get(secondary, User),
-    bucket_user_value(Seed, Key, Salt, bucketable_value(UserValue), UserSecondary).
+    bucket_user_value(Seed, Key, Salt, bucketable_value(UserValue)).
 
 %%===================================================================
 %% Internal functions
@@ -119,20 +118,19 @@ match_weighted_variations(Bucket, [#{weight := Weight} = WeightedVariation|_], S
 match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
     match_weighted_variations(Bucket, Rest, Sum + Weight / 100000).
 
--spec bucket_user_value(seed(), ldclient_flag:key(), binary(), binary() | null, binary()) -> float().
-bucket_user_value(null, _Key, _Salt, null, _Secondary) -> 0.0;
-%% when no seed is present hash with `key.salt.attribute[.secondary]`
-bucket_user_value(null, Key, Salt, UserAttribute, null) ->
-    bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary>>);
-bucket_user_value(null, Key, Salt, UserAttribute, Secondary) ->
-    bucket_hash(<<Key/binary, $., Salt/binary, $., UserAttribute/binary, $., Secondary/binary>>);
-%% when a seed is present hash with `seed.attribute[.secondary]`
-bucket_user_value(Seed, _Key, _Salt, UserAttribute, null) ->
+-spec bucket_user_value(
+    Seed :: seed(),
+    FlagKey :: ldclient_flag:key(),
+    Salt :: binary(),
+    UserAttribute :: binary() | null) -> float().
+bucket_user_value(null, _FlagKey, _Salt, null) -> 0.0;
+%% when no seed is present hash with `key.salt.attribute`
+bucket_user_value(null, FlagKey, Salt, UserAttribute) ->
+    bucket_hash(<<FlagKey/binary, $., Salt/binary, $., UserAttribute/binary>>);
+%% when a seed is present hash with `seed.attribute`
+bucket_user_value(Seed, _FlagKey, _Salt, UserAttribute) ->
     Prefix = integer_to_binary(Seed),
-    bucket_hash(<<Prefix/binary, $., UserAttribute/binary>>);
-bucket_user_value(Seed, _Key, _Salt, UserAttribute, Secondary) ->
-    Prefix = integer_to_binary(Seed),
-    bucket_hash(<<Prefix/binary, $., UserAttribute/binary, $., Secondary/binary>>).
+    bucket_hash(<<Prefix/binary, $., UserAttribute/binary>>).
 
 -spec bucket_hash(binary()) -> float().
 bucket_hash(Hash) ->

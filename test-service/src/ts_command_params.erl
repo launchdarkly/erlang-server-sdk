@@ -130,8 +130,7 @@ parse_user_map(User) ->
     UserWithKey = #{
         key => maps:get(<<"key">>, User)
     },
-    UserWithSecondary = parse_optional(<<"secondary">>, secondary, User, UserWithKey),
-    UserWithIp = parse_optional(<<"ip">>, ip, User, UserWithSecondary),
+    UserWithIp = parse_optional(<<"ip">>, ip, User, UserWithKey),
     UserWithCountry = parse_optional(<<"country">>, country, User, UserWithIp),
     UserWithEmail = parse_optional(<<"email">>, email, User, UserWithCountry),
     UserWithFirstName = parse_optional(<<"firstName">>, first_name, User, UserWithEmail),

@@ -667,7 +667,6 @@ attributes_from_user(User, Context) ->
             kind -> ContextAcc;
             private_attribute_names -> ContextAcc;
             %% Fields which need to be converted from an atom to a binary.
-            secondary -> ContextAcc; %% No longer supported.
             ip -> ContextAcc#{<<"ip">> => Value};
             country -> ContextAcc#{<<"country">> => Value};
             email -> ContextAcc#{<<"email">> => Value};

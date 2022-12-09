@@ -627,10 +627,10 @@ rule_nomatch_in_negated_null_attribute(_) ->
 
 fallthrough_rollout(_) ->
     ExpectedReason = fallthrough,
-    {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
+    {{4, <<"e">>, ExpectedReason}, Events} =
+        ldclient_eval:flag_key_for_user(default, <<"roll-me">>, #{key => <<"user-foo">>}, "foo"),
     ExpectedEvents = lists:sort([
-        {<<"roll-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
+        {<<"roll-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -702,7 +702,7 @@ fallthrough_rollout_custom_float_invalid(_) ->
 fallthrough_rollout_invalid_last_variation(_) ->
     ExpectedReason = fallthrough,
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>, secondary => <<"bar">>}, "foo"),
+        ldclient_eval:flag_key_for_user(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-invalid">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
@@ -721,7 +721,7 @@ variation_out_of_range(_) ->
 extra_fields(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>, secondary => <<"bar">>}, "foo"),
+        ldclient_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"extra-fields">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
