@@ -34,7 +34,8 @@
     can_get_canonical_key/1,
     can_create_context_from_basic_user/1,
     can_create_context_from_full_user_custom/1,
-    can_allow_empty_key_for_user/1
+    can_allow_empty_key_for_user/1,
+    can_get_context_keys/1
 ]).
 
 %%====================================================================
@@ -66,7 +67,8 @@ all() ->
         can_get_canonical_key,
         can_create_context_from_basic_user,
         can_create_context_from_full_user_custom,
-        can_allow_empty_key_for_user
+        can_allow_empty_key_for_user,
+        can_get_context_keys
     ].
 
 init_per_suite(Config) ->
@@ -384,3 +386,13 @@ can_allow_empty_key_for_user(_) ->
     true = ldclient_context:is_valid(
         ldclient_context:new_from_user(
             ldclient_context:new_from_user(ldclient_user:new(<<>>))), true).
+
+can_get_context_keys(_) ->
+    #{<<"user">> := <<"user-key">>} = ldclient_context:get_keys_and_kinds(ldclient_context:new(<<"user-key">>)),
+    #{
+        <<"user">> := <<"user-key">>,
+        <<"org">> := <<"org-key">>
+    } = ldclient_context:get_keys_and_kinds(ldclient_context:new_multi_from([
+        ldclient_context:new(<<"user-key">>),
+        ldclient_context:new(<<"org-key">>, <<"org">>)
+    ])).

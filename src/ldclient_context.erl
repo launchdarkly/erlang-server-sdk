@@ -484,6 +484,24 @@ get_canonical_key(#{kind := <<"multi">>} = Context) ->
 get_canonical_key(#{kind := Kind, key := Key} = _Context) ->
     encode_kind_key_pair(Kind, Key).
 
+%% @doc Get a map of the kinds of the context to the keys to those kinds.
+%% This is intended for usage in generating analytics events.
+%% Should only be called on valid contexts.
+%% @private
+%% @end
+-spec get_keys_and_kinds(Context :: context()) -> map().
+get_keys_and_kinds(#{kind := <<"multi">>} = Context) ->
+    maps:fold(fun(Kind, ContextPart, Acc) ->
+            case Kind of
+                kind -> Acc;
+                _ ->
+                    ContextKey = maps:get(key, ContextPart, null),
+                    Acc#{Kind => ContextKey}
+            end
+        end
+    , #{}, Context);
+get_keys_and_kinds(#{kind := Kind, key := Key} = _Context) -> #{Kind => Key}.
+
 %%===================================================================
 %% Internal functions
 %%===================================================================
