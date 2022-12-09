@@ -639,6 +639,7 @@ canonical_part(Kind, #{key := Key} = _Value, Acc) ->
 encode_kind_key_pair(Kind, Key) ->
     EncodedKey = encode_key(Key),
     <<Kind/binary, ":", EncodedKey/binary>>.
+
 -spec attributes_from_custom(Custom :: null | map(), Context :: context()) -> context().
 attributes_from_custom(null = _Custom, Context) -> Context;
 attributes_from_custom(Custom, Context) ->

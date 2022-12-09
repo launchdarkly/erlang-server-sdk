@@ -326,6 +326,7 @@ can_get_canonical_key(_) ->
             <<"org">> => #{key => <<"org%:test">>}
         }
     ).
+
 can_create_context_from_basic_user(_) ->
     #{
         kind := <<"user">>,
