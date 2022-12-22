@@ -35,7 +35,8 @@
     can_create_context_from_basic_user/1,
     can_create_context_from_full_user_custom/1,
     can_allow_empty_key_for_user/1,
-    can_get_context_keys/1
+    can_get_context_keys/1,
+    can_create_context_from_json/1
 ]).
 
 %%====================================================================
@@ -68,7 +69,8 @@ all() ->
         can_create_context_from_basic_user,
         can_create_context_from_full_user_custom,
         can_allow_empty_key_for_user,
-        can_get_context_keys
+        can_get_context_keys,
+        can_create_context_from_json
     ].
 
 init_per_suite(Config) ->
@@ -283,7 +285,19 @@ can_set_private_attributes(_) ->
                 ldclient_context:new(<<"user-key">>),
                 ldclient_context:new(<<"org-key">>, <<"org">>)
             ])
-        ).
+        ),
+    %% Empty list does not get added.
+    undefined = maps:get(private_attributes,
+        ldclient_context:set_private_attributes([], ldclient_context:new(<<"the-key">>)),
+        undefined),
+    undefined =
+        maps:get(private_attributes, maps:get(<<"org">>,
+        ldclient_context:set_private_attributes(<<"org">>, [],
+            ldclient_context:new_multi_from([
+                ldclient_context:new(<<"user-key">>),
+                ldclient_context:new(<<"org-key">>, <<"org">>)
+            ])
+        )), undefined).
 
 can_get_built_in_attributes(_) ->
     TestContext = #{
@@ -396,3 +410,48 @@ can_get_context_keys(_) ->
         ldclient_context:new(<<"user-key">>),
         ldclient_context:new(<<"org-key">>, <<"org">>)
     ])).
+
+can_create_context_from_json(_) ->
+    BasicUserJsonMap = jsx:decode(<<"{\"key\": \"user-key\", \"kind\": \"user\"}">>, [return_maps]),
+    ExpectedBasicUser = ldclient_context:new(<<"user-key">>),
+    ExpectedBasicUser = ldclient_context:new_from_json(BasicUserJsonMap),
+    ComplexSingleKindJson = jsx:decode(<<
+        "{
+            \"key\": \"org-key\",
+            \"kind\": \"org\",
+            \"anonymous\": true,
+            \"complex\": {\"value\": 18},
+            \"_meta\": {\"privateAttributes\": [\"/complex\"]}
+        }"
+    >>, [return_maps]),
+    ExpectedComplexSingleKind =
+        ldclient_context:set_private_attributes([<<"/complex">>],
+        ldclient_context:set(<<"anonymous">>, true,
+        ldclient_context:set(<<"complex">>, #{<<"value">> => 18},
+        ldclient_context:new(<<"org-key">>, <<"org">>)))),
+    ExpectedComplexSingleKind = ldclient_context:new_from_json(ComplexSingleKindJson),
+    ExpectedComplexSingleKind2 =
+        ldclient_context:set_private_attributes([<<"/complex2">>],
+        ldclient_context:set(<<"name">>, <<"place">>,
+        ldclient_context:set(<<"complex2">>, #{<<"value2">> => 22},
+        ldclient_context:new(<<"office-key">>, <<"office">>)))),
+    ExpectedMultiKind = ldclient_context:new_multi_from([ExpectedComplexSingleKind, ExpectedComplexSingleKind2]),
+    MultiKindJson = jsx:decode(<<
+        "{
+            \"kind\": \"multi\",
+            \"org\": {
+                \"key\": \"org-key\",
+                \"anonymous\": true,
+                \"complex\": {\"value\": 18},
+                \"_meta\": {\"privateAttributes\": [\"/complex\"]}
+            },
+            \"office\": {
+                \"key\": \"office-key\",
+                \"name\": \"place\",
+                \"complex2\": {\"value2\": 22},
+                \"_meta\": {\"privateAttributes\": [\"/complex2\"]}
+            }
+        }"
+    >>, [return_maps]),
+    DecodedMultiKind = ldclient_context:new_from_json(MultiKindJson),
+    ExpectedMultiKind = DecodedMultiKind.

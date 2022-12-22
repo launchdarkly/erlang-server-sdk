@@ -24,7 +24,9 @@
     new_from_map/1,
     is_valid/2,
     new_from_user/1,
-    get_canonical_key/1
+    get_canonical_key/1,
+    new_from_json/1,
+    get_keys_and_kinds/1
 ]).
 
 %% Types
@@ -385,6 +387,7 @@ set(ContextKind, AttributeKey, AttributeValue, #{kind := Kind} = Context) when C
 %% method such as set/3 or by including it in the attributes map.
 %% @end
 -spec set_private_attributes(AttributeValues :: [binary()], Context :: single_context()) -> single_context().
+set_private_attributes([] = _AttributeValues, Context) -> Context;
 set_private_attributes(AttributeValues, Context) ->
     set(private_attributes, AttributeValues, Context).
 
@@ -394,6 +397,7 @@ set_private_attributes(AttributeValues, Context) ->
 %% @end
 -spec set_private_attributes(ContextKind :: kind_value(),
     AttributeValues :: [binary()], Context :: context()) -> context().
+set_private_attributes(_ContextKind, [] = _AttributeValues, Context) -> Context;
 set_private_attributes(ContextKind, AttributeValues, Context) ->
     set(ContextKind, private_attributes, AttributeValues, Context).
 
@@ -432,6 +436,8 @@ get(_ContextKind, _AttributeReference, _Context) ->
 %% @end
 -spec get_kinds(Context :: context()) -> [binary()].
 get_kinds(#{kind := <<"multi">>} = Context) ->
+    filter_kinds(maps:keys(Context));
+get_kinds(#{<<"kind">> := <<"multi">>} = Context) ->
     filter_kinds(maps:keys(Context));
 get_kinds(#{kind := Kind}) -> [Kind].
 
@@ -501,6 +507,24 @@ get_keys_and_kinds(#{kind := <<"multi">>} = Context) ->
         end
     , #{}, Context);
 get_keys_and_kinds(#{kind := Kind, key := Key} = _Context) -> #{Kind => Key}.
+
+%% @doc Parse a map created from the JSON representation of a context into an {@link ldclient_context:context()}.
+%%
+%% If the map cannot be parsed into a context, then `undefined' will be returned.
+%% @end
+-spec new_from_json(JsonMap :: map()) -> context() | undefined.
+new_from_json(#{<<"kind">> := <<"multi">>} = JsonMap) ->
+    Kinds = get_kinds(JsonMap), %% Will be original type atom()/binary() at this point.
+    lists:foldl(fun(Kind, Acc) ->
+            #{Kind := ContextPart} = JsonMap,
+            case Kind of
+                <<"kind">> -> Acc;
+                _ -> Acc#{Kind => new_part_from_json(ContextPart)}
+            end
+        end, #{kind => <<"multi">>}, Kinds);
+new_from_json(#{<<"kind">> := _ContextKind, <<"key">> := _ContextKey} = JsonMap) ->
+    new_part_from_json(JsonMap).
+
 
 %%===================================================================
 %% Internal functions
@@ -698,3 +722,14 @@ attributes_from_user(User, Context) ->
             Key -> ContextAcc
         end
               end, ContextWithCustom, User).
+
+-spec new_part_from_json(JsonMap :: map()) -> map().
+new_part_from_json(#{<<"key">> := ContextKey} = JsonMap) ->
+    maps:fold(fun(Key, Value, Acc) ->
+        case Key of
+            <<"_meta">> ->
+                PrivateAttributes = maps:get(<<"privateAttributes">>, Value, []),
+                set_private_attributes(PrivateAttributes, Acc);
+            _ -> set(Key, Value, Acc)
+        end
+              end, #{key => ContextKey}, JsonMap).
