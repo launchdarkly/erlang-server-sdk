@@ -115,6 +115,10 @@ check_clause(#{op := none}, _Context, _FeatureStore, _Tag) -> no_match;
 check_clause(Clause, Context, _FeatureStore, _Tag) ->
     check_clause(Clause, Context).
 
+check_clause(#{attribute := #{components := [<<"kind">>]}, context_kind := _ContextKind} = Clause, Context) ->
+    %% If the reference is to the kind of the context, then we handle it special and apply the checks
+    %% to the kinds of the context (versus the kind attribute specifically).
+    check_context_value_null(ldclient_context:get_kinds(Context), Clause);
 check_clause(#{attribute := Attribute, context_kind := ContextKind} = Clause, Context) ->
     ContextValue = ldclient_context:get(ContextKind, Attribute, Context),
     check_context_value_null(ContextValue, Clause).

@@ -11,7 +11,8 @@
 
 %% Tests
 -export([
-    check_attribute_against_clause_value/1
+    check_attribute_against_clause_value/1,
+    match_context_kinds/1
 ]).
 
 %%====================================================================
@@ -20,7 +21,8 @@
 
 all() ->
     [
-        check_attribute_against_clause_value
+        check_attribute_against_clause_value,
+        match_context_kinds
     ].
 
 init_per_suite(Config) ->
@@ -79,3 +81,26 @@ check_attribute_against_clause_value(_) ->
     false = ldclient_clause:check_attribute_against_clause_value(<<"2.0.0">>, semVerGreaterThan, <<"2">>),
     false = ldclient_clause:check_attribute_against_clause_value(<<"bad.vers.ion">>, semVerGreaterThan, <<"2">>),
     ok.
+
+match_context_kinds(_) ->
+    ClauseMatchingUserKind = #{
+        attribute => ldclient_attribute_reference:new(<<"kind">>),
+        op => in,
+        values => [<<"user">>],
+        negate => false,
+        context_kind => <<"user">> %% Unused for this type of rule.
+    },
+    SingleKindUser = #{kind => <<"user">>, key => <<"user-key">>},
+    MultiKindWithUser = #{
+        kind => <<"multi">>,
+        <<"org">> => #{key => <<"org-key">>},
+        <<"user">> => #{key => <<"user-key">>}},
+    match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindUser),
+    match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindWithUser),
+    SingleKindNotUser = #{kind => <<"org">>, key => <<"org-key">>},
+    MultiKindNotUser = #{
+        kind => <<"multi">>,
+        <<"org">> => #{key => <<"org-key">>},
+        <<"potato">> => #{key => <<"potato-key">>}},
+    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindNotUser),
+    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindNotUser).
