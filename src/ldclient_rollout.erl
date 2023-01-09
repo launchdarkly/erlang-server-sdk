@@ -38,7 +38,7 @@
 -type rollout_result() :: {
     Variation :: ldclient_flag:variation(),
     InExperiment :: boolean()
-}.
+} | malformed_flag.
 
 -export_type([rollout/0]).
 -export_type([rollout_result/0]).
@@ -72,8 +72,12 @@ parse_rollout_kind(Kind) ->
     error_logger:warning_msg("Unrecognized rollout type: ~p", [Kind]),
     rollout.
 
-
--spec rollout_context(rollout(), ldclient_flag:flag(), ldclient_context:context()) -> rollout_result().
+-spec rollout_context(
+    Rollout :: rollout(),
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context()) -> rollout_result().
+rollout_context(#{bucketBy := #{valid := false}} = _Rollout, _Flag, _Context) ->
+    malformed_flag;
 rollout_context(#{kind := experiment, seed := Seed, variations := WeightedVariations, bucketBy := BucketBy},
     #{key := FlagKey, salt := FlagSalt}, Context) ->
     Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy),
@@ -83,7 +87,6 @@ rollout_context(#{variations := WeightedVariations, bucketBy := BucketBy, seed :
     Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy),
     VariationBucket = match_weighted_variations(Bucket, WeightedVariations),
     extract_variation(VariationBucket, false).
-
 
 extract_variation(null, false) -> {null, false};
 extract_variation(#{variation := Variation}, InExperiment) ->

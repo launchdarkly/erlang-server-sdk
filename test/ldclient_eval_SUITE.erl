@@ -66,7 +66,10 @@
     rule_match_rollout_not_in_experiment/1,
     all_flags_state/1,
     all_flags_state_with_reason/1,
-    all_flags_state_offline/1
+    all_flags_state_offline/1,
+    malformed_clause/1,
+    malformed_rollout/1,
+    malformed_segment_rollout/1
 ]).
 
 %%====================================================================
@@ -130,7 +133,10 @@ all() ->
         rule_match_rollout_not_in_experiment,
         all_flags_state,
         all_flags_state_with_reason,
-        all_flags_state_offline
+        all_flags_state_offline,
+        malformed_clause,
+        malformed_rollout,
+        malformed_segment_rollout
     ].
 
 init_per_suite(Config) ->
@@ -145,6 +151,7 @@ init_per_suite(Config) ->
     },
     ldclient:start_instance("", Options),
     ldclient:start_instance("", another1, Options),
+    ldclient:start_instance("", malformed_flags, Options),
     ldclient:start_instance("", offline, OfflineOptions),
     ok = create_flags(),
     Config.
@@ -1119,3 +1126,196 @@ all_flags_state_offline(_) ->
         <<"$flagsState">> := #{},
         <<"$valid">> := false
     } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, offline).
+
+malformed_clause(_) ->
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => <<"
+    {
+        \"path\": \"/\",
+        \"data\": {
+            \"flags\": {
+                \"malformed-clause\": {
+                    \"key\": \"malformed-clause\",
+                    \"variations\": [
+                        true,
+                        false
+                    ],
+                    \"fallthrough\": {
+                        \"variation\": 0
+                    },
+                    \"offVariation\": 1,
+                    \"on\": true,
+                    \"salt\": \"d0888ec8341e45fdgf5bc10b47b033bb\",
+                    \"rules\": [
+                    {
+                        \"clauses\": [
+                            {
+                                \"attribute\": \"/~5key\",
+                                \"negate\": false,
+                                \"op\": \"in\",
+                                \"values\": [
+                                    \"context-key-match@example.com\"
+                                ],
+                                \"contextKind\": \"user\"
+                            }
+                        ],
+                        \"id\": \"08b9b261-5df6-4881-892b-689bdf28b6d3\",
+                        \"trackEvents\": false,
+                        \"variation\": 1
+                    }]
+                }
+            },
+            \"segments\":  {}
+        }
+    }
+    ">>}, ldclient_storage_ets, malformed_flags),
+    {{null, "foo", {error, malformed_flag}}, [#{context := #{key := <<"some-context">>,kind := <<"user">>},
+        data :=
+        #{debug := false,debugEventsUntilDate := null,
+            default := "foo",
+            eval_reason := {error,malformed_flag},
+            include_reason := false,key := <<"malformed-clause">>,
+            prereq_of := null,trackEvents := false,value := "foo",
+            variation := null,version := 0},
+        type := feature_request}]} =
+        ldclient_eval:flag_key_for_context(
+            malformed_flags,
+            <<"malformed-clause">>,
+            #{key => <<"some-context">>, kind => <<"user">>},
+            "foo"
+        ).
+
+malformed_rollout(_) ->
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => <<"
+    {
+        \"path\": \"/\",
+        \"data\": {
+            \"flags\": {
+                \"malformed-rollout\": {
+                    \"key\": \"malformed-rollout\",
+                    \"variations\": [
+                        true,
+                        false
+                    ],
+                    \"fallthrough\": {
+                        \"variation\": 0
+                    },
+                    \"offVariation\": 1,
+                    \"on\": true,
+                    \"salt\": \"d0888ec8341e45fdgf5bc10b47b033bb\",
+                    \"rules\": [
+                    {
+                        \"clauses\": [
+                            {
+                                \"attribute\": \"key\",
+                                \"negate\": false,
+                                \"op\": \"in\",
+                                \"values\": [
+                                    \"some-context\"
+                                ],
+                                \"contextKind\": \"user\"
+                            }
+                        ],
+                        \"id\": \"08b9b261-5df6-4881-892b-689bdf28b6d3\",
+                        \"trackEvents\": false,
+                        \"rollout\": {
+                            \"weight\": 100000,
+                            \"bucketBy\": \"//\",
+                            \"rolloutContextKind\": \"user\",
+                            \"id\": \"id\"
+                        }
+                    }]
+                }
+            },
+            \"segments\":  {}
+        }
+    }
+    ">>}, ldclient_storage_ets, malformed_flags),
+    {{null, "foo", {error, malformed_flag}}, [#{context := #{key := <<"some-context">>,kind := <<"user">>},
+        data :=
+        #{debug := false,debugEventsUntilDate := null,
+            default := "foo",
+            eval_reason := {error,malformed_flag},
+            include_reason := false,key := <<"malformed-rollout">>,
+            prereq_of := null,trackEvents := false,value := "foo",
+            variation := null,version := 0},
+        type := feature_request}]} =
+        ldclient_eval:flag_key_for_context(
+            malformed_flags,
+            <<"malformed-rollout">>,
+            #{key => <<"some-context">>, kind => <<"user">>},
+            "foo"
+        ).
+
+malformed_segment_rollout(_) ->
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => <<"
+    {
+        \"path\": \"/\",
+        \"data\": {
+            \"flags\": {
+                \"malformed-rollout\": {
+                    \"key\": \"malformed-rollout\",
+                    \"variations\": [
+                        true,
+                        false
+                    ],
+                    \"fallthrough\": {
+                        \"variation\": 0
+                    },
+                    \"offVariation\": 1,
+                    \"on\": true,
+                    \"salt\": \"d0888ec8341e45fdgf5bc10b47b033bb\",
+                    \"rules\": [
+                    {
+                        \"clauses\": [
+                            {
+                                \"negate\": false,
+                                \"op\": \"segmentMatch\",
+                                \"values\": [
+                                    \"bad-segment\"
+                                ],
+                                \"contextKind\": \"user\"
+                            }
+                        ],
+                        \"id\": \"08b9b261-5df6-4881-892b-689bdf28b6d3\",
+                        \"trackEvents\": false,
+                        \"variation\": 1
+                    }]
+                }
+            },
+            \"segments\":  {
+                \"bad-segment\": {
+                  \"key\": \"test\",
+                  \"rules\": [
+                    {
+                      \"clauses\": [{
+                        \"attribute\": \"key\",
+                        \"op\": \"in\",
+                        \"values\": [\"some-context\"]
+                      }],
+                      \"weight\": 100000,
+                      \"bucketBy\": \"//\",
+                      \"rolloutContextKind\": \"user\",
+                      \"id\": \"id\"
+                    }
+                  ],
+                  \"version\": 1
+                }
+            }
+        }
+    }
+    ">>}, ldclient_storage_ets, malformed_flags),
+    {{null, "foo", {error, malformed_flag}}, [#{context := #{key := <<"some-context">>,kind := <<"user">>},
+        data :=
+        #{debug := false,debugEventsUntilDate := null,
+            default := "foo",
+            eval_reason := {error,malformed_flag},
+            include_reason := false,key := <<"malformed-rollout">>,
+            prereq_of := null,trackEvents := false,value := "foo",
+            variation := null,version := 0},
+        type := feature_request}]} =
+        ldclient_eval:flag_key_for_context(
+            malformed_flags,
+            <<"malformed-rollout">>,
+            #{key => <<"some-context">>, kind => <<"user">>},
+            "foo"
+        ).

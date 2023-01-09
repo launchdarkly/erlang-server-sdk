@@ -39,7 +39,7 @@ new(RawRuleMap) ->
 %% @doc Match all clauses to context, includes segmentMatch
 %%
 %% @end
--spec match_context(rule(), Context :: ldclient_context:context(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match.
+-spec match_context(rule(), Context :: ldclient_context:context(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match | malformed_flag.
 match_context(#{clauses := Clauses}, Context, FeatureStore, Tag) ->
     check_clauses(Clauses, Context, FeatureStore, Tag).
 
@@ -67,13 +67,22 @@ parse_clauses(Clauses) ->
     F = fun(Clause) -> ldclient_clause:new(Clause) end,
     lists:map(F, Clauses).
 
--spec check_clauses([ldclient_clause:clause()], ldclient_context:context(), atom(), atom()) -> match | no_match.
+-spec check_clauses(
+    Clauses:: [ldclient_clause:clause()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom()) -> match | no_match | malformed_flag.
 check_clauses([], _Context, _FeatureStore, _Tag) -> match;
 check_clauses([Clause|Rest], Context, FeatureStore, Tag) ->
     Result = ldclient_clause:match_context(Clause, Context, FeatureStore, Tag),
     check_clause_result(Result, Rest, Context, FeatureStore, Tag).
 
--spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_context:context(), atom(), atom()) -> match | no_match.
+-spec check_clause_result(Result :: match | no_match | malformed_flag,
+    Clauses :: [ldclient_clause:clause()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom()) -> match | no_match | malformed_flag.
+check_clause_result(malformed_flag, _Rest, _Context, _FeatureStore, _Tag) -> malformed_flag;
 check_clause_result(no_match, _Rest, _Context, _FeatureStore, _Tag) -> no_match;
 check_clause_result(match, Rest, Context, FeatureStore, Tag) ->
     check_clauses(Rest, Context, FeatureStore, Tag).

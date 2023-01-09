@@ -12,7 +12,8 @@
 %% Tests
 -export([
     check_attribute_against_clause_value/1,
-    match_context_kinds/1
+    match_context_kinds/1,
+    malformed_flag_for_invalid_reference/1
 ]).
 
 %%====================================================================
@@ -22,7 +23,8 @@
 all() ->
     [
         check_attribute_against_clause_value,
-        match_context_kinds
+        match_context_kinds,
+        malformed_flag_for_invalid_reference
     ].
 
 init_per_suite(Config) ->
@@ -104,3 +106,13 @@ match_context_kinds(_) ->
         <<"potato">> => #{key => <<"potato-key">>}},
     no_match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindNotUser),
     no_match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindNotUser).
+
+malformed_flag_for_invalid_reference(_) ->
+    BadClause = #{
+        attribute => ldclient_attribute_reference:new(<<"">>),
+        op => in,
+        values => [<<"user">>],
+        negate => false,
+        context_kind => <<"user">> %% Unused for this type of rule.
+    },
+    malformed_flag = ldclient_clause:match_context(BadClause, ldclient_context:new(<<"user-key">>)).

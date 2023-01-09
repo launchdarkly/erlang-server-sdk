@@ -366,6 +366,10 @@ check_rules([Rule|Rest], Flag, Context, FeatureStore, Tag, DefaultValue, Events,
     Result = ldclient_rule:match_context(Rule, Context, FeatureStore, Tag),
     check_rule_result({Result, Rule, Index}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
 
+check_rule_result({malformed_flag, _Rule, _Index}, _Rest, #{key := FlagKey} = _Flag, _Context, _FeatureStore, _Tag, DefaultValue, _Events) ->
+    error_logger:warning_msg("Data inconsistency in feature flag ~p: clause was malformed", [FlagKey]),
+    Reason = {error, malformed_flag},
+    {{null, DefaultValue, Reason}, []};
 check_rule_result({no_match, _Rule, Index}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
     check_rules(Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events, Index + 1);
 check_rule_result({match, Rule, Index}, _Rest, Flag, Context, _FeatureStore, _Tag, DefaultValue, Events) ->
@@ -380,10 +384,15 @@ flag_for_context_rules(no_match, #{fallthrough := Fallthrough} = Flag, Context, 
 
 flag_for_context_variation_or_rollout(Variation, Reason, Flag, _Context, DefaultValue, Events) when is_integer(Variation) ->
     result_for_variation_index(Variation, Reason, Flag, Events, DefaultValue);
-flag_for_context_variation_or_rollout(Rollout, Reason, Flag, Context, DefaultValue, Events) when is_map(Rollout) ->
-    {Result, InExperiment} = ldclient_rollout:rollout_context(Rollout, Flag, Context),
-    UpdatedReason = experimentize_reason(InExperiment, Reason),
-    flag_for_context_rollout_result(Result, UpdatedReason, Flag, DefaultValue, Events);
+flag_for_context_variation_or_rollout(Rollout, Reason, #{key := FlagKey} = Flag, Context, DefaultValue, Events) when is_map(Rollout) ->
+    case ldclient_rollout:rollout_context(Rollout, Flag, Context) of
+        malformed_flag ->
+            error_logger:warning_msg("Data inconsistency in feature flag ~p: rollout was malformed", [FlagKey]),
+            {{null, DefaultValue, {error, malformed_flag}}, []};
+        {Result, InExperiment} ->
+            UpdatedReason = experimentize_reason(InExperiment, Reason),
+            flag_for_context_rollout_result(Result, UpdatedReason, Flag, DefaultValue, Events)
+    end;
 flag_for_context_variation_or_rollout(null, _Reason, #{key := FlagKey}, _Context, DefaultValue, Events) ->
     error_logger:warning_msg("Data inconsistency in feature flag ~p: rule object with no variation or rollout", [FlagKey]),
     Reason = {error, malformed_flag},

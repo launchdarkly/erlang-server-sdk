@@ -55,14 +55,14 @@ new(RawClauseMap) ->
 %% @doc Match clauses to context, no segmentMatch allowed
 %%
 %% @end
--spec match_context(clause(), ldclient_context:context()) -> match | no_match.
+-spec match_context(clause(), ldclient_context:context()) -> match | no_match | malformed_flag.
 match_context(Clause, Context) ->
     check_clause(Clause, Context).
 
 %% @doc Match all clauses to context, includes possible segmentMatch
 %%
 %% @end
--spec match_context(clause(), ldclient_context:context(), atom(), atom()) -> match | no_match.
+-spec match_context(clause(), ldclient_context:context(), atom(), atom()) -> match | no_match | malformed_flag.
 match_context(Clause, Context, FeatureStore, Tag) ->
     check_clause(Clause, Context, FeatureStore, Tag).
 
@@ -108,13 +108,20 @@ parse_operator(<<"semVerLessThan">>) -> semVerLessThan;
 parse_operator(<<"semVerGreaterThan">>) -> semVerGreaterThan;
 parse_operator(_) -> none.
 
--spec check_clause(clause(), ldclient_context:context(), atom(), atom()) -> match | no_match.
+-spec check_clause(Clause :: clause(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom()) -> match | no_match | malformed_flag.
 check_clause(#{op := segmentMatch, values := SegmentKeys} = Clause, Context, FeatureStore, Tag) ->
     maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, Context, FeatureStore, Tag));
 check_clause(#{op := none}, _Context, _FeatureStore, _Tag) -> no_match;
 check_clause(Clause, Context, _FeatureStore, _Tag) ->
     check_clause(Clause, Context).
 
+-spec check_clause(Clause :: clause(), Context :: ldclient_context:context()) ->  match | no_match | malformed_flag.
+check_clause(#{attribute := #{valid := false}, context_kind := _ContextKind} = _Clause, _Context) ->
+    %% The attribute reference is not valid. The flag is malformed.
+    malformed_flag;
 check_clause(#{attribute := #{components := [<<"kind">>]}, context_kind := _ContextKind} = Clause, Context) ->
     %% If the reference is to the kind of the context, then we handle it special and apply the checks
     %% to the kinds of the context (versus the kind attribute specifically).
@@ -261,6 +268,13 @@ check_segment_keys_match([SegmentKey|Rest], Context, FeatureStore, Tag) ->
     Result = check_segment_key_match(SegmentKey, Context, FeatureStore, Tag),
     check_segment_key_match_result(Result, Rest, Context, FeatureStore, Tag).
 
+
+-spec check_segment_key_match_result(Result :: match | no_match | malformed_flag,
+    SegmentKeys :: [binary()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom()) -> match | no_match | malformed_flag.
+check_segment_key_match_result(malformed_flag, _Rest, _Context, _FeatureStore, _Tag) -> malformed_flag;
 check_segment_key_match_result(match, _Rest, _Context, _FeatureStore, _Tag) -> match;
 check_segment_key_match_result(no_match, Rest, Context, FeatureStore, Tag) ->
     check_segment_keys_match(Rest, Context, FeatureStore, Tag).

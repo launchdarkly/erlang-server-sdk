@@ -50,7 +50,7 @@ new(RawSegmentMap) ->
     SegmentMap = maps:merge(SegmentTemplate, RawSegmentMap),
     new_from_template(SegmentMap).
 
--spec match_context(segment(), ldclient_context:context()) -> match | no_match.
+-spec match_context(segment(), ldclient_context:context()) -> match | no_match | malformed_flag.
 match_context(Segment, Context) ->
     check_context_in_segment(Segment, Context).
 
@@ -128,6 +128,7 @@ check_rules([Rule|Rest], Context) ->
     Result = check_rule(Rule, Context),
     check_rule_result({Result, Rule}, Rest, Context).
 
+check_rule_result({malformed_flag, _Rule}, _Rest, _Context) -> malformed_flag;
 check_rule_result({match, _Rule}, _Rest, _Context) -> match;
 check_rule_result({no_match, _Rule}, Rest, Context) ->
     check_rules(Rest, Context).
@@ -156,6 +157,7 @@ check_rule_weight(#{weight := null}, _Context) -> match;
 check_rule_weight(Rule, Context) ->
     check_context_bucket(Rule, Context).
 
+check_context_bucket(#{bucketBy := #{valid := false}} = _Segment, _Context) -> malformed_flag;
 check_context_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, Context) ->
     Bucket = ldclient_rollout:bucket_context(null, SegmentKey, SegmentSalt, Context, BucketBy),
     check_context_bucket_result(Bucket, Weight).
