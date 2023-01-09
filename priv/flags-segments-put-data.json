@@ -301,14 +301,14 @@
                 "targets": [
                     {
                         "values": [
-                            "user-33333",
-                            "user-12345"
+                            "context-33333",
+                            "context-12345"
                         ],
                         "variation": 0
                     },
                     {
                         "values": [
-                            "user-77777"
+                            "context-77777"
                         ],
                         "variation": 1
                     }
@@ -394,7 +394,7 @@
                                 "negate": false,
                                 "op": "in",
                                 "values": [
-                                    "user-key-match@example.com"
+                                    "context-key-match@example.com"
                                 ]
                             }
                         ],
@@ -424,7 +424,7 @@
                                 "negate": false,
                                 "op": "startsWith",
                                 "values": [
-                                    "user-starts-with"
+                                    "context-starts-with"
                                 ]
                             }
                         ],
@@ -439,7 +439,7 @@
                                 "negate": false,
                                 "op": "matches",
                                 "values": [
-                                    "^user-regex-match.*$"
+                                    "^context-regex-match.*$"
                                 ]
                             }
                         ],
@@ -454,7 +454,7 @@
                                 "negate": false,
                                 "op": "contains",
                                 "values": [
-                                    "user-contains"
+                                    "context-contains"
                                 ]
                             }
                         ],
@@ -1023,11 +1023,11 @@
             "test-included": {
                 "deleted": false,
                 "excluded": [
-                    "user-33333"
+                    "context-33333"
                 ],
                 "included": [
-                    "user-12345",
-                    "user-456"
+                    "context-12345",
+                    "context-456"
                 ],
                 "key": "test-included",
                 "rules": [],
@@ -1038,7 +1038,7 @@
                 "deleted": false,
                 "excluded": [],
                 "included": [
-                    "user-12345"
+                    "context-12345"
                 ],
                 "key": "extra-fields",
                 "rules": [],

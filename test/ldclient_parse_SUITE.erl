@@ -71,7 +71,11 @@ parse_flag_empty(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             seed => null,
             kind => rollout
@@ -98,7 +102,11 @@ parse_flag_key_only(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             seed => null,
             kind => rollout
@@ -204,7 +212,11 @@ parse_flag_full(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => <<"foo">>,
+            bucketBy => #{
+                binary => <<"foo">>,
+                components => [<<"foo">>],
+                valid => true
+            },
             variations => [
                 #{variation => 0, weight => 0, untracked => true},
                 #{variation => 1, weight => 40000, untracked => false},
@@ -227,7 +239,12 @@ parse_flag_full(_) ->
                 variationOrRollout => 3,
                 clauses => [
                     #{
-                        attribute => <<"user-attr-foo">>,
+                        attribute => #{
+                            binary => <<"user-attr-foo">>,
+                            components => [<<"user-attr-foo">>],
+                            valid => true
+                        },
+                        context_kind => <<"user">>,
                         negate => false,
                         op => contains,
                         values => [<<"rule-foo-value1">>, <<"rule-foo-value2">>]
@@ -281,7 +298,11 @@ parse_flag_ignore_invalid(_) ->
         fallthrough              => #{
             kind => rollout,
             seed => null,
-            bucketBy => <<"foo">>,
+            bucketBy => #{
+                binary => <<"foo">>,
+                components => [<<"foo">>],
+                valid => true
+            },
             variations => [
                 #{variation => 1, weight => 0, untracked => false}
             ]
@@ -309,7 +330,11 @@ parse_flag_invalid_fallthrough(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             seed => null,
             kind => rollout
@@ -387,13 +412,22 @@ parse_segment_full(_) ->
         included => [<<"789">>],
         rules    => [
             #{
-                bucketBy => key,
+                bucketBy => #{
+                    binary => <<"/key">>,
+                    components => [<<"key">>],
+                    valid => true
+                },
                 weight => null,
                 segmentKey => <<"segment-full">>,
                 segmentSalt => <<"segment-full-salt">>,
                 clauses => [
                     #{
-                        attribute => <<"user-attr-foo">>,
+                        attribute => #{
+                            binary => <<"user-attr-foo">>,
+                            components => [<<"user-attr-foo">>],
+                            valid => true
+                        },
+                        context_kind => <<"user">>,
                         negate => false,
                         op => contains,
                         values => [<<"rule-foo-value1">>, <<"rule-foo-value2">>]
@@ -426,7 +460,11 @@ parse_flag_invalid_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             kind => rollout,
             seed => null
@@ -465,7 +503,11 @@ parse_flag_rollout_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             kind => rollout,
             seed => null
@@ -504,7 +546,11 @@ parse_flag_experiment_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
             variations => [],
             kind => experiment,
             seed => null

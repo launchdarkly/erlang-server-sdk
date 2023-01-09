@@ -14,8 +14,7 @@
     sdk_offline/1,
     unknown_flag/1,
     unknown_flag_another/1,
-    user_with_no_key/1,
-    user_with_null_key/1,
+    context_with_empty_key/1,
     off_flag/1,
     off_flag_another/1,
     off_flag_null_off_variation/1,
@@ -24,11 +23,11 @@
     prerequisite_fail_off_null/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
-    target_user/1,
-    target_user_another/1,
+    target_context/1,
+    target_context_another/1,
     segment_included/1,
     segment_excluded_negated/1,
-    segment_excluded_negated_nonuser/1,
+    segment_excluded_negated_noncontext/1,
     segment_excluded_another/1,
     rule_match_in/1,
     rule_match_ends_with/1,
@@ -79,8 +78,7 @@ all() ->
         sdk_offline,
         unknown_flag,
         unknown_flag_another,
-        user_with_no_key,
-        user_with_null_key,
+        context_with_empty_key,
         off_flag,
         off_flag_another,
         off_flag_null_off_variation,
@@ -89,11 +87,11 @@ all() ->
         prerequisite_fail_off_null,
         prerequisite_fail_variation,
         prerequisite_success,
-        target_user,
-        target_user_another,
+        target_context,
+        target_context_another,
         segment_included,
         segment_excluded_negated,
-        segment_excluded_negated_nonuser,
+        segment_excluded_negated_noncontext,
         segment_excluded_another,
         rule_match_in,
         rule_match_ends_with,
@@ -214,11 +212,11 @@ extract_events(Events, true) ->
 
 sdk_offline(_) ->
     {{null, "foo", {error, client_not_ready}}, []} =
-        ldclient_eval:flag_key_for_user(offline, <<"keep-it-off">>, #{key => <<"some-user">>}, "foo").
+        ldclient_eval:flag_key_for_context(offline, <<"keep-it-off">>, #{key => <<"some-context">>, kind => <<"user">>}, "foo").
 
 unknown_flag(_) ->
     {{null, "foo", {error, flag_not_found}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"flag-that-does-not-exist">>, #{key => <<"some-user">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"flag-that-does-not-exist">>, #{key => <<"some-context">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"flag-that-does-not-exist">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}
     ]),
@@ -228,58 +226,47 @@ unknown_flag(_) ->
 unknown_flag_another(_) ->
     % Flag exists in default instance, doesn't exist in another1 instance
     {{null, "foo", {error, flag_not_found}}, Events} =
-        ldclient_eval:flag_key_for_user(another1, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
+        ldclient_eval:flag_key_for_context(another1, <<"bad-variation">>, #{key => <<"some-context">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"bad-variation">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
-user_with_no_key(_) ->
-    {{null, "foo", {error, user_not_specified}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"keep-it-off">>, #{name => <<"some-user">>}, "foo"),
-    ExpectedEvents = lists:sort([
-        {<<"keep-it-off">>, feature_request, null, "foo", "foo", {error, user_not_specified}, null}
-    ]),
-    ActualEvents = lists:sort(extract_events(Events)),
-    ExpectedEvents = ActualEvents.
-
-user_with_null_key(_) ->
-    {{null, "foo", {error, user_not_specified}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"keep-it-off">>, #{key => null}, "foo"),
-    ExpectedEvents = lists:sort([
-        {<<"keep-it-off">>, feature_request, null, "foo", "foo", {error, user_not_specified}, null}
-    ]),
+context_with_empty_key(_) ->
+    {{1, false, off}, Events} =
+        ldclient_eval:flag_key_for_context(default, <<"keep-it-off">>, #{key => <<>>, name => <<"some-context">>, kind => <<"user">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 off_flag(_) ->
-    {{1, false, off}, Events} = ldclient_eval:flag_key_for_user(default, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
+    {{1, false, off}, Events} = ldclient_eval:flag_key_for_context(default, <<"keep-it-off">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 off_flag_another(_) ->
-    {{1, false, off}, Events} = ldclient_eval:flag_key_for_user(another1, <<"keep-it-off">>, #{key => <<"user123">>}, "foo"),
+    {{1, false, off}, Events} = ldclient_eval:flag_key_for_context(another1, <<"keep-it-off">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off">>, feature_request, 1, false, "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 off_flag_null_off_variation(_) ->
-    {{null, "foo", off}, Events} = ldclient_eval:flag_key_for_user(default, <<"keep-it-off-null-off-variation">>, #{key => <<"user123">>}, "foo"),
+    {{null, "foo", off}, Events} = ldclient_eval:flag_key_for_context(default, <<"keep-it-off-null-off-variation">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-off-null-off-variation">>, feature_request, null, "foo", "foo", off, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 deleted_flag(_) ->
-    {{null, "foo", {error, flag_not_found}}, Events} = ldclient_eval:flag_key_for_user(default, <<"keep-it-deleted">>, #{key => <<"user123">>}, "foo"),
+    {{null, "foo", {error, flag_not_found}}, Events} = ldclient_eval:flag_key_for_context(default, <<"keep-it-deleted">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([{<<"keep-it-deleted">>, feature_request, null, "foo", "foo", {error, flag_not_found}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 prerequisite_fail_off(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"prereqs-fail-off">>, #{key => <<"user123">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
@@ -288,7 +275,7 @@ prerequisite_fail_off(_) ->
 
 prerequisite_fail_off_null(_) ->
     {{null, "foo", {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"prereqs-fail-off-null">>, #{key => <<"user123">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off-null">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"prereqs-fail-off-null">>, feature_request, null, "foo", "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
@@ -297,7 +284,7 @@ prerequisite_fail_off_null(_) ->
 
 prerequisite_fail_variation(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-on">>]}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"prereqs-fail-variation">>, #{key => <<"user123">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-variation">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"keep-it-on">>, feature_request, 0, true, null, fallthrough, <<"prereqs-fail-variation">>},
         {<<"keep-it-on-two">>, feature_request, 0, true, null, fallthrough, <<"keep-it-on">>},
@@ -308,7 +295,7 @@ prerequisite_fail_variation(_) ->
 
 prerequisite_success(_) ->
     {{1, false, fallthrough}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"prereqs-success">>, #{key => <<"user123">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"prereqs-success">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"prereqs-success">>, feature_request, 1, false, "foo", fallthrough, null},
         {<<"keep-it-on-another">>, feature_request, 0, true, null, fallthrough, <<"prereqs-success">>},
@@ -318,19 +305,19 @@ prerequisite_success(_) ->
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
-target_user(_) ->
+target_context(_) ->
     {{0, true, target_match}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"target-me">>, #{key => <<"user-33333">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"target-me">>, #{key => <<"context-33333">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"target-me">>, feature_request, 0, true, "foo", target_match, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
-target_user_another(_) ->
-    % Same user, different instance, different target result
+target_context_another(_) ->
+    % Same context, different instance, different target result
     {{1, false, target_match}, Events} =
-        ldclient_eval:flag_key_for_user(another1, <<"target-me">>, #{key => <<"user-33333">>}, "foo"),
+        ldclient_eval:flag_key_for_context(another1, <<"target-me">>, #{key => <<"context-33333">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"target-me">>, feature_request, 1, false, "foo", target_match, null}
     ]),
@@ -340,7 +327,7 @@ target_user_another(_) ->
 segment_included(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"segment-me">>, #{key => <<"context-12345">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
@@ -350,18 +337,18 @@ segment_included(_) ->
 segment_excluded_negated(_) ->
     ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-33333">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"segment-me">>, #{key => <<"context-33333">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
-segment_excluded_negated_nonuser(_) ->
-    % This user isn't specified in a segment
+segment_excluded_negated_noncontext(_) ->
+    % This context isn't specified in a segment
     ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"segment-me">>, #{key => <<"user-99999">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"segment-me">>, #{key => <<"context-99999">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
@@ -369,10 +356,10 @@ segment_excluded_negated_nonuser(_) ->
     ExpectedEvents = ActualEvents.
 
 segment_excluded_another(_) ->
-    % Same user, different instance, different segment result
+    % Same context, different instance, different segment result
     ExpectedReason = {rule_match, 1, <<"489a185d-caaf-4db9-b192-e09e927d070c">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(another1, <<"segment-me">>, #{key => <<"user-12345">>}, "foo"),
+        ldclient_eval:flag_key_for_context(another1, <<"segment-me">>, #{key => <<"context-12345">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"segment-me">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
@@ -382,7 +369,7 @@ segment_excluded_another(_) ->
 rule_match_in(_) ->
     ExpectedReason = {rule_match, 0, <<"08b9b261-5df6-4881-892b-e25bdb28b6d3">>},
     {{0, <<"a">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-key-match@example.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-key-match@example.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
@@ -392,7 +379,7 @@ rule_match_in(_) ->
 rule_match_ends_with(_) ->
     ExpectedReason = {rule_match, 1, <<"2fac50d0-d912-424a-831e-ab60ad0547b4">>},
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-ends-with@example.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-ends-with@example.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
@@ -402,7 +389,7 @@ rule_match_ends_with(_) ->
 rule_match_ends_and_starts_with_order(_) ->
     ExpectedReason = {rule_match, 1, <<"2fac50d0-d912-424a-831e-ab60ad0547b4">>},
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-starts-with@example.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-starts-with@example.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
@@ -412,7 +399,7 @@ rule_match_ends_and_starts_with_order(_) ->
 rule_match_starts_with(_) ->
     ExpectedReason = {rule_match, 2, <<"e3b70ddf-a000-4649-93c5-ac0eaea675f8">>},
     {{2, <<"c">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-starts-with@foo.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-starts-with@foo.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 2, <<"c">>, "foo", ExpectedReason, null}
     ]),
@@ -422,7 +409,7 @@ rule_match_starts_with(_) ->
 rule_match_regex(_) ->
     ExpectedReason = {rule_match, 3, <<"1d63c99a-3016-4778-bf1f-68d1fce5004e">>},
     {{3, <<"d">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-regex-match@foo.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-regex-match@foo.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 3, <<"d">>, "foo", ExpectedReason, null}
     ]),
@@ -432,7 +419,7 @@ rule_match_regex(_) ->
 rule_match_contains(_) ->
     ExpectedReason = {rule_match, 4, <<"1f1dadfc-0e66-42e0-b479-979186d972ce">>},
     {{4, <<"e">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"user-contains@foo.com">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"context-contains@foo.com">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
@@ -440,15 +427,14 @@ rule_match_contains(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_less_than(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"custom1">> => 30
-        }
+        kind => <<"user">>,
+        attributes => #{<<"custom1">> => 30}
     },
     ExpectedReason = {rule_match, 5, <<"ca092500-1cb7-4b14-a11c-81b46ca19cae">>},
     {{5, <<"f">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 5, <<"f">>, "foo", ExpectedReason, null}
     ]),
@@ -456,15 +442,14 @@ rule_match_less_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_less_than_or_equal(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"custom1">> => 50
-        }
+        kind => <<"user">>,
+        attributes => #{<<"custom1">> => 50}
     },
     ExpectedReason = {rule_match, 6, <<"d38e11f8-93d1-453e-8022-6d8ed7f106ea">>},
     {{6, <<"g">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 6, <<"g">>, "foo", ExpectedReason, null}
     ]),
@@ -472,15 +457,14 @@ rule_match_less_than_or_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_greater_than(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"custom2">> => 70
-        }
+        kind => <<"user">>,
+        attributes => #{<<"custom2">> => 70}
     },
     ExpectedReason = {rule_match, 7, <<"a92a93c2-2004-482b-9e4a-38abe81d7050">>},
     {{7, <<"h">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 7, <<"h">>, "foo", ExpectedReason, null}
     ]),
@@ -488,15 +472,14 @@ rule_match_greater_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_greater_than_or_equal(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"custom2">> => 50
-        }
+        kind => <<"user">>,
+        attributes => #{<<"custom2">> => 50}
     },
     ExpectedReason = {rule_match, 8, <<"9158e01a-a70f-4924-8cf8-9401e2cf6c67">>},
     {{8, <<"i">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 8, <<"i">>, "foo", ExpectedReason, null}
     ]),
@@ -504,15 +487,15 @@ rule_match_greater_than_or_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_before_int(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"beforeInt">> => 1451772244
-        }
+        kind => <<"user">>,
+        attributes => #{<<"beforeInt">> => 1451772244}
+
     },
     ExpectedReason = {rule_match, 9, <<"500633a7-2c82-4baf-8201-4892b68b31b4">>},
     {{9, <<"j">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 9, <<"j">>, "foo", ExpectedReason, null}
     ]),
@@ -520,15 +503,14 @@ rule_match_before_int(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_after_int(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
-            <<"afterInt">> => 1451772246
-        }
+        kind => <<"user">>,
+        attributes => #{<<"afterInt">> => 1451772246}
     },
     ExpectedReason = {rule_match, 10, <<"77473bea-d93f-4787-84d2-92cf08b35f2b">>},
     {{10, <<"k">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 10, <<"k">>, "foo", ExpectedReason, null}
     ]),
@@ -536,15 +518,16 @@ rule_match_after_int(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_equal(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"version">> => <<"5.0.0">>
         }
     },
     ExpectedReason = {rule_match, 11, <<"9398cafc-0ab7-4d0d-8e01-6683cc4d17ec">>},
     {{11, <<"l">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 11, <<"l">>, "foo", ExpectedReason, null}
     ]),
@@ -552,15 +535,16 @@ rule_match_semver_equal(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_greater_than(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"version">> => <<"5.1.0">>
         }
     },
     ExpectedReason = {rule_match, 12, <<"3570714f-d03b-4068-ab79-18f15c74382d">>},
     {{12, <<"m">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 12, <<"m">>, "foo", ExpectedReason, null}
     ]),
@@ -568,15 +552,16 @@ rule_match_semver_greater_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_semver_less_than(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"version">> => <<"4.0.0">>
         }
     },
     ExpectedReason = {rule_match, 13, <<"2c002923-2db0-4fcc-a95e-f3cb5b4bd13d">>},
     {{13, <<"n">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 13, <<"n">>, "foo", ExpectedReason, null}
     ]),
@@ -584,15 +569,16 @@ rule_match_semver_less_than(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_before_date(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"beforeDate">> => <<"2018-01-01T11:59:59Z">>
         }
     },
     ExpectedReason = {rule_match, 14, <<"b6c5ceec-364d-4c23-a041-7865f4f136d3">>},
     {{14, <<"o">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 14, <<"o">>, "foo", ExpectedReason, null}
     ]),
@@ -600,15 +586,16 @@ rule_match_before_date(_) ->
     ExpectedEvents = ActualEvents.
 
 rule_match_after_date(_) ->
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"afterDate">> => <<"2018-01-01T12:00:01Z">>
         }
     },
     ExpectedReason = {rule_match, 15, <<"764c5346-6478-4d34-83e7-59c0afc7a15b">>},
     {{15, <<"p">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 15, <<"p">>, "foo", ExpectedReason, null}
     ]),
@@ -618,7 +605,7 @@ rule_match_after_date(_) ->
 rule_nomatch_in_negated_null_attribute(_) ->
     ExpectedReason = fallthrough,
     {{0, <<"a">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"rule-me">>, #{key => <<"no-match">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"rule-me">>, #{key => <<"no-match">>,  kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"rule-me">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
@@ -628,7 +615,7 @@ rule_nomatch_in_negated_null_attribute(_) ->
 fallthrough_rollout(_) ->
     ExpectedReason = fallthrough,
     {{4, <<"e">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me">>, #{key => <<"user-foo">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me">>, #{key => <<"user-foo">>,  kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
@@ -637,14 +624,15 @@ fallthrough_rollout(_) ->
 
 fallthrough_rollout_custom(_) ->
     ExpectedReason = fallthrough,
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"customProp">> => <<"514343">>
         }
     },
     {{4, <<"e">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me-custom">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
@@ -653,14 +641,15 @@ fallthrough_rollout_custom(_) ->
 
 fallthrough_rollout_custom_integer(_) ->
     ExpectedReason = fallthrough,
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"customProp">> => 514343
         }
     },
     {{4, <<"e">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me-custom">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
@@ -669,14 +658,15 @@ fallthrough_rollout_custom_integer(_) ->
 
 fallthrough_rollout_custom_float(_) ->
     ExpectedReason = fallthrough,
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"customProp">> => 514343.0
         }
     },
     {{4, <<"e">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me-custom">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 4, <<"e">>, "foo", ExpectedReason, null}
     ]),
@@ -685,14 +675,15 @@ fallthrough_rollout_custom_float(_) ->
 
 fallthrough_rollout_custom_float_invalid(_) ->
     ExpectedReason = fallthrough,
-    User = #{
+    Context = #{
         key => <<"user-foo">>,
-        custom => #{
+        kind => <<"user">>,
+        attributes => #{
             <<"customProp">> => 514343.05
         }
     },
     {{0, <<"a">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-custom">>, User, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me-custom">>, Context, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-custom">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null}
     ]),
@@ -702,7 +693,7 @@ fallthrough_rollout_custom_float_invalid(_) ->
 fallthrough_rollout_invalid_last_variation(_) ->
     ExpectedReason = fallthrough,
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"roll-me-invalid">>, #{key => <<"user-foo">>,  kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"roll-me-invalid">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null}
     ]),
@@ -711,7 +702,7 @@ fallthrough_rollout_invalid_last_variation(_) ->
 
 variation_out_of_range(_) ->
     {{null, "foo", {error, malformed_flag}}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"bad-variation">>, #{key => <<"some-user">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"bad-variation">>, #{key => <<"some-context">>,  kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"bad-variation">>, feature_request, null, "foo", "foo", {error, malformed_flag}, null}
     ]),
@@ -721,7 +712,7 @@ variation_out_of_range(_) ->
 extra_fields(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
     {{1, false, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"extra-fields">>, #{key => <<"user-12345">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"extra-fields">>, #{key => <<"context-12345">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"extra-fields">>, feature_request, 1, false, "foo", ExpectedReason, null}
     ]),
@@ -731,7 +722,7 @@ extra_fields(_) ->
 missing_some_fields(_) ->
     ExpectedReason = fallthrough,
     {{0, true, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"missing-some-fields">>, #{key => <<"user-msf">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"missing-some-fields">>, #{key => <<"context-msf">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"missing-some-fields">>, feature_request, 0, true, "foo", ExpectedReason, null}
     ]),
@@ -741,7 +732,7 @@ missing_some_fields(_) ->
 missing_all_fields(_) ->
     ExpectedReason = {error, malformed_flag},
     {{null, "foo", ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"missing-all-fields">>, #{key => <<"user-maf">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"missing-all-fields">>, #{key => <<"context-maf">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"missing-all-fields">>, feature_request, null, "foo", "foo", ExpectedReason, null}
     ]),
@@ -749,20 +740,20 @@ missing_all_fields(_) ->
     ExpectedEvents = ActualEvents.
 
 missing_rollout_for_rule(_) -> 
-    {{2,<<"FallthroughValue">>,fallthrough}, Events} = ldclient_eval:flag_key_for_user(default, <<"missing-rollout-for-rule">>, #{key => <<"user123">>}, "DefaultValue"),
+    {{2,<<"FallthroughValue">>,fallthrough}, Events} = ldclient_eval:flag_key_for_context(default, <<"missing-rollout-for-rule">>, #{key => <<"context123">>, kind => <<"user">>}, "DefaultValue"),
     ExpectedEvents = lists:sort([{<<"missing-rollout-for-rule">>, feature_request, 2, <<"FallthroughValue">>, "DefaultValue", fallthrough, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 missing_rollout_for_rule_match_rule(_) ->
-    % For this test the user key matters because the rule matches keys containing "maybe".
-    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_user(default, <<"missing-rollout-for-rule">>, #{key => <<"key1Maybe">>}, "DefaultValue"),
+    % For this test the context key matters because the rule matches keys containing "maybe".
+    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_context(default, <<"missing-rollout-for-rule">>, #{key => <<"key1Maybe">>, kind => <<"user">>}, "DefaultValue"),
     ExpectedEvents = lists:sort([{<<"missing-rollout-for-rule">>, feature_request, null, "DefaultValue", "DefaultValue", {error, malformed_flag}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
 fallthrough_no_rollout_or_variation(_) ->
-    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_user(default, <<"fallthrough-no-rollout-or-variation">>, #{key => <<"user123">>}, "DefaultValue"),
+    {{null, "DefaultValue", {error, malformed_flag}}, Events} = ldclient_eval:flag_key_for_context(default, <<"fallthrough-no-rollout-or-variation">>, #{key => <<"context123">>, kind => <<"user">>}, "DefaultValue"),
     ExpectedEvents = lists:sort([{<<"fallthrough-no-rollout-or-variation">>, feature_request, null, "DefaultValue", "DefaultValue", {error, malformed_flag}, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
@@ -770,7 +761,7 @@ fallthrough_no_rollout_or_variation(_) ->
 fallthrough_rollout_in_experiment(_) ->
     ExpectedReason = {fallthrough, in_experiment},
     {{0, <<"a">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyA">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyA">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"experiment-traffic-allocation-v2">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null, true, true}
     ]),
@@ -780,7 +771,7 @@ fallthrough_rollout_in_experiment(_) ->
 fallthrough_rollout_not_in_experiment(_) ->
     ExpectedReason = fallthrough,
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyB">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"experiment-traffic-allocation-v2">>, #{key => <<"userKeyB">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"experiment-traffic-allocation-v2">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null, false, false}
     ]),
@@ -790,7 +781,7 @@ fallthrough_rollout_not_in_experiment(_) ->
 rule_match_rollout_in_experiment(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>, in_experiment},
     {{0, <<"a">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyA">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyA">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"experiment-traffic-allocation-v2-rules">>, feature_request, 0, <<"a">>, "foo", ExpectedReason, null, true, true}
     ]),
@@ -800,7 +791,7 @@ rule_match_rollout_in_experiment(_) ->
 rule_match_rollout_not_in_experiment(_) ->
     ExpectedReason = {rule_match, 0, <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>},
     {{1, <<"b">>, ExpectedReason}, Events} =
-        ldclient_eval:flag_key_for_user(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyB">>}, "foo"),
+        ldclient_eval:flag_key_for_context(default, <<"experiment-traffic-allocation-v2-rules">>, #{key => <<"userKeyB">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
         {<<"experiment-traffic-allocation-v2-rules">>, feature_request, 1, <<"b">>, "foo", ExpectedReason, null, true, false}
     ]),
@@ -963,7 +954,7 @@ all_flags_state(_) ->
         <<"rule-me">> := <<"a">>,
         <<"segment-me">> := false,
         <<"target-me">> := true
-    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>}, #{with_reasons => true}, default).
+    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, default).
 
 all_flags_state_with_reason(_) ->
     #{<<"$flagsState">> :=
@@ -1121,10 +1112,10 @@ all_flags_state_with_reason(_) ->
         <<"rule-me">> := <<"a">>,
         <<"segment-me">> := false,
         <<"target-me">> := true
-    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>}, #{with_reasons => true}, default).
+    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, default).
 
 all_flags_state_offline(_) ->
     #{
         <<"$flagsState">> := #{},
         <<"$valid">> := false
-    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>}, #{with_reasons => true}, offline).
+    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, offline).

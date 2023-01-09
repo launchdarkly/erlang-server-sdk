@@ -383,10 +383,11 @@ new_clause(UserAttribute, Values, Negate) ->
                           is_atom(UserAttribute) -> atom_to_binary(UserAttribute, utf8);
                           true -> unknown
                       end,
-    #{attribute => AttributeBinary,
+    #{attribute => ldclient_attribute_reference:new(AttributeBinary),
       values => Values,
       negate => Negate,
-      op => in
+      op => in,
+      context_kind => <<"user">>
      }.
 
 %% @doc Finishes defining the rule, specifying the result variation.

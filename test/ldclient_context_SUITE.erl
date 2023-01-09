@@ -384,16 +384,18 @@ can_create_context_from_full_user_custom(_) ->
     #{
         key := Key,
         kind := <<"user">>,
-        <<"ip">> := Ip,
-        <<"country">> := Country,
-        <<"email">> := Email,
-        <<"firstName">> := FirstName,
-        <<"lastName">> := LastName,
-        <<"avatar">> := Avatar,
-        <<"name">> := Name,
-        <<"anonymous">> := Anonymous,
-        CustomKey1 := CustomValue1,
-        CustomKey2 := CustomValue2
+        attributes := #{
+            <<"ip">> := Ip,
+            <<"country">> := Country,
+            <<"email">> := Email,
+            <<"firstName">> := FirstName,
+            <<"lastName">> := LastName,
+            <<"avatar">> := Avatar,
+            <<"name">> := Name,
+            <<"anonymous">> := Anonymous,
+            CustomKey1 := CustomValue1,
+            CustomKey2 := CustomValue2
+        }
     } = Context.
 
 can_allow_empty_key_for_user(_) ->

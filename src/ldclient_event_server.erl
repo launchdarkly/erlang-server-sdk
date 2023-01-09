@@ -171,20 +171,20 @@ code_change(_OldVsn, State, _Extra) ->
     Capacity :: pos_integer()
 ) ->
     {[ldclient_event:event()], summary_event()}.
-add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity) ->
+add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity) ->
     AddFull = should_add_full_event(Event),
     AddDebug = should_add_debug_event(Event, Tag),
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
-    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity),
+    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
     EventsWithFeature = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, EventsWithIndex, Capacity),
     NewEvents = maybe_add_debug_event(AddDebug, Event, Options, EventsWithFeature, Capacity),
     {NewEvents, NewSummaryEvent};
-add_event(Tag, #{type := identify, user := User} = Event, _Options, Events, SummaryEvent, Capacity) ->
-    % Notice the user, but do not conditionally add the index event.
-    ldclient_user_cache:notice_user(Tag, User),
+add_event(Tag, #{type := identify, context := Context} = Event, _Options, Events, SummaryEvent, Capacity) ->
+    % Notice the context, but do not conditionally add the index event.
+    ldclient_context_cache:notice_context(Tag, Context),
     {add_raw_event(Event, Events, Capacity), SummaryEvent};
-add_event(Tag, #{type := custom, user := User, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity) ->
-    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity),
+add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity) ->
+    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
     {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent}.
 
 -spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer()) ->
@@ -265,18 +265,18 @@ maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity)
 maybe_add_feature_request_full_fidelity(false, _Event, _Options, Events, _Capacity) ->
     Events.
 
--spec maybe_add_index_event(atom(), ldclient_user:user(), non_neg_integer(), [ldclient_event:event()], pos_integer()) ->
+-spec maybe_add_index_event(atom(), ldclient_context:context(), non_neg_integer(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
-maybe_add_index_event(Tag, User, Timestamp, Events, Capacity) ->
-    case ldclient_user_cache:notice_user(Tag, User) of
+maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity) ->
+    case ldclient_context_cache:notice_context(Tag, Context) of
         true -> Events;
-        false -> add_index_event(User, Timestamp, Events, Capacity)
+        false -> add_index_event(Context, Timestamp, Events, Capacity)
     end.
 
--spec add_index_event(User :: ldclient_user:user(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer()) ->
+-spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
-add_index_event(User, Timestamp, Events, Capacity) ->
-    IndexEvent = ldclient_event:new_index(User, Timestamp),
+add_index_event(Context, Timestamp, Events, Capacity) ->
+    IndexEvent = ldclient_event:new_index(Context, Timestamp),
     add_raw_event(IndexEvent, Events, Capacity).
 
 -spec should_add_debug_event(ldclient_event:event(), Tag :: atom()) -> boolean().

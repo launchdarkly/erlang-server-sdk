@@ -8,7 +8,7 @@
 
 %% API
 -export([new/1]).
--export([match_user/2]).
+-export([match_context/2]).
 
 %% Types
 -type segment() :: #{
@@ -24,7 +24,7 @@
 -type rule() :: #{
     clauses      => [ldclient_clause:clause()],
     weight       => null | non_neg_integer(),
-    bucketBy    => ldclient_user:attribute(),
+    bucketBy    => ldclient_attribute_reference:attribute_reference(),
     segmentKey  => binary(),
     segmentSalt => binary()
 }.
@@ -45,13 +45,14 @@ new(RawSegmentMap) ->
         <<"rules">> => [],
         <<"salt">> => <<>>,
         <<"version">> => 0
+        %% TODO: More U2C stuff to add here.
     },
     SegmentMap = maps:merge(SegmentTemplate, RawSegmentMap),
     new_from_template(SegmentMap).
 
--spec match_user(segment(), ldclient_user:user()) -> match | no_match.
-match_user(Segment, User) ->
-    check_user_in_segment(Segment, User).
+-spec match_context(segment(), ldclient_context:context()) -> match | no_match.
+match_context(Segment, Context) ->
+    check_context_in_segment(Segment, Context).
 
 %%===================================================================
 %% Internal functions
@@ -94,7 +95,8 @@ parse_rules(SegmentKey, SegmentSalt, Rules) ->
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
 parse_rule_optional_attributes(Rule, RuleRaw) ->
     Weight = maps:get(<<"weight">>, RuleRaw, null),
-    BucketBy = maps:get(<<"bucketBy">>, RuleRaw, key),
+    %% TODO: Handle legacy attribute vs attribute reference.
+    BucketBy = ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, RuleRaw, <<"/key">>)),
     Rule#{weight => Weight, bucketBy => BucketBy}.
 
 -spec parse_clauses([map()]) -> [ldclient_clause:clause()].
@@ -102,61 +104,61 @@ parse_clauses(Clauses) ->
     F = fun(Clause) -> ldclient_clause:new(Clause) end,
     lists:map(F, Clauses).
 
-check_user_in_segment(Segment, User) ->
-    check_user_included(Segment, User).
+check_context_in_segment(Segment, Context) ->
+    check_context_included(Segment, Context).
 
-check_user_included(#{included := Included} = Segment, #{key := UserKey} = User) ->
-    Result = lists:member(UserKey, Included),
-    check_user_included_result(Result, Segment, User).
+check_context_included(#{included := Included} = Segment, #{key := ContextKey} = Context) ->
+    Result = lists:member(ContextKey, Included),
+    check_context_included_result(Result, Segment, Context).
 
-check_user_included_result(true, _Segment, _User) -> match;
-check_user_included_result(false, Segment, User) ->
-    check_user_excluded(Segment, User).
+check_context_included_result(true, _Segment, _Context) -> match;
+check_context_included_result(false, Segment, Context) ->
+    check_context_excluded(Segment, Context).
 
-check_user_excluded(#{excluded := Excluded} = Segment, #{key := UserKey} = User) ->
-    Result = lists:member(UserKey, Excluded),
-    check_user_excluded_result(Result, Segment, User).
+check_context_excluded(#{excluded := Excluded} = Segment, #{key := ContextKey} = Context) ->
+    Result = lists:member(ContextKey, Excluded),
+    check_context_excluded_result(Result, Segment, Context).
 
-check_user_excluded_result(true, _Segment, _User) -> no_match;
-check_user_excluded_result(false, #{rules := Rules}, User) ->
-    check_rules(Rules, User).
+check_context_excluded_result(true, _Segment, _Context) -> no_match;
+check_context_excluded_result(false, #{rules := Rules}, Context) ->
+    check_rules(Rules, Context).
 
-check_rules([], _User) -> no_match;
-check_rules([Rule|Rest], User) ->
-    Result = check_rule(Rule, User),
-    check_rule_result({Result, Rule}, Rest, User).
+check_rules([], _Context) -> no_match;
+check_rules([Rule|Rest], Context) ->
+    Result = check_rule(Rule, Context),
+    check_rule_result({Result, Rule}, Rest, Context).
 
-check_rule_result({match, _Rule}, _Rest, _User) -> match;
-check_rule_result({no_match, _Rule}, Rest, User) ->
-    check_rules(Rest, User).
+check_rule_result({match, _Rule}, _Rest, _Context) -> match;
+check_rule_result({no_match, _Rule}, Rest, Context) ->
+    check_rules(Rest, Context).
 
-check_rule(#{clauses := Clauses} = Rule, User) ->
-    Result = check_clauses(Clauses, User),
-    check_clauses_result(Result, Rule, User).
+check_rule(#{clauses := Clauses} = Rule, Context) ->
+    Result = check_clauses(Clauses, Context),
+    check_clauses_result(Result, Rule, Context).
 
--spec check_clauses([ldclient_clause:clause()], ldclient_user:user()) -> match | no_match.
-check_clauses([], _User) -> match;
-check_clauses([Clause|Rest], User) ->
+-spec check_clauses([ldclient_clause:clause()], ldclient_context:context()) -> match | no_match.
+check_clauses([], _Context) -> match;
+check_clauses([Clause|Rest], Context) ->
     % Non-segment match
-    Result = ldclient_clause:match_user(Clause, User),
-    check_clause_result(Result, Rest, User).
+    Result = ldclient_clause:match_context(Clause, Context),
+    check_clause_result(Result, Rest, Context).
 
-check_clauses_result(no_match, _Rule, _User) -> no_match;
-check_clauses_result(match, Rule, User) ->
-    check_rule_weight(Rule, User).
+check_clauses_result(no_match, _Rule, _Context) -> no_match;
+check_clauses_result(match, Rule, Context) ->
+    check_rule_weight(Rule, Context).
 
--spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_user:user()) -> match | no_match.
-check_clause_result(no_match, _Rest, _User) -> no_match;
-check_clause_result(match, Rest, User) ->
-    check_clauses(Rest, User).
+-spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_context:context()) -> match | no_match.
+check_clause_result(no_match, _Rest, _Context) -> no_match;
+check_clause_result(match, Rest, Context) ->
+    check_clauses(Rest, Context).
 
-check_rule_weight(#{weight := null}, _User) -> match;
-check_rule_weight(Rule, User) ->
-    check_user_bucket(Rule, User).
+check_rule_weight(#{weight := null}, _Context) -> match;
+check_rule_weight(Rule, Context) ->
+    check_context_bucket(Rule, Context).
 
-check_user_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, User) ->
-    Bucket = ldclient_rollout:bucket_user(null, SegmentKey, SegmentSalt, User, BucketBy),
-    check_user_bucket_result(Bucket, Weight).
+check_context_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, Context) ->
+    Bucket = ldclient_rollout:bucket_context(null, SegmentKey, SegmentSalt, Context, BucketBy),
+    check_context_bucket_result(Bucket, Weight).
 
-check_user_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;
-check_user_bucket_result(_, _) -> no_match.
+check_context_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;
+check_context_bucket_result(_, _) -> no_match.

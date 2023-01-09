@@ -157,7 +157,7 @@ format_event(
     #{
         type := feature_request,
         timestamp := Timestamp,
-        user := User,
+        context := Context,
         data := #{
             debug := Debug,
             key := Key,
@@ -171,7 +171,7 @@ format_event(
     {FormattedEvents, GlobalPrivateAttributes}
 ) ->
     Kind = if Debug -> <<"debug">>; true -> <<"feature">> end,
-    OutputEvent = maybe_set_prereq_of(PrereqOf, maybe_set_context_kind(Event, #{
+    OutputEvent = maybe_set_prereq_of(PrereqOf, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
@@ -179,43 +179,43 @@ format_event(
         <<"value">> => Value,
         <<"default">> => Default,
         <<"version">> => Version
-    })),
-    FormattedEvent = format_event_set_user(Kind, User, maybe_set_reason(Event, OutputEvent), GlobalPrivateAttributes),
+    }),
+    FormattedEvent = format_event_set_context(Kind, Context, maybe_set_reason(Event, OutputEvent), GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], GlobalPrivateAttributes};
-format_event(#{type := identify, timestamp := Timestamp, user := User}, {FormattedEvents, GlobalPrivateAttributes}) ->
+format_event(#{type := identify, timestamp := Timestamp, context := Context}, {FormattedEvents, GlobalPrivateAttributes}) ->
     Kind = <<"identify">>,
     OutputEvent = #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp
     },
-    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, GlobalPrivateAttributes),
+    FormattedEvent = format_event_set_context(Kind, Context, OutputEvent, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], GlobalPrivateAttributes};
-format_event(#{type := index, timestamp := Timestamp, user := User}, {FormattedEvents, GlobalPrivateAttributes}) ->
+format_event(#{type := index, timestamp := Timestamp, context := Context}, {FormattedEvents, GlobalPrivateAttributes}) ->
     Kind = <<"index">>,
     OutputEvent = #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp
     },
-    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, GlobalPrivateAttributes),
+    FormattedEvent = format_event_set_context(Kind, Context, OutputEvent, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], GlobalPrivateAttributes};
-format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User, data := Data} = Event, {FormattedEvents, GlobalPrivateAttributes}) ->
+format_event(#{type := custom, timestamp := Timestamp, key := Key, context := Context, data := Data} = Event, {FormattedEvents, GlobalPrivateAttributes}) ->
     Kind = <<"custom">>,
-    OutputEvent = maybe_set_context_kind(Event, maybe_set_metric_value(Event, #{
+    OutputEvent = maybe_set_metric_value(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key,
         <<"data">> => Data
-    })),
-    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, GlobalPrivateAttributes),
+    }),
+    FormattedEvent = format_event_set_context(Kind, Context, OutputEvent, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], GlobalPrivateAttributes};
-format_event(#{type := custom, timestamp := Timestamp, key := Key, user := User} = Event, {FormattedEvents, GlobalPrivateAttributes}) ->
+format_event(#{type := custom, timestamp := Timestamp, key := Key, context := Context} = Event, {FormattedEvents, GlobalPrivateAttributes}) ->
     Kind = <<"custom">>,
-    OutputEvent = maybe_set_context_kind(Event, maybe_set_metric_value(Event, #{
+    OutputEvent = maybe_set_metric_value(Event, #{
         <<"kind">> => Kind,
         <<"creationDate">> => Timestamp,
         <<"key">> => Key
-    })),
-    FormattedEvent = format_event_set_user(Kind, User, OutputEvent, GlobalPrivateAttributes),
+    }),
+    FormattedEvent = format_event_set_context(Kind, Context, OutputEvent, GlobalPrivateAttributes),
     {[FormattedEvent|FormattedEvents], GlobalPrivateAttributes}.
 
 maybe_set_prereq_of(null, OutputEvent) -> OutputEvent;
@@ -227,48 +227,29 @@ maybe_set_reason(#{data := #{eval_reason := EvalReason}}, OutputEvent) ->
 maybe_set_reason(_Event, OutputEvent) ->
     OutputEvent.
 
--spec maybe_set_private_attrs(ScrubbedUser :: map(), ScrubbedAttrNames :: ldclient:private_attributes()) -> map().
-maybe_set_private_attrs(ScrubbedUser, [] = _ScrubbedAttrNames) -> ScrubbedUser;
-maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames) ->
-    ScrubbedUser#{<<"privateAttrs">> => ScrubbedAttrNames}.
-
--spec format_event_set_user(binary(), ldclient_user:user(), map(), ldclient_config:private_attributes()) -> map().
-format_event_set_user(<<"feature">>, #{key := UserKey}, OutputEvent, _) ->
-    OutputEvent#{<<"userKey">> => UserKey};
-format_event_set_user(<<"feature">>, _User, OutputEvent, _) ->
-    % User has no key
-    OutputEvent#{<<"userKey">> => null};
-format_event_set_user(<<"debug">>, User, OutputEvent, GlobalPrivateAttributes) ->
-    {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
+-spec format_event_set_context(binary(), ldclient_context:context(), map(), ldclient_config:private_attributes()) -> map().
+format_event_set_context(<<"feature">>, Context, OutputEvent, _) ->
+    OutputEvent#{<<"contextKeys">> => ldclient_context:get_keys_and_kinds(Context)};
+format_event_set_context(<<"debug">>, Context, OutputEvent, GlobalPrivateAttributes) ->
     OutputEvent#{
-        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
+        <<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)
     };
-format_event_set_user(<<"identify">>, #{key := UserKey} = User, OutputEvent, GlobalPrivateAttributes) ->
-    {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
+format_event_set_context(<<"identify">>, Context, OutputEvent, GlobalPrivateAttributes) ->
     OutputEvent#{
-        <<"key">> => UserKey,
-        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
+        <<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)
     };
-format_event_set_user(<<"index">>, User, OutputEvent, GlobalPrivateAttributes) ->
-    {ScrubbedUser, ScrubbedAttrNames} = ldclient_user:scrub(User, GlobalPrivateAttributes),
+format_event_set_context(<<"index">>, Context, OutputEvent, GlobalPrivateAttributes) ->
     OutputEvent#{
-        <<"user">> => ldclient_user:event_format(maybe_set_private_attrs(ScrubbedUser, ScrubbedAttrNames))
+        <<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)
     };
-format_event_set_user(<<"custom">>, #{key := UserKey}, OutputEvent, _) ->
-    OutputEvent#{<<"userKey">> => UserKey}.
+format_event_set_context(<<"custom">>, Context, OutputEvent, _) ->
+    OutputEvent#{<<"contextKeys">> => ldclient_context:get_keys_and_kinds(Context)}.
 
 -spec maybe_set_metric_value(ldclient_event:event(), map()) -> map().
 maybe_set_metric_value(#{metric_value := MetricValue}, OutputEvent) ->
     OutputEvent#{<<"metricValue">> => MetricValue};
 maybe_set_metric_value(_, OutputEvent) ->
     OutputEvent.
-
--spec maybe_set_context_kind(ldclient_event:event(), map()) -> map().
-maybe_set_context_kind(#{user := User}, OutputEvent) ->
-    case ldclient_user:get(anonymous, User) of
-        true -> OutputEvent#{<<"contextKind">> => <<"anonymousUser">>};
-        _ -> OutputEvent
-    end.
 
 -spec format_summary_event(ldclient_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};

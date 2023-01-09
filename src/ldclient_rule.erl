@@ -8,7 +8,7 @@
 
 %% API
 -export([new/1]).
--export([match_user/4]).
+-export([match_context/4]).
 
 %% Types
 -type rule() :: #{
@@ -17,7 +17,7 @@
     trackEvents         => boolean(),
     variationOrRollout => ldclient_flag:variation_or_rollout()
 }.
-%% Expresses a set of AND-ed matching conditions for a user, along with either
+%% Expresses a set of AND-ed matching conditions for a context, along with either
 %% a fixed variation or a set of rollout percentages
 
 -export_type([rule/0]).
@@ -36,12 +36,12 @@ new(RawRuleMap) ->
     RuleMap = maps:merge(RuleTemplate, RawRuleMap),
     new_from_template(RuleMap).
 
-%% @doc Match all clauses to user, includes segmentMatch
+%% @doc Match all clauses to context, includes segmentMatch
 %%
 %% @end
--spec match_user(rule(), User :: ldclient_user:user(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match.
-match_user(#{clauses := Clauses}, User, FeatureStore, Tag) ->
-    check_clauses(Clauses, User, FeatureStore, Tag).
+-spec match_context(rule(), Context :: ldclient_context:context(), FeatureStore :: atom(), Tag :: atom()) -> match | no_match.
+match_context(#{clauses := Clauses}, Context, FeatureStore, Tag) ->
+    check_clauses(Clauses, Context, FeatureStore, Tag).
 
 %%===================================================================
 %% Internal functions
@@ -67,13 +67,13 @@ parse_clauses(Clauses) ->
     F = fun(Clause) -> ldclient_clause:new(Clause) end,
     lists:map(F, Clauses).
 
--spec check_clauses([ldclient_clause:clause()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clauses([], _User, _FeatureStore, _Tag) -> match;
-check_clauses([Clause|Rest], User, FeatureStore, Tag) ->
-    Result = ldclient_clause:match_user(Clause, User, FeatureStore, Tag),
-    check_clause_result(Result, Rest, User, FeatureStore, Tag).
+-spec check_clauses([ldclient_clause:clause()], ldclient_context:context(), atom(), atom()) -> match | no_match.
+check_clauses([], _Context, _FeatureStore, _Tag) -> match;
+check_clauses([Clause|Rest], Context, FeatureStore, Tag) ->
+    Result = ldclient_clause:match_context(Clause, Context, FeatureStore, Tag),
+    check_clause_result(Result, Rest, Context, FeatureStore, Tag).
 
--spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_user:user(), atom(), atom()) -> match | no_match.
-check_clause_result(no_match, _Rest, _User, _FeatureStore, _Tag) -> no_match;
-check_clause_result(match, Rest, User, FeatureStore, Tag) ->
-    check_clauses(Rest, User, FeatureStore, Tag).
+-spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_context:context(), atom(), atom()) -> match | no_match.
+check_clause_result(no_match, _Rest, _Context, _FeatureStore, _Tag) -> no_match;
+check_clause_result(match, Rest, Context, FeatureStore, Tag) ->
+    check_clauses(Rest, Context, FeatureStore, Tag).

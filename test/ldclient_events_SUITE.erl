@@ -297,7 +297,7 @@ add_flag_eval_events_flush_with_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -324,7 +324,13 @@ add_flag_eval_events_flush_with_track(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+                #{
+                    <<"firstName">> := <<"Tester">>,
+                    <<"key">> := <<"12345-track">>,
+                    <<"kind">> := <<"user">>,
+                    <<"lastName">> := <<"Testerson">>
+                },
             <<"creationDate">> := _
         },
         #{
@@ -332,11 +338,11 @@ add_flag_eval_events_flush_with_track(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
-            <<"userKey">> := <<"12345-track">>,
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"contextKeys">> := #{<<"user">> := <<"12345-track">>}
         }
     ] = ActualEvents.
 
@@ -347,7 +353,7 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-no-reasons">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-track-no-reasons">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -374,18 +380,24 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-no-reasons">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-no-reasons">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
             <<"kind">> := <<"feature">>,
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
-            <<"userKey">> := <<"12345-track-no-reasons">>,
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"contextKeys">> := #{<<"user">> := <<"12345-track-no-reasons">>}
         }
     ] = ActualEvents.
 
@@ -396,7 +408,7 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-experimentation-rule">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-track-experimentation-rule">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         {rule_match, 0, <<"12345">>},
         Flag
     ),
@@ -423,7 +435,13 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-rule">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-experimentation-rule">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
@@ -431,11 +449,11 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"RULE_MATCH">>, <<"ruleId">> := <<"12345">>, <<"ruleIndex">> := 0},
-            <<"userKey">> := <<"12345-track-experimentation-rule">>,
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"contextKeys">> := #{<<"user">> := <<"12345-track-experimentation-rule">>}
         }
     ] = ActualEvents.
 
@@ -446,7 +464,7 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-track-experimentation-fallthrough">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-track-experimentation-fallthrough">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         fallthrough,
         Flag
     ),
@@ -473,7 +491,13 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-track-experimentation-fallthrough">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-experimentation-fallthrough">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
@@ -481,11 +505,11 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"FALLTHROUGH">>},
-            <<"userKey">> := <<"12345-track-experimentation-fallthrough">>,
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"contextKeys">> := #{<<"user">> := <<"12345-track-experimentation-fallthrough">>}
         }
     ] = ActualEvents.
 
@@ -496,7 +520,7 @@ add_flag_eval_events_flush_no_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -523,7 +547,13 @@ add_flag_eval_events_flush_no_track(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-no-track">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-no-track">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         }
     ] = ActualEvents,
@@ -532,7 +562,7 @@ add_flag_eval_events_flush_no_track(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-no-track">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -567,7 +597,7 @@ add_flag_eval_events_with_debug(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -594,7 +624,13 @@ add_flag_eval_events_with_debug(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-debug">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-debug">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
@@ -603,11 +639,17 @@ add_flag_eval_events_with_debug(_) ->
             <<"default">> := <<"default-value">>,
             % The reason should only be included with trackEvents (flag or rule), or if with_reason is specified.
             %<<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
-            <<"user">> := #{<<"key">> := <<"12345-debug">>},
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-debug">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            }
         }
     ] = ActualEvents.
 
@@ -618,7 +660,7 @@ add_flag_eval_events_with_debug_track_events(_) ->
         5,
         <<"variation-value-5">>,
         <<"default-value">>,
-        #{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>},
+        ldclient_context:new_from_user(#{key => <<"12345-debug">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
         target_match,
         Flag
     ),
@@ -645,7 +687,13 @@ add_flag_eval_events_with_debug_track_events(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"12345-debug">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-debug">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
@@ -653,74 +701,92 @@ add_flag_eval_events_with_debug_track_events(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"TARGET_MATCH">>},
-            <<"user">> := #{<<"key">> := <<"12345-debug">>},
             <<"value">> := <<"variation-value-5">>,
             <<"variation">> := 5,
             <<"version">> := 5,
-            <<"creationDate">> := _
+            <<"creationDate">> := _,
+            <<"contextKeys">> := #{<<"user">> := <<"12345-debug">>}
         }
     ] = ActualEvents.
 
 add_identify_events(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event1 = ldclient_event:new_identify(ldclient_context:new_from_user(
+        #{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event2 = ldclient_event:new_identify(ldclient_context:new_from_user(
+        #{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
-            <<"key">> := <<"12345">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         },
         #{
-            <<"key">> := <<"abcde">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"abcde">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            },
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 add_custom_events(_) ->
-    Event1 = ldclient_event:new_custom(<<"event-foo">>, #{key => <<"123456">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k1 => <<"v1">>}),
-    Event2 = ldclient_event:new_custom(<<"event-bar">>, #{key => <<"abcdef">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k2 => <<"v2">>}),
-    Event3 = ldclient_event:new_custom(<<"event-baz">>, #{key => <<"987656">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}, #{k3 => <<"v3">>}, 123),
+    Event1 = ldclient_event:new_custom(<<"event-foo">>,
+        ldclient_context:new_from_user(#{key => <<"123456">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})
+        , #{k1 => <<"v1">>}),
+    Event2 = ldclient_event:new_custom(<<"event-bar">>,
+        ldclient_context:new_from_user(#{key => <<"abcdef">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})
+        , #{k2 => <<"v2">>}),
+    Event3 = ldclient_event:new_custom(<<"event-baz">>,
+        ldclient_context:new_from_user(#{key => <<"987656">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})
+        , #{k3 => <<"v3">>}, 123),
     Events = [Event1, Event2, Event3],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}),
     [
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"123456">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"123456">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-foo">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"123456">>,
+            <<"contextKeys">> := #{<<"user">> := <<"123456">>},
             <<"data">> := #{<<"k1">> := <<"v1">>},
             <<"creationDate">> := _
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"abcdef">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"abcdef">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-bar">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"abcdef">>,
+            <<"contextKeys">> := #{<<"user">> := <<"abcdef">>},
             <<"data">> := #{<<"k2">> := <<"v2">>},
             <<"creationDate">> := _
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"987656">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"987656">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
             <<"key">> := <<"event-baz">>,
             <<"kind">> := <<"custom">>,
-            <<"userKey">> := <<"987656">>,
+            <<"contextKeys">> := #{<<"user">> := <<"987656">>},
             <<"data">> := #{<<"k3">> := <<"v3">>},
             <<"metricValue">> := 123,
             <<"creationDate">> := _
@@ -728,63 +794,59 @@ add_custom_events(_) ->
     ] = ActualEvents.
 
 auto_flush(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event1 = ldclient_event:new_identify(
+        ldclient_context:new_from_user(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event2 = ldclient_event:new_identify(
+        ldclient_context:new_from_user(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => false}, another1),
     [
         #{
-            <<"key">> := <<"12345">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"12345">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"12345">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
-            <<"key">> := <<"abcde">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"abcde">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"abcde">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 exceed_capacity(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
-    Event3 = ldclient_event:new_identify(#{key => <<"baz">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event1 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event2 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event3 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"baz">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     Events = [Event1, Event2, Event3],
     {ActualEvents, _} = send_await_events(Events, #{flush => true}, another1),
     [
         #{
-            <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"foo">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
-            <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"bar">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents.
 
 fail_and_retry(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event1 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event2 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     Events = [Event1, Event2],
     % Await and match events and payload ID (first try)
     {ActualEvents, PayloadId} = send_await_events(Events, #{flush => true}, failer),
     [
         #{
-            <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"foo">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         },
         #{
-            <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"bar">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents,
@@ -792,24 +854,22 @@ fail_and_retry(_) ->
     {ActualEvents, PayloadId} = await_events().
 
 payload_id_differs(_) ->
-    Event1 = ldclient_event:new_identify(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event1 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"foo">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     % Await and match events and payload ID (first try)
     {ActualEvents1, PayloadId1} = send_await_events([Event1], #{flush => true}),
     [
         #{
-            <<"key">> := <<"foo">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"foo">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"foo">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents1,
-    Event2 = ldclient_event:new_identify(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>}),
+    Event2 = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"bar">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     {ActualEvents2, PayloadId2} = send_await_events([Event2], #{flush => true}),
     [
         #{
-            <<"key">> := <<"bar">>,
             <<"kind">> := <<"identify">>,
-            <<"user">> := #{<<"key">> := <<"bar">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"context">> := #{<<"key">> := <<"bar">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"creationDate">> := _
         }
     ] = ActualEvents2,
@@ -822,7 +882,7 @@ add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
         0,
         <<"a">>,
         <<"default-value">>,
-        #{key => <<"experiment-fallthrough">>},
+        #{key => <<"experiment-fallthrough">>, kind => <<"user">>},
         {fallthrough, in_experiment},
         Flag
     ),
@@ -849,7 +909,7 @@ add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"experiment-fallthrough">>},
+            <<"context">> := #{<<"key">> := <<"experiment-fallthrough">>, <<"kind">> := <<"user">>},
             <<"creationDate">> := _
         },
         #{
@@ -857,7 +917,7 @@ add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"FALLTHROUGH">>, <<"inExperiment">> := true},
-            <<"userKey">> := <<"experiment-fallthrough">>,
+            <<"contextKeys">> := #{<<"user">> := <<"experiment-fallthrough">>},
             <<"value">> := <<"a">>,
             <<"variation">> := 0,
             <<"version">> := 5,
@@ -872,7 +932,7 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
         0,
         <<"a">>,
         <<"default-value">>,
-        #{key => <<"experiment-rule">>},
+        #{key => <<"experiment-rule">>, kind => <<"user">>},
         {rule_match, 0, <<"id">>, in_experiment},
         Flag
     ),
@@ -899,7 +959,7 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
         },
         #{
             <<"kind">> := <<"index">>,
-            <<"user">> := #{<<"key">> := <<"experiment-rule">>},
+            <<"context">> := #{<<"key">> := <<"experiment-rule">>, <<"kind">> := <<"user">>},
             <<"creationDate">> := _
         },
         #{
@@ -907,7 +967,7 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"RULE_MATCH">>, <<"ruleIndex">> := 0, <<"ruleId">> := <<"id">>, <<"inExperiment">> := true},
-            <<"userKey">> := <<"experiment-rule">>,
+            <<"contextKeys">> := #{<<"user">> := <<"experiment-rule">>},
             <<"value">> := <<"a">>,
             <<"variation">> := 0,
             <<"version">> := 5,

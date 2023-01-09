@@ -62,7 +62,7 @@
     kind := kind_value(),
     private_attributes => [binary()],
     anonymous => boolean(),
-    attributes => #{attribute_key() => attribute_value()}}.
+    attributes => attribute_map()}.
 %% A context which represents a single kind.
 %%
 %% For a single kind context the 'kind' may not be `<<"multi">>'.
@@ -85,7 +85,7 @@
     name := binary(),
     private_attributes => [binary()],
     anonymous => boolean(),
-    attributes => #{attribute_key() => attribute_value()}}.
+    attributes => attribute_map()}.
 %% The content of a multi context. Should be the same as a {@link single_context/0} aside from missing 'kind'.
 %% A multi context is keyed by the 'kind'.
 
@@ -294,10 +294,18 @@ new_from_map(MapContext) ->
 -spec new_from_user(User :: ldclient_user:user()) -> context().
 new_from_user(#{key := null} = _User) -> #{};
 new_from_user(#{key := Key} = User) when is_binary(Key) ->
-    attributes_from_user(User, #{
-    kind => <<"user">>,
-    key => Key
-});
+    Attributes = attributes_from_user(User),
+    case maps:size(Attributes) =:= 0 of
+        true -> #{
+            kind => <<"user">>,
+            key => Key
+        };
+        false -> #{
+            attributes => Attributes,
+            kind => <<"user">>,
+            key => Key
+        }
+    end;
 new_from_user(_User) -> #{}.
 
 %% @doc Set an attribute value with the specified key in a single kind context.
@@ -682,9 +690,9 @@ encode_kind_key_pair(Kind, Key) ->
     EncodedKey = encode_key(Key),
     <<Kind/binary, ":", EncodedKey/binary>>.
 
--spec attributes_from_custom(Custom :: null | map(), Context :: context()) -> context().
-attributes_from_custom(null = _Custom, Context) -> Context;
-attributes_from_custom(Custom, Context) ->
+-spec attributes_from_custom(Custom :: null | map()) -> attribute_map().
+attributes_from_custom(null = _Custom) -> #{};
+attributes_from_custom(Custom) ->
     maps:fold(fun(Key,Value, ContextAcc) ->
         case Key of
             %% Key and kind will have already been set, and
@@ -693,14 +701,14 @@ attributes_from_custom(Custom, Context) ->
             kind -> ContextAcc;
             Key -> ContextAcc#{Key => Value}
         end
-              end, Context, Custom).
+              end, #{}, Custom).
 
--spec attributes_from_user(User :: ldclient_user:user(), Context :: context()) -> context().
-attributes_from_user(User, Context) ->
+-spec attributes_from_user(User :: ldclient_user:user()) -> attribute_map().
+attributes_from_user(User) ->
     %% Process custom before top level. The top level will replace
     %% any custom attributes with conflicting names.
     Custom = maps:get(custom, User, null),
-    ContextWithCustom = attributes_from_custom(Custom, Context),
+    AttributesWithCustom = attributes_from_custom(Custom),
     maps:fold(fun(Key,Value, ContextAcc) ->
         case Key of
             %% These fields are already processed.
@@ -721,7 +729,7 @@ attributes_from_user(User, Context) ->
             %% TODO: Should we log something?
             Key -> ContextAcc
         end
-              end, ContextWithCustom, User).
+    end, AttributesWithCustom, User).
 
 -spec new_part_from_json(JsonMap :: map()) -> map().
 new_part_from_json(#{<<"key">> := ContextKey} = JsonMap) ->
