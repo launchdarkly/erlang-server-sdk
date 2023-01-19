@@ -32,7 +32,7 @@
     enable_diagnostics => true | false | undefined, %% Not supported
     all_attributes_private => true | false | undefined,
     global_private_attributes => [any()] | undefined,
-    flush_interval_ms => pos_integer() | undefined,
+    flush_interval_ms => pos_integer() | undefined
 }.
 
 -export_type([sdk_config_params/0]).
@@ -86,7 +86,7 @@ parse_config_events_params(#{<<"events">> := EventParams} = _Params) when EventP
         enable_diagnostics => EnableDiagnostics,
         all_attributes_private => AllAttributesPrivate,
         global_private_attributes => GlobalPrivateAttributes,
-        flush_interval_ms => FlushIntervalMS,
+        flush_interval_ms => FlushIntervalMS
     };
 parse_config_events_params(_Params) ->
     #{
@@ -95,7 +95,7 @@ parse_config_events_params(_Params) ->
         enable_diagnostics => undefined,
         all_attributes_private => undefined,
         global_private_attributes => undefined,
-        flush_interval_ms => undefined,
+        flush_interval_ms => undefined
     }.
 
 -spec to_ldclient_options(Configuration :: sdk_config_params()) -> map().

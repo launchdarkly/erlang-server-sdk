@@ -595,7 +595,7 @@ new_multi_from([#{kind := Kind} = Context | RemainingContexts] = _Contexts, Mult
 new_multi_from([] = _Contexts, MultiContext) -> MultiContext.
 
 -spec ensure_binary(Value :: binary() | atom()) -> binary().
-ensure_binary(Value) when is_atom(Value) -> atom_to_binary(Value);
+ensure_binary(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);
 ensure_binary(Value) when is_binary(Value) -> Value.
 
 -spec is_valid_kind(Kind :: binary()) -> boolean().

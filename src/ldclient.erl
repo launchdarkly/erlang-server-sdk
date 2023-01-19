@@ -185,9 +185,9 @@ variation_detail(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), i
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(User :: ldclient_user:user() | ldclient_context:context()) -> ldclient_eval:feature_flags_state().
-all_flags_state(User) ->
-    all_flags_state(User, ?DEFAULT_INSTANCE_NAME).
+-spec all_flags_state(Context :: ldclient_user:user() | ldclient_context:context()) -> ldclient_eval:feature_flags_state().
+all_flags_state(Context) ->
+    all_flags_state(Context, ?DEFAULT_INSTANCE_NAME).
 
 %% @doc Evaluate all flags for a given context and given client instance
 %%
@@ -215,7 +215,7 @@ all_flags_state(Context, Options, Tag) ->
 %%
 %% This function uses the default client instance.
 %% @end
--spec identify(User :: ldclient_user:user() | ldclient_context:context()) -> ok.
+-spec identify(Context :: ldclient_user:user() | ldclient_context:context()) -> ok.
 identify(Context) ->
     identify(ensure_context(Context), ?DEFAULT_INSTANCE_NAME).
 

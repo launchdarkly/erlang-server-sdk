@@ -85,7 +85,7 @@
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
 -define(VERSION, "1.5.0").
--define(EVENT_SCHEMA, "3").
+-define(EVENT_SCHEMA, "4").
 -define(DEFAULT_OFFLINE, false).
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
 -define(DEFAULT_REDIS_PORT, 6379).

@@ -102,5 +102,5 @@ format_context_part(PrivateAttributes, _Key, Value) ->
     format_context_for_event(PrivateAttributes, Value).
 
 -spec ensure_binary(Value :: binary() | atom()) -> binary().
-ensure_binary(Value) when is_atom(Value) -> atom_to_binary(Value);
+ensure_binary(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);
 ensure_binary(Value) when is_binary(Value) -> Value.

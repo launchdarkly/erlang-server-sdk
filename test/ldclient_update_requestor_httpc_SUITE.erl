@@ -97,7 +97,7 @@ event_schema_set_on_request(_Config) ->
     bookish_spork:stub_request([200, #{}, <<>>]),
     {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State),
     {ok, Request} = bookish_spork:capture_request(),
-    "3" = bookish_spork_request:header(Request, "x-launchdarkly-event-schema").
+    "4" = bookish_spork_request:header(Request, "x-launchdarkly-event-schema").
 
 none_match_is_not_set_with_empty_state(_Config) ->
     State = ldclient_update_requestor_httpc:init(default, "sdk-key"),

@@ -268,7 +268,6 @@ check_segment_keys_match([SegmentKey|Rest], Context, FeatureStore, Tag) ->
     Result = check_segment_key_match(SegmentKey, Context, FeatureStore, Tag),
     check_segment_key_match_result(Result, Rest, Context, FeatureStore, Tag).
 
-
 -spec check_segment_key_match_result(Result :: match | no_match | malformed_flag,
     SegmentKeys :: [binary()],
     Context :: ldclient_context:context(),

@@ -428,15 +428,15 @@ can_create_context_from_json(_) ->
     >>, [return_maps]),
     ExpectedComplexSingleKind =
         ldclient_context:set_private_attributes([<<"/complex">>],
-        ldclient_context:set(<<"anonymous">>, true,
-        ldclient_context:set(<<"complex">>, #{<<"value">> => 18},
-        ldclient_context:new(<<"org-key">>, <<"org">>)))),
+            ldclient_context:set(<<"anonymous">>, true,
+                ldclient_context:set(<<"complex">>, #{<<"value">> => 18},
+                    ldclient_context:new(<<"org-key">>, <<"org">>)))),
     ExpectedComplexSingleKind = ldclient_context:new_from_json(ComplexSingleKindJson),
     ExpectedComplexSingleKind2 =
         ldclient_context:set_private_attributes([<<"/complex2">>],
-        ldclient_context:set(<<"name">>, <<"place">>,
-        ldclient_context:set(<<"complex2">>, #{<<"value2">> => 22},
-        ldclient_context:new(<<"office-key">>, <<"office">>)))),
+            ldclient_context:set(<<"name">>, <<"place">>,
+                ldclient_context:set(<<"complex2">>, #{<<"value2">> => 22},
+                    ldclient_context:new(<<"office-key">>, <<"office">>)))),
     ExpectedMultiKind = ldclient_context:new_multi_from([ExpectedComplexSingleKind, ExpectedComplexSingleKind2]),
     MultiKindJson = jsx:decode(<<
         "{

@@ -1,0 +1,133 @@
+# These tests hang. Likely cycle detection related.
+evaluation/parameterized/prerequisites/prerequisite succeeds, flag rule matches/prerequisite succeeds, flag rule matches/evaluate all flags
+evaluation/parameterized/prerequisites/prerequisite succeeds, flag rule does not match/prerequisite succeeds, flag rule does not match/evaluate all flags
+evaluation/parameterized/prerequisites/prerequisite fails/prerequisite fails/evaluate all flags
+evaluation/parameterized/prerequisites/two prerequisites, both succeed, flag rule matches/two prerequisites, both succeed, flag rule matches/evaluate all flags
+evaluation/parameterized/prerequisites/two prerequisites, both valid, flag rule matches/two prerequisites, both valid, flag rule matches/evaluate all flags
+evaluation/parameterized/prerequisites/two prerequisites, second fails/two prerequisites, second fails/evaluate all flags
+evaluation/parameterized/prerequisites/nested prerequisites, all succeed/nested prerequisites, all succeed/evaluate all flags
+evaluation/parameterized/prerequisites/nested prerequisites, transitive one fails/nested prerequisites, transitive one fails/evaluate all flags
+evaluation/parameterized/prerequisites/prerequisite flag not found/prerequisite flag not found/evaluate all flags
+evaluation/parameterized/prerequisites/failed prerequisite always returns off variation/failed prerequisite always returns off variation/evaluate all flags
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at top level, recursion stops/prerequisite cycle is detected at top level, recursion stops/evaluate flag without detail
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at top level, recursion stops/prerequisite cycle is detected at top level, recursion stops/evaluate flag with detail
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at top level, recursion stops/prerequisite cycle is detected at top level, recursion stops/evaluate all flags
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper level, recursion stops/prerequisite cycle is detected at deeper level, recursion stops/evaluate flag without detail
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper level, recursion stops/prerequisite cycle is detected at deeper level, recursion stops/evaluate flag with detail
+evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper level, recursion stops/prerequisite cycle is detected at deeper level, recursion stops/evaluate all flags
+evaluation/parameterized/prerequisites/first prerequisite is a prerequisite of the second prerequisite/first prerequisite is a prerequisite of the second prerequisite/evaluate all flags
+
+# These tests fail. Will be cleaned up as the implementation proceeds.
+evaluation/parameterized/attribute references/property reference in non-object automatically fails clause/property reference in non-object automatically fails clause/evaluate flag with detail
+evaluation/parameterized/attribute references/property reference in non-object automatically fails clause/property reference in non-object automatically fails clause/evaluate all flags
+evaluation/parameterized/attribute references/array index is not supported/array index is not supported/evaluate flag with detail
+evaluation/parameterized/attribute references/array index is not supported/array index is not supported/evaluate all flags
+evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag without detail
+evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag with detail
+evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate all flags
+evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag without detail
+evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag with detail
+evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate all flags
+evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate flag without detail
+evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate flag with detail
+evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate all flags
+evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, no match/multi-kind context with user, clause has default kind, no match/evaluate flag with detail
+evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, no match/multi-kind context with user, clause has default kind, no match/evaluate all flags
+evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate flag without detail
+evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate flag with detail
+evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate all flags
+evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, no match/multi-kind context, clause specifies existing kind, no match/evaluate flag with detail
+evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, no match/multi-kind context, clause specifies existing kind, no match/evaluate all flags
+evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate flag without detail
+evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate flag with detail
+evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate all flags
+evaluation/parameterized/clause kind matching/kind non-match for multi-kind context using matches operator/kind non-match for multi-kind context using matches operator/evaluate flag with detail
+evaluation/parameterized/clause kind matching/kind non-match for multi-kind context using matches operator/kind non-match for multi-kind context using matches operator/evaluate all flags
+evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate flag without detail
+evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate flag with detail
+evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate all flags
+evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate flag with detail
+evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate all flags
+evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate flag without detail
+evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate flag with detail
+evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate all flags
+evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate flag without detail
+evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate flag with detail
+evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate all flags
+evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate flag without detail
+evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate flag with detail
+evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate all flags
+evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate flag without detail
+evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate flag with detail
+evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate all flags
+evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag without detail
+evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag with detail
+evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate all flags
+evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate flag without detail
+evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate flag with detail
+evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate all flags
+evaluation/parameterized/segment recursion/single level, two clauses in one rule, one does not match/single level, two clauses in one rule, one does not match/evaluate flag with detail
+evaluation/parameterized/segment recursion/single level, two clauses in one rule, one does not match/single level, two clauses in one rule, one does not match/evaluate all flags
+evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate flag without detail
+evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate flag with detail
+evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate all flags
+evaluation/parameterized/segment recursion/cycle is detected at top level, recursion stops/cycle is detected at top level, recursion stops/evaluate flag with detail
+evaluation/parameterized/segment recursion/cycle is detected below top level, recursion stops/cycle is detected below top level, recursion stops/evaluate flag with detail
+evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate flag without detail
+evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate flag with detail
+evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate all flags
+evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate flag without detail
+evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate flag with detail
+evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate all flags
+evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate all flags
+evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate all flags
+evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate all flags
+evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate all flags
+evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate all flags
+evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate flag without detail
+evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate flag with detail
+evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate all flags
+evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag without detail
+evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag with detail
+evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate all flags
+evaluation/bucketing/selection of context/single-kind/rollouts
+evaluation/bucketing/selection of context/single-kind/experiments/inExperiment is false if context kind was not found
+evaluation/bucketing/selection of context/single-kind/experiments
+evaluation/bucketing/selection of context/multi-kind/rollouts
+evaluation/bucketing/selection of context/multi-kind/experiments/inExperiment is false if context kind was not found
+evaluation/bucketing/selection of context/multi-kind/experiments
+evaluation/bucketing/bucket by non-key attribute/in rollouts/string value/simple attribute name
+evaluation/bucketing/bucket by non-key attribute/in rollouts/string value/complex attribute reference
+evaluation/bucketing/bucket by non-key attribute/is ignored in experiments
+events/summary events/basic counter behavior
+events/summary events/contextKinds
+events/summary events/unknown flag
+events/summary events/reset after each flush
+events/summary events/prerequisites
+events/summary events/flag versions
+events/feature events/full feature event for tracked flag/without reason/multi-kind/valid flag/type: any
+events/feature events/full feature event for tracked flag/without reason/multi-kind/malformed flag/type: any
+events/feature events/full feature event for tracked flag/with reason/multi-kind/valid flag/type: any
+events/feature events/full feature event for tracked flag/with reason/multi-kind/malformed flag/type: any
+events/context properties/single-kind, allAttributesPrivate/debug event
+events/context properties/single-kind, allAttributesPrivate/identify event
+events/context properties/single-kind, allAttributesPrivate/index event from evaluation
+events/context properties/single-kind, allAttributesPrivate/index event from custom event
+events/context properties/single-kind, specific private attributes/debug event
+events/context properties/single-kind, specific private attributes/identify event
+events/context properties/single-kind, specific private attributes/index event from evaluation
+events/context properties/single-kind, specific private attributes/index event from custom event
+events/context properties/single-kind, private attribute nested property/debug event
+events/context properties/single-kind, private attribute nested property/identify event
+events/context properties/single-kind, private attribute nested property/index event from evaluation
+events/context properties/single-kind, private attribute nested property/index event from custom event
