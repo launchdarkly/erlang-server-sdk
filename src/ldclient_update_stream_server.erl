@@ -48,17 +48,14 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    SdkKey = ldclient_config:get_value(Tag, sdk_key),
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
     InitialRetryDelay = ldclient_config:get_value(Tag, stream_initial_retry_delay_ms),
     Backoff = ldclient_backoff:init(InitialRetryDelay, ?MAX_BACKOFF_DELAY, self(), listen),
     GunOptions = ldclient_http_options:gun_parse_http_options(HttpOptions),
-    Headers = ldclient_http_options:gun_append_custom_headers(#{
-        <<"authorization">> => SdkKey,
-        <<"user-agent">> => ldclient_config:get_user_agent()
-    }, HttpOptions),
+    Headers = ldclient_http_options:gun_append_custom_headers(
+        ldclient_headers:get_default_headers(Tag, binary_map), HttpOptions),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{

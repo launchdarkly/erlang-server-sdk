@@ -18,7 +18,8 @@
     start_wait_time_ms => pos_integer() | undefined, %% TODO: Implement
     init_can_fail => boolean(), %% TODO: Implement
     streaming => sdk_config_streaming_params(),
-    events => sdk_config_event_params()
+    events => sdk_config_event_params(),
+    tags => sdk_config_tags_params()
 }.
 
 -type sdk_config_streaming_params() :: #{
@@ -36,9 +37,15 @@
     inline_users => true | false | undefined
 }.
 
+-type  sdk_config_tags_params() :: #{
+    application_id => binary() | undefined,
+    application_version => binary() | undefined
+}.
+
 -export_type([sdk_config_params/0]).
 -export_type([sdk_config_streaming_params/0]).
 -export_type([sdk_config_event_params/0]).
+-export_type([sdk_config_tags_params/0]).
 
 -spec null_to_undefined(Item :: any()) -> any().
 null_to_undefined(null) -> undefined;
@@ -54,13 +61,25 @@ parse_config_params(Params) ->
     InitCanFail = map_get_null_default(<<"initCanFail">>, Params, undefined),
     Streaming = parse_config_streaming_params(Params),
     Events = parse_config_events_params(Params),
+    Tags = parse_config_tag_params(Params),
     #{
         credential => Credential,
         start_wait_time_ms => StartWaitTimeMS,
         init_can_fail => InitCanFail,
         streaming => Streaming,
-        events => Events
+        events => Events,
+        tags => Tags
     }.
+
+-spec parse_config_tag_params(Params :: map()) -> sdk_config_tags_params().
+parse_config_tag_params(#{<<"tags">> := Tags} = _Params) when is_map(Tags) ->
+    ApplicationId = map_get_null_default(<<"applicationId">>, Tags, undefined),
+    ApplicationVersion = map_get_null_default(<<"applicationVersion">>, Tags, undefined),
+    #{
+        application_id => ApplicationId,
+        application_version => ApplicationVersion
+    };
+parse_config_tag_params(_Params) -> #{}.
 
 -spec parse_config_streaming_params(Params :: map()) -> sdk_config_streaming_params().
 parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) ->
@@ -111,7 +130,8 @@ to_ldclient_options(Configuration) ->
     WithFlushInterval = add_events_flush_interval(Configuration, WithPrivateAttributes),
     WithInlineUsers = add_inline_users(Configuration, WithFlushInterval),
     WithStreamRetryDelay = add_stream_retry_delay(Configuration, WithInlineUsers),
-    WithStreamRetryDelay.
+    WithTags = add_tags_config(Configuration, WithStreamRetryDelay),
+    WithTags.
 
 -spec add_stream_retry_delay(Configuration :: sdk_config_params(), Options:: map()) -> map().
 add_stream_retry_delay(#{streaming := #{
@@ -170,3 +190,25 @@ add_inline_users(#{events := #{
 }} = _SdkConfigParams, Options) when is_boolean(InlineUsers) ->
     Options#{inline_users_in_events => InlineUsers};
 add_inline_users(_SdkConfigParams, Options) -> Options.
+
+-spec add_tags_config(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_tags_config(Config, Options) ->
+    add_tag_application_version(Config,
+        add_tag_application_id(Config, Options)).
+
+add_tag_application_id(#{tags := #{application_id := ApplicationId}}  = _Configuration, Options)
+    when ApplicationId =/= undefined ->
+    Application = application_or_empty(Options),
+    ApplicationWithId = Application#{id => ApplicationId},
+    Options#{application => ApplicationWithId};
+add_tag_application_id(_, Options) -> Options.
+
+add_tag_application_version(#{tags := #{application_version := ApplicationVersion}}  = _Configuration, Options)
+    when ApplicationVersion =/= undefined ->
+    Application = application_or_empty(Options),
+    ApplicationWithVersion = Application#{version => ApplicationVersion},
+    Options#{application => ApplicationWithVersion};
+add_tag_application_version(_, Options) -> Options.
+
+application_or_empty(#{application := Application} = _Options) -> Application;
+application_or_empty(_Options) -> #{}.

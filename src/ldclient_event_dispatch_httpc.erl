@@ -27,13 +27,13 @@ http_options => list()
 %%===================================================================
 
 -spec init(Tag :: atom(), SdkKey :: string()) -> state().
-init(Tag, SdkKey) ->
+init(Tag, _SdkKey) ->
     Options = ldclient_config:get_value(Tag, http_options),
     HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
+    DefaultHeaders = ldclient_headers:get_default_headers(Tag, string_pairs),
     Headers = ldclient_http_options:httpc_append_custom_headers([
-        {"Authorization", SdkKey},
-        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
-        {"User-Agent", ldclient_config:get_user_agent()}
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()}
+        | DefaultHeaders
     ], Options),
     #{
         headers => Headers,
