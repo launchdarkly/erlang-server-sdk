@@ -72,7 +72,7 @@ get_tags(Tag) ->
 %% @doc Combine all the tags into the format for application tags.
 %%
 %% Formatted tags are of the format `tag/value' a tag can have multiple values
-%% in that case it will be represented by space delimited pairs `tagA/valueA tagA/ValueB`.
+%% in that case it will be represented by space delimited pairs `tagA/valueA tagA/ValueB'.
 %% @end
 -spec combine_tags(Tags :: [{binary(), [binary()]}]) -> binary().
 combine_tags(Tags) -> combine_tags(Tags, <<>>).
@@ -117,6 +117,7 @@ add_version_tag(_Info, InList) -> InList.
 %%     {<<"b">>, [<<"1">>, <<"2">>, <<"3">>]},
 %%     {<<"c">>, [<<"1">>, <<"4">>, <<"5">>]}
 %% ]
+%% '''
 %% @end
 -spec sort_tags(Tags :: [{binary(), [binary()]}]) -> SortedTags :: [{binary(), [binary()]}].
 sort_tags(Tags) ->
