@@ -339,7 +339,7 @@ parse_application_info(ApplicationInfoMap) ->
         set_valid_tag(id, Id, undefined)).
 
 -spec set_valid_tag(Key :: atom(), Value :: binary() | undefined, MapOrUndefined :: map() | undefined) -> app_info() | undefined.
-set_valid_tag(Key, _Value = undefined, MapOrUndefined) -> MapOrUndefined;
+set_valid_tag(_Key, _Value = undefined, MapOrUndefined) -> MapOrUndefined;
 set_valid_tag(Key, Value, MapOrUndefined) ->
     case validate_tag_value(Value) of
         true ->

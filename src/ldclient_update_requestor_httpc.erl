@@ -23,7 +23,7 @@
 %%===================================================================
 
 -spec init(Tag :: atom(), SdkKey :: string()) -> state().
-init(Tag, SdkKey) ->
+init(Tag, _SdkKey) ->
     Options = ldclient_config:get_value(Tag, http_options),
     HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
     DefaultHeaders = ldclient_headers:get_default_headers(Tag, string_pairs),
