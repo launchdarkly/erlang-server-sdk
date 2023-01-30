@@ -70,7 +70,8 @@ get_service_detail(Req, State) ->
     <<"name">> => <<"erlang-server-sdk">>,
     <<"capabilities">> => [
       <<"server-side">>,
-      <<"all-flags-with-reasons">>
+      <<"all-flags-with-reasons">>,
+      <<"tags">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),

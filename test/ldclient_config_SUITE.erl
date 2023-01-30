@@ -20,7 +20,8 @@
     tls_basic_options/1,
     tls_with_ca_certfile_options/1,
     tls_basic_linux_options/1,
-    with_tls_revocation/1
+    with_tls_revocation/1,
+    app_info_options/1
 ]).
 
 %%====================================================================
@@ -38,7 +39,8 @@ all() ->
         tls_basic_options,
         tls_with_ca_certfile_options,
         tls_basic_linux_options,
-        with_tls_revocation
+        with_tls_revocation,
+        app_info_options
     ].
 
 init_per_suite(Config) ->
@@ -179,3 +181,24 @@ with_tls_revocation(_) ->
         },
         {verify, verify_peer}
     ] = ldclient_config:with_tls_revocation([{verify, verify_peer}]).
+
+app_info_options(_) ->
+    #{application := undefined} = ldclient_config:parse_options("sdk-key", #{}),
+    #{application := #{id := <<"the-id">>}} = ldclient_config:parse_options("sdk-key",
+        #{application => #{id => <<"the-id">>}}),
+    #{application := #{version := <<"the-version">>}} = ldclient_config:parse_options("sdk-key",
+        #{application => #{version => <<"the-version">>}}),
+    #{application := #{version := <<"the-version">>, id := <<"the-id">>}} = ldclient_config:parse_options("sdk-key",
+        #{application => #{version => <<"the-version">>, id => <<"the-id">>}}),
+    %% Contains invalid characters
+    #{application := #{version := <<"the-version">>}} = ldclient_config:parse_options("sdk-key",
+        #{application => #{version => <<"the-version">>, id => <<"the-id#$%*&#%">>}}),
+    %% Contains a string that is too long.
+    #{application := ApplicationWithoutId} = ldclient_config:parse_options("sdk-key", #{application => #{version => <<"the-version">>,
+        id => list_to_binary(lists:duplicate(65, $A))}}),
+    undefined = maps:get(id, ApplicationWithoutId, undefined),
+    %% Contains a string that is the max length.
+    MaxLengthId = list_to_binary(lists:duplicate(64, $A)),
+    #{application := #{version := <<"the-version">>, id := MaxLengthId}} = ldclient_config:parse_options("sdk-key",
+        #{application => #{version => <<"the-version">>,
+        id => MaxLengthId}}).
