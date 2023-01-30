@@ -18,12 +18,19 @@
     start_wait_time_ms => pos_integer() | undefined, %% TODO: Implement
     init_can_fail => boolean(), %% TODO: Implement
     streaming => sdk_config_streaming_params(),
-    events => sdk_config_event_params()
+    polling => sdk_config_polling_params(),
+    events => sdk_config_event_params(),
+    tags => sdk_config_tags_params()
 }.
 
 -type sdk_config_streaming_params() :: #{
     base_uri => binary() | undefined,
     initial_retry_delay_ms => pos_integer() | undefined %% Not supported
+}.
+
+-type sdk_config_polling_params() :: #{
+    base_uri => binary() | undefined,
+    poll_interval_ms => pos_integer() | undefined
 }.
 
 -type sdk_config_event_params() :: #{
@@ -36,9 +43,15 @@
     inline_users => true | false | undefined
 }.
 
+-type sdk_config_tags_params() :: #{
+    application_id => binary() | undefined,
+    application_version => binary() | undefined
+}.
+
 -export_type([sdk_config_params/0]).
 -export_type([sdk_config_streaming_params/0]).
 -export_type([sdk_config_event_params/0]).
+-export_type([sdk_config_tags_params/0]).
 
 -spec null_to_undefined(Item :: any()) -> any().
 null_to_undefined(null) -> undefined;
@@ -53,17 +66,31 @@ parse_config_params(Params) ->
     StartWaitTimeMS = map_get_null_default(<<"startWaitTimeMs">>, Params, undefined),
     InitCanFail = map_get_null_default(<<"initCanFail">>, Params, undefined),
     Streaming = parse_config_streaming_params(Params),
+    Polling = parse_config_polling_params(Params),
     Events = parse_config_events_params(Params),
+    Tags = parse_config_tag_params(Params),
     #{
         credential => Credential,
         start_wait_time_ms => StartWaitTimeMS,
         init_can_fail => InitCanFail,
         streaming => Streaming,
-        events => Events
+        events => Events,
+        tags => Tags,
+        polling => Polling
     }.
 
+-spec parse_config_tag_params(Params :: map()) -> sdk_config_tags_params().
+parse_config_tag_params(#{<<"tags">> := Tags} = _Params) when is_map(Tags) ->
+    ApplicationId = map_get_null_default(<<"applicationId">>, Tags, undefined),
+    ApplicationVersion = map_get_null_default(<<"applicationVersion">>, Tags, undefined),
+    #{
+        application_id => ApplicationId,
+        application_version => ApplicationVersion
+    };
+parse_config_tag_params(_Params) -> #{}.
+
 -spec parse_config_streaming_params(Params :: map()) -> sdk_config_streaming_params().
-parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) ->
+parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) when is_map(StreamingParams) ->
     BaseUri = map_get_null_default(<<"baseUri">>, StreamingParams, undefined),
     InitialRetryDelayMs = map_get_null_default(<<"initialRetryDelayMs">>, StreamingParams, undefined),
     #{
@@ -71,6 +98,16 @@ parse_config_streaming_params(#{<<"streaming">> := StreamingParams} = _Params) -
         initial_retry_delay_ms => InitialRetryDelayMs
     };
 parse_config_streaming_params(_Params) -> #{base_uri => undefined, initial_retry_delay_ms => undefined}.
+
+-spec parse_config_polling_params(Params :: map()) -> sdk_config_polling_params().
+parse_config_polling_params(#{<<"polling">> := StreamingParams} = _Params) when is_map(StreamingParams) ->
+    BaseUri = map_get_null_default(<<"baseUri">>, StreamingParams, undefined),
+    PollIntervalMs = map_get_null_default(<<"pollIntervalMs">>, StreamingParams, undefined),
+    #{
+        base_uri => BaseUri,
+        poll_interval_ms => PollIntervalMs
+    };
+parse_config_polling_params(_Params) -> #{base_uri => undefined, poll_interval_ms => undefined}.
 
 -spec parse_config_events_params(Params :: map()) -> sdk_config_event_params().
 
@@ -110,7 +147,20 @@ to_ldclient_options(Configuration) ->
     WithPrivateAttributes = add_private_attributes(Configuration, WithEventsCapacity),
     WithFlushInterval = add_events_flush_interval(Configuration, WithPrivateAttributes),
     WithInlineUsers = add_inline_users(Configuration, WithFlushInterval),
-    WithInlineUsers.
+    WithStreamRetryDelay = add_stream_retry_delay(Configuration, WithInlineUsers),
+    WithTags = add_tags_config(Configuration, WithStreamRetryDelay),
+    WithPollingUri = add_polling_uri(Configuration, WithTags),
+    WithPollingInterval = add_poll_interval(Configuration, WithPollingUri),
+    WithPollingInterval.
+
+-spec add_stream_retry_delay(Configuration :: sdk_config_params(), Options:: map()) -> map().
+add_stream_retry_delay(#{streaming := #{
+    initial_retry_delay_ms := InitialRetryDelayMs
+}} = _Configuration, Options) when is_integer(InitialRetryDelayMs) ->
+    Options#{
+        stream_initial_retry_delay_ms => InitialRetryDelayMs
+    };
+add_stream_retry_delay(_Configuration, Options) -> Options.
 
 -spec add_stream_uri(Configuration :: sdk_config_params(), Options :: map()) -> map().
 add_stream_uri(#{streaming := #{
@@ -118,6 +168,20 @@ add_stream_uri(#{streaming := #{
 }} = _SdkConfigParams, Options) when is_binary(BaseUri) ->
     Options#{stream_uri => binary_to_list(BaseUri), stream => true};
 add_stream_uri(_SdkConfigParams, Options) -> Options.
+
+-spec add_polling_uri(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_polling_uri(#{polling := #{
+    base_uri := BaseUri
+}} = _SdkConfigParams, Options) when is_binary(BaseUri) ->
+    Options#{base_uri => binary_to_list(BaseUri), stream => false};
+add_polling_uri(_SdkConfigParams, Options) -> Options.
+
+-spec add_poll_interval(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_poll_interval(#{polling := #{
+    poll_interval_ms := PollIntervalMs
+}} = _SdkConfigParams, Options) when is_number(PollIntervalMs) ->
+    Options#{polling_interval => PollIntervalMs/1000};
+add_poll_interval(_SdkConfigParams, Options) -> Options.
 
 -spec add_events_uri(Configuration :: sdk_config_params(), Options :: map()) -> map().
 add_events_uri(#{events := #{
@@ -160,3 +224,25 @@ add_inline_users(#{events := #{
 }} = _SdkConfigParams, Options) when is_boolean(InlineUsers) ->
     Options#{inline_users_in_events => InlineUsers};
 add_inline_users(_SdkConfigParams, Options) -> Options.
+
+-spec add_tags_config(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_tags_config(Config, Options) ->
+    add_tag_application_version(Config,
+        add_tag_application_id(Config, Options)).
+
+add_tag_application_id(#{tags := #{application_id := ApplicationId}}  = _Configuration, Options)
+    when ApplicationId =/= undefined ->
+    Application = application_or_empty(Options),
+    ApplicationWithId = Application#{id => ApplicationId},
+    Options#{application => ApplicationWithId};
+add_tag_application_id(_, Options) -> Options.
+
+add_tag_application_version(#{tags := #{application_version := ApplicationVersion}}  = _Configuration, Options)
+    when ApplicationVersion =/= undefined ->
+    Application = application_or_empty(Options),
+    ApplicationWithVersion = Application#{version => ApplicationVersion},
+    Options#{application => ApplicationWithVersion};
+add_tag_application_version(_, Options) -> Options.
+
+application_or_empty(#{application := Application} = _Options) -> Application;
+application_or_empty(_Options) -> #{}.

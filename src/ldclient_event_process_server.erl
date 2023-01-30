@@ -15,7 +15,10 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 %% API
--export([send_events/3]).
+-export([
+    send_events/3,
+    get_last_server_time/1
+]).
 
 %% Types
 -type state() :: #{
@@ -25,7 +28,8 @@
     global_private_attributes := ldclient_config:private_attributes(),
     events_uri := string(),
     tag := atom(),
-    dispatcher_state := any()
+    dispatcher_state := any(),
+    last_server_time := integer()
 }.
 
 %%===================================================================
@@ -40,6 +44,11 @@
 send_events(Tag, Events, SummaryEvent) ->
     ServerName = get_local_reg_name(Tag),
     gen_server:cast(ServerName, {send_events, Events, SummaryEvent}).
+
+-spec get_last_server_time(Tag :: atom()) -> integer().
+get_last_server_time(Tag) ->
+    ServerName = get_local_reg_name(Tag),
+    gen_server:call(ServerName, {get_last_server_time}).
 
 %%===================================================================
 %% Supervision
@@ -71,7 +80,8 @@ init([Tag]) ->
         global_private_attributes => GlobalPrivateAttributes,
         events_uri => EventsUri,
         tag => Tag,
-        dispatcher_state =>  Dispatcher:init(Tag, SdkKey)
+        dispatcher_state =>  Dispatcher:init(Tag, SdkKey),
+        last_server_time => 0
     },
     {ok, State}.
 
@@ -83,9 +93,12 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
+handle_call({get_last_server_time}, _From, #{last_server_time := LastServerTime} = State) ->
+    {reply, LastServerTime, State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
+-spec handle_cast(Request :: term(), State :: state()) -> {noreply, NewState :: state()}.
 handle_cast({send_events, Events, SummaryEvent},
     #{
         dispatcher := Dispatcher,
@@ -98,15 +111,19 @@ handle_cast({send_events, Events, SummaryEvent},
     FormattedEvents = format_events(Events, InlineUsers, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     PayloadId = uuid:get_v4(),
-    _ = case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
-        ok ->
-            ok;
-        {error, temporary, _Reason} ->
-            erlang:send_after(1000, self(), {send, OutputEvents, PayloadId});
-        {error, permanent, Reason} ->
-            error_logger:error_msg("Permanent error sending events ~p", [Reason])
+    NewState = case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
+       ok ->
+           State;
+       {ok, Date} ->
+           State#{last_server_time => Date};
+       {error, temporary, _Reason} ->
+           erlang:send_after(1000, self(), {send, OutputEvents, PayloadId}),
+           State;
+       {error, permanent, Reason} ->
+           error_logger:error_msg("Permanent error sending events ~p", [Reason]),
+           State
     end,
-    {noreply, State};
+    {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -344,7 +361,7 @@ combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEven
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
 -spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string()) ->
-    ok | {error, temporary, string()} | {error, permanent, string()}.
+    ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
 send(_, _, [], _, _) ->
     ok;
 send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) ->

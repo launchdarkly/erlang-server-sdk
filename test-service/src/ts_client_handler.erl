@@ -15,6 +15,9 @@
 
 -spec wait_init(Tag :: atom(), Initialized :: boolean(),
     StartedWaiting :: pos_integer(), WaitTime :: pos_integer()) -> ok.
+wait_init(Tag, false, StartedWaiting, undefined) ->
+    %% Default to 5 seconds.
+    wait_init(Tag, false, StartedWaiting, 5000);
 wait_init(Tag, false, StartedWaiting, WaitTime) ->
     ElapsedTime = erlang:system_time(milli_seconds) - StartedWaiting,
     wait_init(Tag, ldclient:initialized(Tag) or (ElapsedTime >= WaitTime), StartedWaiting, WaitTime);

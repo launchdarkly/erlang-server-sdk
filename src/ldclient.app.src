@@ -15,7 +15,6 @@
     shotgun,
     jsx,
     lru,
-    backoff,
     verl,
     uuid,
     eredis,

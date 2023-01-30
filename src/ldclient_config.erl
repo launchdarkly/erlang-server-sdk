@@ -29,6 +29,26 @@
     custom_headers => [{Key :: string(), Value:: string()}] | undefined
 }.
 
+-type app_info() :: #{
+    id => binary(),
+    %% A unique identifier representing the application where the LaunchDarkly SDK is running.
+    %%
+    %% This can be specified as any string value, up to 64 characters in length, as long as it only uses the following
+    %% characters: ASCII letters, ASCII digits, period, hyphen, underscore. A string containing any other characters
+    %% will be ignored.
+    %%
+    %% Example: `authentication-service'
+    version => binary()
+    %% A unique identifier representing the version of the application where the LaunchDarkly SDK is running.
+    %%
+    %% This can be specified as any string value, up to 64 characters in length, as long as it only uses the following
+    %% characters: ASCII letters, ASCII digits, period, hyphen, underscore. A string containing any other characters
+    %% will be ignored.
+    %%
+    %% Example: `1.0.0' (standard version string) or `abcdef' (sha prefix)
+}.
+%% Information about the application where the LaunchDarkly SDK is running.
+
 %% Types
 -type instance() :: #{
     sdk_key => string(),
@@ -61,7 +81,9 @@
     file_allow_duplicate_keys => boolean(),
     testdata_tag => atom(),
     datasource => poll | stream | file | testdata | undefined,
-    http_options => http_options()
+    http_options => http_options(),
+    stream_initial_retry_delay_ms => non_neg_integer(),
+    application => app_info()
 }.
 % Settings stored for each running SDK instance
 
@@ -103,11 +125,14 @@
 -define(DEFAULT_FILE_ALLOW_DUPLICATE_KEYS, false).
 -define(DEFAULT_TESTDATA_TAG, default).
 -define(DEFAULT_DATASOURCE, undefined).
+-define(DEFAULT_STREAM_RETRY_DELAY, 1000).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
+
+-define(APPLICATION_DEFAULT_OPTIONS, undefined).
 
 %%===================================================================
 %% API
@@ -160,7 +185,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     FileAllowDuplicateKeys = maps:get(file_allow_duplicate_keys, Options, ?DEFAULT_FILE_ALLOW_DUPLICATE_KEYS),
     TestDataTag = maps:get(testdata_tag, Options, ?DEFAULT_TESTDATA_TAG),
     DataSource = maps:get(datasource, Options, ?DEFAULT_DATASOURCE),
+    StreamInitialRetryDelayMs = maps:get(stream_initial_retry_delay_ms, Options, ?DEFAULT_STREAM_RETRY_DELAY),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
+    AppInfo = parse_application_info(maps:get(application, Options, ?APPLICATION_DEFAULT_OPTIONS)),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -192,7 +219,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         file_allow_duplicate_keys => FileAllowDuplicateKeys,
         http_options => HttpOptions,
         testdata_tag => TestDataTag,
-        datasource => DataSource
+        datasource => DataSource,
+        stream_initial_retry_delay_ms => StreamInitialRetryDelayMs,
+        application => AppInfo
     }.
 
 %% @doc Get all registered tags
@@ -296,9 +325,33 @@ tls_basic_certifi_options() ->
     [
         {cacerts, CaCerts}
         | tls_base_options()].
+
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec parse_application_info(ApplicationInfoMap :: map()) -> app_info() | undefined.
+parse_application_info(undefined) -> undefined;
+parse_application_info(ApplicationInfoMap) ->
+    Id = maps:get(id, ApplicationInfoMap, undefined),
+    Version = maps:get(version, ApplicationInfoMap, undefined),
+    set_valid_tag(version, Version,
+        set_valid_tag(id, Id, undefined)).
+
+-spec set_valid_tag(Key :: atom(), Value :: binary() | undefined, MapOrUndefined :: map() | undefined) -> app_info() | undefined.
+set_valid_tag(Key, _Value = undefined, MapOrUndefined) -> MapOrUndefined;
+set_valid_tag(Key, Value, MapOrUndefined) ->
+    case validate_tag_value(Value) of
+        true ->
+            case is_map(MapOrUndefined) of
+                true -> MapOrUndefined#{Key => Value};
+                false -> #{Key => Value}
+            end;
+        false ->
+            error_logger:warning_msg("The application ~p was invalid. Must only contain letters, numbers, ., _ or -,"
+            " be 64 characters or less, and cannot be an empty string.", [Key]),
+            MapOrUndefined
+    end.
 
 -spec parse_http_options(HttpOptionsMap :: map()) -> http_options().
 parse_http_options(undefined) -> parse_http_options(#{});
@@ -350,3 +403,21 @@ tls_basic_options(false) ->
     Please specify a custom location. You can use tls_ca_certfile_options, or fully specify the tls_options.
     You may see this warning in development on Mac/Windows."),
     tls_basic_certifi_options().
+
+-spec validate_tag_value(Value :: binary() | undefined) -> boolean().
+validate_tag_value(<<>>) -> false;
+validate_tag_value(Value) when is_binary(Value) -> (byte_size(Value) =< 64) and valid_tag_chars(Value, true).
+
+-spec valid_tag_chars(Value :: binary(), Valid :: boolean()) -> boolean().
+valid_tag_chars(_Value, false) -> false;
+valid_tag_chars(<<H, Remainder/binary>>, true) -> valid_tag_chars(Remainder, valid_tag_char(H));
+valid_tag_chars(<<>>, true) -> true.
+
+-spec valid_tag_char(Char :: integer()) -> boolean().
+valid_tag_char($-) -> true;
+valid_tag_char($.) -> true;
+valid_tag_char($_) -> true;
+valid_tag_char(H) ->
+    ((H >= $0) and (H =< $9)) orelse %% Numbers
+    ((H >= $A) and (H =< $Z)) orelse %% Capital letters
+    ((H >= $a) and (H =< $z)). %% Lowercase letters

@@ -242,7 +242,7 @@ check_segment_key_match_result(no_match, Rest, User, FeatureStore, Tag) ->
     check_segment_keys_match(Rest, User, FeatureStore, Tag).
 
 check_segment_key_match(SegmentKey, User, FeatureStore, Tag) ->
-    Segments = FeatureStore:get(Tag, segments, SegmentKey),
+    Segments = get_segment(Tag, FeatureStore, SegmentKey),
     check_segments_match(Segments, User).
 
 check_segments_match([], _User) -> no_match;
@@ -253,3 +253,16 @@ check_segments_match([{_SegmentKey, Segment}|_], User) ->
 maybe_negate_match(#{negate := false}, Match) -> Match;
 maybe_negate_match(#{negate := true}, match) -> no_match;
 maybe_negate_match(#{negate := true}, no_match) -> match.
+
+-spec is_not_deleted(Item :: map()) -> boolean().
+is_not_deleted(#{deleted := true}) -> false;
+is_not_deleted(_) -> true.
+
+%% @doc Get the segment for the specified segment key. If there is no segment matching the SegmentKey, then return
+%% an empty list.
+%%
+%% @end
+-spec get_segment(Tag :: atom(), FeatureStore :: atom(), SegmentKey :: binary()) ->
+    [{SegmentKey :: binary(), SegmentValue :: ldclient_segment:segment()}].
+get_segment(Tag, FeatureStore, SegmentKey) ->
+    [Segment || Segment = {_, SegmentValue} <- FeatureStore:get(Tag, segments, SegmentKey), is_not_deleted(SegmentValue)].

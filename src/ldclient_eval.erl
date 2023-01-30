@@ -104,6 +104,10 @@ flag_key_for_user(Tag, FlagKey, User, DefaultValue, online, initialized) ->
 all_flags_state(User, Options, Tag) ->
     all_flags_state(User, Options, Tag, get_state(Tag), get_initialization_state(Tag)).
 
+-spec is_not_deleted(Item :: map()) -> boolean().
+is_not_deleted(#{deleted := true}) -> false;
+is_not_deleted(_) -> true.
+
 -spec all_flags_state(
     User :: ldclient_user:user(),
     Options :: all_flags_state_options(),
@@ -117,16 +121,16 @@ all_flags_state(_User, _Options, _Tag, _, not_initialized) ->
     #{<<"$valid">> => false, <<"$flagsState">> => #{}};
 all_flags_state(User, #{with_reasons := WithReason} = _Options, Tag, _, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-    AllFlags = [Flag || Flag <- FeatureStore:all(Tag, features)],
+    AllFlags = [Flag || Flag = {_, FlagValue} <- FeatureStore:all(Tag, features), is_not_deleted(FlagValue)],
     EvalFun = fun({FlagKey, #{version := Version} = Flag}, #{<<"$flagsState">> := FlagsState} = Acc) ->
         {{VariationIndex, V, Reason}, _Events} = flag_key_for_user(Tag, FlagKey, User, null),
         FlagState = maybe_add_track_events(Flag,
             maybe_add_debug_events_until_date(Flag, #{
-                <<"version">> => Version})),
+            <<"version">> => Version})),
         UpdatedFlagState = case is_integer(VariationIndex) of
             true -> FlagState#{
-                <<"variation">> => VariationIndex
-            };
+                    <<"variation">> => VariationIndex
+                };
             false -> FlagState
         end,
         FlagStateWithReason = maybe_add_reason(Flag, Reason, WithReason, UpdatedFlagState),
@@ -205,7 +209,7 @@ all_flags_eval(_User, _Tag, _, not_initialized) ->
     #{flag_values => #{}};
 all_flags_eval(User, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-    AllFlags = [FlagKey || {FlagKey, _} <- FeatureStore:all(Tag, features)],
+    AllFlags = [FlagKey || {FlagKey, Flag} <- FeatureStore:all(Tag, features), is_not_deleted(Flag)],
     EvalFun = fun(FlagKey, Acc) ->
         {{_, V, _}, _Events} = flag_key_for_user(Tag, FlagKey, User, null),
         Acc#{FlagKey => V}

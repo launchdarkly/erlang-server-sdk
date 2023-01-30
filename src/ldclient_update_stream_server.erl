@@ -16,8 +16,7 @@
 
 -type state() :: #{
     conn := pid() | undefined,
-    backoff := backoff:backoff(),
-    last_attempted := non_neg_integer(),
+    backoff := ldclient_backoff:backoff(),
     feature_store := atom(),
     storage_tag := atom(),
     stream_uri := string(),
@@ -28,6 +27,9 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
+
+%% Maximum backoff delay of 30 seconds.
+-define(MAX_BACKOFF_DELAY, 30000).
 
 %%===================================================================
 %% Supervision
@@ -46,22 +48,19 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    SdkKey = ldclient_config:get_value(Tag, sdk_key),
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-    Backoff = backoff:type(backoff:init(1000, 30000, self(), listen), jitter),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
+    InitialRetryDelay = ldclient_config:get_value(Tag, stream_initial_retry_delay_ms),
+    Backoff = ldclient_backoff:init(InitialRetryDelay, ?MAX_BACKOFF_DELAY, self(), listen),
     GunOptions = ldclient_http_options:gun_parse_http_options(HttpOptions),
-    Headers = ldclient_http_options:gun_append_custom_headers(#{
-        <<"authorization">> => SdkKey,
-        <<"user-agent">> => ldclient_config:get_user_agent()
-    }, HttpOptions),
+    Headers = ldclient_http_options:gun_append_custom_headers(
+        ldclient_headers:get_default_headers(Tag, binary_map), HttpOptions),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
         conn => undefined,
         backoff => Backoff,
-        last_attempted => 0,
         feature_store => FeatureStore,
         storage_tag => Tag,
         stream_uri => StreamUri,
@@ -90,12 +89,12 @@ handle_info({listen}, #{stream_uri := Uri} = State) ->
     NewState = do_listen(State),
     {noreply, NewState};
 handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff} = State) ->
-    _ = backoff:fire(Backoff),
-    {_, NewBackoff} = backoff:fail(Backoff),
-    error_logger:warning_msg("Got DOWN message from shotgun pid with reason: ~p~n", [Reason]),
+    NewBackoff = ldclient_backoff:fail(Backoff),
+    _ = ldclient_backoff:fire(NewBackoff),
+    error_logger:warning_msg("Got DOWN message from shotgun pid with reason: ~p, will retry in ~p ms~n", [Reason, maps:get(current, NewBackoff)]),
     {noreply, State#{conn := undefined, backoff := NewBackoff}};
 handle_info({timeout, _TimerRef, listen}, State) ->
-    error_logger:info_msg("Reconnecting streaming connection..."),
+    error_logger:info_msg("Reconnecting streaming connection...~n"),
     NewState = do_listen(State),
     {noreply, NewState};
 handle_info(_Info, State) ->
@@ -123,39 +122,34 @@ do_listen(#{
     storage_tag := Tag,
     stream_uri := Uri,
     backoff := Backoff,
-    last_attempted := LastAttempted,
     gun_options := GunOptions,
     headers := Headers
     } = State
 ) ->
-    Now = erlang:system_time(milli_seconds),
-    NewState = State#{last_attempted := Now},
     try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers) of
-        {error, Code, Reason} ->
-            NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
-            NewState#{backoff := NewBackoff};
+        {error, temporary, Reason} ->
+            NewBackoff = do_listen_fail_backoff(Backoff, temporary, Reason),
+            State#{backoff := NewBackoff};
+        {error, permanent, Reason} ->
+            error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
+            State;
         {ok, Pid} ->
-            % If the last connection attempt was more than a minute ago (i.e. we stayed connected)
-            % then reset backoff state.
-            {_, NewBackoff} = if
-                Now - LastAttempted > 60000 -> backoff:succeed(Backoff);
-                true -> {backoff:get(Backoff), Backoff}
-            end,
-            NewState#{conn := Pid, backoff := NewBackoff}
+            NewBackoff = ldclient_backoff:succeed(Backoff),
+            State#{conn := Pid, backoff := NewBackoff}
         catch Code:Reason ->
             NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
-            NewState#{backoff := NewBackoff}
+            State#{backoff := NewBackoff}
     end.
 
 %% @doc Used for firing backoff before shotgun pid is monitored
 %% @private
 %%
 %% @end
--spec do_listen_fail_backoff(backoff:backoff(), atom(), term()) -> backoff:backoff().
+-spec do_listen_fail_backoff(ldclient_backoff:backoff(), atom(), term()) -> ldclient_backoff:backoff().
 do_listen_fail_backoff(Backoff, Code, Reason) ->
-    error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, backoff:get(Backoff)]),
-    _ = backoff:fire(Backoff),
-    {_, NewBackoff} = backoff:fail(Backoff),
+    NewBackoff = ldclient_backoff:fail(Backoff),
+    error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, maps:get(current, NewBackoff)]),
+    _ = ldclient_backoff:fire(NewBackoff),
     NewBackoff.
 
 %% @doc Connect to LaunchDarkly streaming endpoint
@@ -190,7 +184,9 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     shotgun:close(Pid),
-                    {error, get_request_failed, Reason};
+                    {error, temporary, Reason};
+                {ok, #{status_code := StatusCode}} when StatusCode >= 400 ->
+                    {error, ldclient_http:is_http_error_code_recoverable(StatusCode), StatusCode};
                 {ok, _Ref} ->
                     {ok, Pid}
             end
@@ -245,8 +241,14 @@ process_items(put, Data, FeatureStore, Tag) ->
     ok = FeatureStore:upsert_clean(Tag, features, ParsedFlags),
     ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments);
 process_items(patch, Data, FeatureStore, Tag) ->
-    {Bucket, Key, Item, ParseFunction} = get_patch_item(Data),
-    ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction);
+    case get_patch_item(Data) of
+        {Bucket, Key, Item, ParseFunction} ->
+            ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction);
+        error ->
+            #{<<"path">> := Path} = Data,
+            error_logger:warning_msg("Unrecognized patch path ~p", [Path]),
+            ok
+    end;
 process_items(delete, Data, FeatureStore, Tag) ->
     delete_items(Data, FeatureStore, Tag);
 process_items(other, _, _, _) ->
@@ -256,40 +258,21 @@ process_items(other, _, _, _) ->
 get_put_items(#{<<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}) ->
     [Flags, Segments].
 
--spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, ParseFunction :: fun()}.
+-spec get_patch_item(Data :: map()) -> {Bucket :: flags|segments, Key :: binary(), #{Key :: binary() => map()}, ParseFunction :: fun()} | error.
 get_patch_item(#{<<"path">> := <<"/flags/",FlagKey/binary>>, <<"data">> := FlagMap}) ->
     {features, FlagKey, #{FlagKey => FlagMap}, fun ldclient_flag:new/1};
 get_patch_item(#{<<"path">> := <<"/segments/",SegmentKey/binary>>, <<"data">> := SegmentMap}) ->
-    {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1}.
+    {segments, SegmentKey, #{SegmentKey => SegmentMap}, fun ldclient_segment:new/1};
+get_patch_item(_Data) ->
+    error.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
-delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, ldclient_storage_redis, Tag) ->
-    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
-    UpdatedFlags = maps:map(MapFun, Flags),
-    UpdatedSegments = maps:map(MapFun, Segments),
-    ok = ldclient_storage_redis:upsert(Tag, features, UpdatedFlags),
-    ok = ldclient_storage_redis:upsert(Tag, segments, UpdatedSegments);
-delete_items(#{<<"path">> := <<"/">>, <<"data">> := #{<<"flags">> := Flags, <<"segments">> := Segments}}, FeatureStore, Tag) ->
-    MapFun = fun(_K, V) -> maps:update(<<"deleted">>, true, V) end,
-    UpdatedFlags = maps:map(MapFun, Flags),
-    UpdatedSegments = maps:map(MapFun, Segments),
-    ParsedFlags = maps:map(
-        fun(_K, V) -> ldclient_flag:new(V) end
-        , UpdatedFlags),
-    ParsedSegments = maps:map(
-        fun(_K, V) -> ldclient_segment:new(V) end
-        , UpdatedSegments),
-    ok = FeatureStore:upsert(Tag, features, ParsedFlags),
-    ok = FeatureStore:upsert(Tag, segments, ParsedSegments);
 delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
     ok = maybe_delete_item(FeatureStore, Tag, features, Key, Version);
-delete_items(#{<<"path">> := <<"/flags/",Key/binary>>}, FeatureStore, Tag) ->
-    ok = maybe_delete_item(FeatureStore, Tag, features, Key, undefined);
 delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
     ok = maybe_delete_item(FeatureStore, Tag, segments, Key, Version);
-delete_items(#{<<"path">> := <<"/segments/",Key/binary>>}, FeatureStore, Tag) ->
-    ok = maybe_delete_item(FeatureStore, Tag, segments, Key, undefined).
-
+delete_items(_Path, _FeatureStore, _Tag) ->
+    error_logger:error_msg("Invalid delete path").
 
 -spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
 maybe_patch_item(ldclient_storage_redis, Tag, Bucket, Key, Item, _ParseFunction) ->
@@ -333,7 +316,7 @@ maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
             Overwrite = (ExistingVersion == 0) or (NewVersion > ExistingVersion),
             if
                 Overwrite ->
-                    NewItem = #{Key => maps:put(deleted, true, ExistingItem)},
+                    NewItem = #{Key => ExistingItem#{deleted => true, version => NewVersion}},
                     FeatureStore:upsert(Tag, Bucket, NewItem);
                 true ->
                     ok

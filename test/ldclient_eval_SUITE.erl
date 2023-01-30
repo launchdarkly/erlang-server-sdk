@@ -842,12 +842,6 @@ all_flags_state(_) ->
             kind := <<"ERROR">>},
             <<"trackEvents">> := true,
             <<"version">> := 7243},
-        <<"keep-it-deleted">> :=
-            #{<<"reason">> :=
-            #{errorKind := <<"FLAG_NOT_FOUND">>,
-            kind := <<"ERROR">>},
-            <<"trackEvents">> := true,
-            <<"version">> := 5},
         <<"keep-it-off">> :=
             #{<<"reason">> := #{kind := <<"OFF">>},
             <<"trackEvents">> := true,
@@ -951,7 +945,6 @@ all_flags_state(_) ->
         <<"experiment-traffic-allocation-v2-rules">> := <<"a">>,
         <<"extra-fields">> := true,
         <<"fallthrough-no-rollout-or-variation">> := null,
-        <<"keep-it-deleted">> := null,
         <<"keep-it-off">> := false,
         <<"keep-it-off-null-off-variation">> := null,
         <<"keep-it-on">> := true,
@@ -1006,12 +999,6 @@ all_flags_state_with_reason(_) ->
             kind := <<"ERROR">>},
             <<"trackEvents">> := true,
             <<"version">> := 7243},
-        <<"keep-it-deleted">> :=
-        #{<<"reason">> :=
-        #{errorKind := <<"FLAG_NOT_FOUND">>,
-            kind := <<"ERROR">>},
-            <<"trackEvents">> := true,
-            <<"version">> := 5},
         <<"keep-it-off">> :=
         #{<<"reason">> := #{kind := <<"OFF">>},
             <<"trackEvents">> := true,
@@ -1116,7 +1103,6 @@ all_flags_state_with_reason(_) ->
         <<"experiment-traffic-allocation-v2-rules">> := <<"a">>,
         <<"extra-fields">> := true,
         <<"fallthrough-no-rollout-or-variation">> := null,
-        <<"keep-it-deleted">> := null,
         <<"keep-it-off">> := false,
         <<"keep-it-off-null-off-variation">> := null,
         <<"keep-it-on">> := true,
