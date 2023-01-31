@@ -18,10 +18,6 @@ evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper 
 evaluation/parameterized/prerequisites/first prerequisite is a prerequisite of the second prerequisite/first prerequisite is a prerequisite of the second prerequisite/evaluate all flags
 
 # These tests fail. Will be cleaned up as the implementation proceeds.
-evaluation/parameterized/attribute references/property reference in non-object automatically fails clause/property reference in non-object automatically fails clause/evaluate flag with detail
-evaluation/parameterized/attribute references/property reference in non-object automatically fails clause/property reference in non-object automatically fails clause/evaluate all flags
-evaluation/parameterized/attribute references/array index is not supported/array index is not supported/evaluate flag with detail
-evaluation/parameterized/attribute references/array index is not supported/array index is not supported/evaluate all flags
 evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag without detail
 evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag with detail
 evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate all flags

@@ -557,9 +557,11 @@ get_from_common(_AttributeReference, _Context) -> null.
 
 get_by_components(_Components, null = _MapOrItem) ->
     null;
-get_by_components([H | T] = _Components, MapOrItem) ->
+get_by_components([H | T] = _Components, MapOrItem) when is_map(MapOrItem) ->
     get_by_components(T, maps:get(H, MapOrItem, null));
-get_by_components([] = _Components, MapOrItem) -> MapOrItem.
+get_by_components([] = _Components, MapOrItem) -> MapOrItem;
+get_by_components(_Components, _MapOrItem) ->
+    null.
 
 -spec get_attribute_key(attribute_key()) -> attribute_key().
 get_attribute_key(key) -> key;
