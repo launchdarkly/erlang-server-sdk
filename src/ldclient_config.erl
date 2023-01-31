@@ -105,7 +105,7 @@
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.5.0").
+-define(VERSION, "1.6.0").
 -define(EVENT_SCHEMA, "4").
 -define(DEFAULT_OFFLINE, false).
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
@@ -335,7 +335,7 @@ parse_application_info(ApplicationInfoMap) ->
         set_valid_tag(id, Id, undefined)).
 
 -spec set_valid_tag(Key :: atom(), Value :: binary() | undefined, MapOrUndefined :: map() | undefined) -> app_info() | undefined.
-set_valid_tag(Key, _Value = undefined, MapOrUndefined) -> MapOrUndefined;
+set_valid_tag(_Key, _Value = undefined, MapOrUndefined) -> MapOrUndefined;
 set_valid_tag(Key, Value, MapOrUndefined) ->
     case validate_tag_value(Value) of
         true ->

@@ -2,6 +2,29 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.6.0] - 2023-01-30
+### Added:
+- `application` option, for configuration of application metadata that may be used in LaunchDarkly analytics or other product features. This does not affect feature flag evaluations.
+```
+ldclient:start_instance("sdk-key", #{
+  application => #{
+    id => <<"my-app-id">>,
+    version => <<"my-app-version">>
+  }
+})
+```
+- Added support for using server time, from response headers, when determining if debug events should be sent.
+
+### Changed:
+- Updated jitter/backoff implementation to be consistent with other SDK implementations.
+- Upgraded `lru` to version `2.4.0`.
+- Upgrade `certifi` to version `2.10.0`.
+- Removed dependency on `backoff`.
+
+### Fixed:
+- Fixed an issue where the SDK did not handle deleted flags/segments correctly in combination with evaluation of all flags.
+- Allow for track data to be `null`.
+
 ## [1.5.0] - 2022-06-23
 ### Changed:
 - Updated `certifi` to 2.9.0.

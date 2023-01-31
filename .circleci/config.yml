@@ -55,6 +55,10 @@ erlang-docker-template: &erlang-docker-template
         command: make circle-tests
         working_directory: ~/ldclient
     - run:
+        name: Build documentation
+        command: make doc
+        working_directory: ~/ldclient
+    - run:
         name: run dialyzer
         command: make dialyze
         working_directory: ~/ldclient
