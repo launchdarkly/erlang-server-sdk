@@ -362,7 +362,9 @@ parse_segment_empty(_) ->
         included => [],
         rules    => [],
         salt     => <<>>,
-        version  => 0
+        version  => 0,
+        excludedContexts => [],
+        includedContexts =>  []
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 
@@ -377,7 +379,9 @@ parse_segment_key_only(_) ->
         included => [],
         rules    => [],
         salt     => <<>>,
-        version  => 0
+        version  => 0,
+        excludedContexts => [],
+        includedContexts =>  []
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 
@@ -403,7 +407,23 @@ parse_segment_full(_) ->
             }
         ],
         <<"salt">> => <<"segment-full-salt">>,
-        <<"version">> => 5
+        <<"version">> => 5,
+        <<"includedContexts">> => [
+            #{
+                <<"contextKind">> => <<"org">>,
+                <<"values">> => [<<"org-1">>, <<"org-2">>]
+            },
+            #{
+                <<"contextKind">> => <<"potato">>,
+                <<"values">> => [<<"potato-1">>, <<"potato-2">>]
+            }
+        ],
+        <<"excludedContexts">> => [
+            #{
+                <<"contextKind">> => <<"user">>,
+                <<"values">> => [<<"user-1">>, <<"user-2">>]
+            }
+        ]
     },
     SegmentExpected = #{
         key      => <<"segment-full">>,
@@ -413,13 +433,14 @@ parse_segment_full(_) ->
         rules    => [
             #{
                 bucketBy => #{
-                    binary => <<"/key">>,
+                    binary => <<"key">>,
                     components => [<<"key">>],
                     valid => true
                 },
                 weight => null,
                 segmentKey => <<"segment-full">>,
                 segmentSalt => <<"segment-full-salt">>,
+                rolloutContextKind => null,
                 clauses => [
                     #{
                         attribute => #{
@@ -436,7 +457,23 @@ parse_segment_full(_) ->
             }
         ],
         salt     => <<"segment-full-salt">>,
-        version  => 5
+        version  => 5,
+        excludedContexts => [
+            #{
+                contextKind => <<"user">>,
+                values => [<<"user-1">>, <<"user-2">>]
+            }
+        ],
+        includedContexts =>  [
+            #{
+                contextKind => <<"org">>,
+                values => [<<"org-1">>, <<"org-2">>]
+            },
+            #{
+                contextKind => <<"potato">>,
+                values => [<<"potato-1">>, <<"potato-2">>]
+            }
+        ]
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 

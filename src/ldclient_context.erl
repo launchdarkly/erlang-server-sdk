@@ -26,7 +26,8 @@
     new_from_user/1,
     get_canonical_key/1,
     new_from_json/1,
-    get_keys_and_kinds/1
+    get_keys_and_kinds/1,
+    get_key/2
 ]).
 
 %% Types
@@ -437,6 +438,23 @@ get(_ContextKind, _AttributeReference, _Context) ->
     %% The attribute reference was not valid.
     null.
 
+%% @doc Get the key for the specified context kind.
+%%
+%% If the context is of a single kind, and it does not match the specified context kind, then null will be returned.
+%%
+%% If the context is a multi-context, and does not contain the specified kind, then null will be returned.
+%% @end
+-spec get_key(ContextKind :: kind_value(), Context :: context()) -> binary() | null.
+get_key(ContextKind, #{kind := Kind} = Context) when Kind =:= ContextKind ->
+    maps:get(key, Context, null);
+get_key(ContextKind, #{kind := <<"multi">>} = Context) ->
+    ContextPart = maps:get(ContextKind, Context, undefined),
+    case ContextPart of
+        undefined -> null;
+        _ -> maps:get(key, ContextPart, null)
+    end;
+get_key(_ContextKind, _Context) -> null.
+
 %% @doc Get all the kinds in the specified context. Can be a single or multi context.
 %%
 %% The kind in the context may be an atom or a binary, but this will always return them as binaries for use
@@ -542,7 +560,11 @@ new_from_json(#{<<"kind">> := _ContextKind, <<"key">> := _ContextKey} = JsonMap)
     AttributeReference :: ldclient_attribute_reference:attribute_reference(),
     Context :: multi_context()) -> Value :: attribute_value().
 get_from_multi(ContextKind, AttributeReference, Context) ->
-    #{ContextKind := ContextPart} = Context,
+    ContextPart = maps:get(ContextKind, Context, undefined),
+    case ContextPart of
+        undefined -> null;
+        _ -> get_from_common(AttributeReference, ContextPart)
+    end,
     get_from_common(AttributeReference, ContextPart).
 
 -spec get_from_common(AttributeReference :: ldclient_attribute_reference:attribute_reference(),

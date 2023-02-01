@@ -36,7 +36,10 @@
     can_create_context_from_full_user_custom/1,
     can_allow_empty_key_for_user/1,
     can_get_context_keys/1,
-    can_create_context_from_json/1
+    can_create_context_from_json/1,
+    returns_null_for_get_from_missing_context/1,
+    returns_null_for_get_from_missing_attribute_in_present_context/1,
+    can_get_key_from_contexts/1
 ]).
 
 %%====================================================================
@@ -70,7 +73,10 @@ all() ->
         can_create_context_from_full_user_custom,
         can_allow_empty_key_for_user,
         can_get_context_keys,
-        can_create_context_from_json
+        can_create_context_from_json,
+        returns_null_for_get_from_missing_context,
+        returns_null_for_get_from_missing_attribute_in_present_context,
+        can_get_key_from_contexts
     ].
 
 init_per_suite(Config) ->
@@ -122,6 +128,14 @@ returns_null_for_missing_attribute_in_single_context(_) ->
         #{kind => <<"user">>, <<"myAttribute">> => <<"myValue">>, key => <<"my-key">>}),
     null = ldclient_context:get(<<"user">>, <<"/myContainer/myPotato">>,
         #{kind => <<"user">>, <<"myContainer">> => #{<<"myAttribute">> => <<"myValue">>}, key => <<"my-key">>}).
+
+returns_null_for_get_from_missing_context(_) ->
+    null = ldclient_context:get(<<"user">>, <<"/myPotato">>,
+        #{kind => <<"multi">>, <<"org">> => #{<<"key">> => <<"org-key">>}}).
+
+returns_null_for_get_from_missing_attribute_in_present_context(_) ->
+    null = ldclient_context:get(<<"org">>, <<"/myPotato">>,
+        #{kind => <<"multi">>, <<"org">> => #{<<"key">> => <<"org-key">>}}).
 
 returns_null_for_invalid_attribute_reference(_) ->
     null = ldclient_context:get(<<"user">>, <<"/myAttribute/">>,
@@ -457,3 +471,18 @@ can_create_context_from_json(_) ->
     >>, [return_maps]),
     DecodedMultiKind = ldclient_context:new_from_json(MultiKindJson),
     ExpectedMultiKind = DecodedMultiKind.
+
+can_get_key_from_contexts(_) ->
+    <<"user-key">> = ldclient_context:get_key(<<"user">>, ldclient_context:new(<<"user-key">>)),
+    <<"org-key">> = ldclient_context:get_key(<<"org">>, ldclient_context:new(<<"org-key">>, <<"org">>)),
+    <<"org-key">> = ldclient_context:get_key(<<"org">>,
+        ldclient_context:new_multi_from([
+            ldclient_context:new(<<"user-key">>),
+            ldclient_context:new(<<"org-key">>, <<"org">>)
+        ])),
+    null = ldclient_context:get_key(<<"user">>, ldclient_context:new(<<"org-key">>, <<"org">>)),
+    null = ldclient_context:get_key(<<"potato">>,
+        ldclient_context:new_multi_from([
+            ldclient_context:new(<<"user-key">>),
+            ldclient_context:new(<<"org-key">>, <<"org">>)
+        ])).

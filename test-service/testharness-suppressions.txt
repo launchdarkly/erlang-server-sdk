@@ -44,18 +44,6 @@ evaluation/parameterized/clause kind matching/kind match for multi-kind context/
 evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate all flags
 evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate flag with detail
 evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate all flags
-evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate flag without detail
-evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate flag with detail
-evaluation/parameterized/segment match/included list is specific to user kind/included list is specific to user kind/evaluate all flags
-evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate flag without detail
-evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate flag with detail
-evaluation/parameterized/segment match/includedContexts match for non-default context kind/includedContexts match for non-default context kind/evaluate all flags
-evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate flag without detail
-evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate flag with detail
-evaluation/parameterized/segment match/excluded list is specific to user kind/excluded list is specific to user kind/evaluate all flags
-evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate flag without detail
-evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate flag with detail
-evaluation/parameterized/segment match/excludedContexts match for non-default context kind/excludedContexts match for non-default context kind/evaluate all flags
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag without detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag with detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate all flags
