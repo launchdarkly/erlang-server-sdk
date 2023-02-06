@@ -18,20 +18,6 @@ evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper 
 evaluation/parameterized/prerequisites/first prerequisite is a prerequisite of the second prerequisite/first prerequisite is a prerequisite of the second prerequisite/evaluate all flags
 
 # These tests fail. Will be cleaned up as the implementation proceeds.
-evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag without detail
-evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag with detail
-evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate all flags
-evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate flag without detail
-evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate flag with detail
-evaluation/parameterized/segment recursion/single level, two clauses in one rule, both match/single level, two clauses in one rule, both match/evaluate all flags
-evaluation/parameterized/segment recursion/single level, two clauses in one rule, one does not match/single level, two clauses in one rule, one does not match/evaluate flag with detail
-evaluation/parameterized/segment recursion/single level, two clauses in one rule, one does not match/single level, two clauses in one rule, one does not match/evaluate all flags
-evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate flag without detail
-evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate flag with detail
-evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate all flags
-evaluation/parameterized/segment recursion/cycle is detected at top level, recursion stops/cycle is detected at top level, recursion stops/evaluate flag with detail
-evaluation/parameterized/segment recursion/cycle is detected below top level, recursion stops/cycle is detected below top level, recursion stops/evaluate flag with detail
-evaluation/bucketing/bucket by non-key attribute/is ignored in experiments
 events/summary events/basic counter behavior
 events/summary events/contextKinds
 events/summary events/unknown flag
@@ -50,4 +36,3 @@ events/context properties/single-kind, private attribute nested property/debug e
 events/context properties/single-kind, private attribute nested property/identify event
 events/context properties/single-kind, private attribute nested property/index event from evaluation
 events/context properties/single-kind, private attribute nested property/index event from custom event
-

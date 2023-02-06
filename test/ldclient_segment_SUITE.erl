@@ -49,11 +49,14 @@ end_per_testcase(_, _Config) ->
 %% Tests
 %%====================================================================
 
+%% Tests which do not contain nested segements may pass null for storage
+%% and for client tags.
+
 can_include_user(_) ->
     Segment = ldclient_segment:new(#{
         <<"included">> => [<<"user-key">>]
     }),
-    match = ldclient_segment:match_context(Segment, ldclient_context:new(<<"user-key">>)).
+    match = ldclient_segment:match_context(Segment, ldclient_context:new(<<"user-key">>), null, null, []).
 
 can_exclude_user(_) ->
     Segment = ldclient_segment:new(#{
@@ -70,11 +73,17 @@ can_exclude_user(_) ->
     }),
     match = ldclient_segment:match_context(Segment,
         ldclient_context:set(<<"attr-1">>, <<"yes">>,
-            ldclient_context:new(<<"not-excluded">>))
+            ldclient_context:new(<<"not-excluded">>)),
+        null,
+        null,
+        []
     ),
     no_match = ldclient_segment:match_context(Segment,
         ldclient_context:set(<<"attr-1">>, <<"yes">>,
-            ldclient_context:new(<<"user-key">>))
+            ldclient_context:new(<<"user-key">>)),
+        null,
+        null,
+        []
     ).
 
 can_include_non_user_context(_) ->
@@ -84,8 +93,9 @@ can_include_non_user_context(_) ->
             <<"values">> => [<<"decoy">>, <<"org-key">>]
         }]
     }),
-    match = ldclient_segment:match_context(Segment, ldclient_context:new(<<"org-key">>, <<"org">>)),
-    no_match = ldclient_segment:match_context(Segment, ldclient_context:new(<<"potato-key">>, <<"org">>)).
+    match = ldclient_segment:match_context(Segment, ldclient_context:new(<<"org-key">>, <<"org">>), null, null, []),
+    no_match = ldclient_segment:match_context(Segment,
+        ldclient_context:new(<<"potato-key">>, <<"org">>), null, null, []).
 
 can_exclude_non_user_context(_) ->
     Segment = ldclient_segment:new(#{
@@ -105,9 +115,15 @@ can_exclude_non_user_context(_) ->
     }),
     match = ldclient_segment:match_context(Segment,
         ldclient_context:set(<<"attr-1">>, <<"yes">>,
-            ldclient_context:new(<<"not-excluded">>, <<"org">>))
+            ldclient_context:new(<<"not-excluded">>, <<"org">>)),
+        null,
+        null,
+        []
     ),
     no_match = ldclient_segment:match_context(Segment,
         ldclient_context:set(<<"attr-1">>, <<"yes">>,
-            ldclient_context:new(<<"org-key">>, <<"org">>))
+            ldclient_context:new(<<"org-key">>, <<"org">>)),
+        null,
+        null,
+        []
     ).

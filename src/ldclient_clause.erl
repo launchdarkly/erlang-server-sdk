@@ -8,8 +8,8 @@
 
 %% API
 -export([new/1]).
--export([match_context/2]).
 -export([match_context/4]).
+-export([match_context/5]).
 
 %% Types
 -type clause() :: #{
@@ -52,19 +52,31 @@ new(RawClauseMap) ->
     %% Clauses with no context kind are legacy.
     new_from_template(ClauseMap, ContextKind == undefined).
 
-%% @doc Match clauses to context, no segmentMatch allowed
+%% @doc Match all clauses to the context.
 %%
 %% @end
--spec match_context(clause(), ldclient_context:context()) -> match | no_match | malformed_flag.
-match_context(Clause, Context) ->
-    check_clause(Clause, Context).
-
-%% @doc Match all clauses to context, includes possible segmentMatch
-%%
-%% @end
--spec match_context(clause(), ldclient_context:context(), atom(), atom()) -> match | no_match | malformed_flag.
+-spec match_context(
+    Clause :: clause(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom()
+) -> match | no_match | malformed_flag.
 match_context(Clause, Context, FeatureStore, Tag) ->
-    check_clause(Clause, Context, FeatureStore, Tag).
+    check_clause(Clause, Context, FeatureStore, Tag, []).
+
+%% @doc Match all clauses to the context.
+%%
+%% Allows providing of already visited segments to allow detection of cyclic dependencies.
+%% @end
+-spec match_context(
+    Clause :: clause(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+match_context(Clause, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_clause(Clause, Context, FeatureStore, Tag, VisitedSegments).
 
 %%===================================================================
 %% Internal functions
@@ -111,14 +123,19 @@ parse_operator(_) -> none.
 -spec check_clause(Clause :: clause(),
     Context :: ldclient_context:context(),
     FeatureStore :: atom(),
-    Tag :: atom()) -> match | no_match | malformed_flag.
-check_clause(#{op := segmentMatch, values := SegmentKeys} = Clause, Context, FeatureStore, Tag) ->
-    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, Context, FeatureStore, Tag));
-check_clause(#{op := none}, _Context, _FeatureStore, _Tag) -> no_match;
-check_clause(Clause, Context, _FeatureStore, _Tag) ->
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+check_clause(#{op := segmentMatch, values := SegmentKeys} = Clause, Context, FeatureStore, Tag, VisitedSegments) ->
+    maybe_negate_match(Clause, check_segment_keys_match(SegmentKeys, Context, FeatureStore, Tag, VisitedSegments));
+check_clause(#{op := none}, _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_clause(Clause, Context, _FeatureStore, _Tag, _VisitedSegments) ->
     check_clause(Clause, Context).
 
--spec check_clause(Clause :: clause(), Context :: ldclient_context:context()) ->  match | no_match | malformed_flag.
+-spec check_clause(
+    Clause :: clause(),
+    Context :: ldclient_context:context()
+) ->  match | no_match | malformed_flag.
 check_clause(#{attribute := #{valid := false}, context_kind := _ContextKind} = _Clause, _Context) ->
     %% The attribute reference is not valid. The flag is malformed.
     malformed_flag;
@@ -262,29 +279,43 @@ check_attribute_result(match, _Rest, _Clause) -> match;
 check_attribute_result(no_match, Rest, Clause) ->
     check_attribute(Rest, Clause).
 
--spec check_segment_keys_match([binary()], ldclient_context:context(), atom(), atom()) -> match | no_match.
-check_segment_keys_match([], _Context, _FeatureStore, _Tag) -> no_match;
-check_segment_keys_match([SegmentKey|Rest], Context, FeatureStore, Tag) ->
-    Result = check_segment_key_match(SegmentKey, Context, FeatureStore, Tag),
-    check_segment_key_match_result(Result, Rest, Context, FeatureStore, Tag).
+-spec check_segment_keys_match(
+    SegmentKeys :: [binary()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match.
+check_segment_keys_match([], _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_segment_keys_match([SegmentKey|Rest], Context, FeatureStore, Tag, VisitedSegments) ->
+    case lists:member(SegmentKey, VisitedSegments) of
+        %% Detected a segment cycle, so the flag is malformed.
+        true -> malformed_flag;
+        %% No cycle, evaluate as normal.
+        false ->
+            Result = check_segment_key_match(SegmentKey, Context, FeatureStore, Tag, [SegmentKey | VisitedSegments]),
+            check_segment_key_match_result(Result, Rest, Context, FeatureStore, Tag, [SegmentKey | VisitedSegments])
+    end.
 
 -spec check_segment_key_match_result(Result :: match | no_match | malformed_flag,
     SegmentKeys :: [binary()],
     Context :: ldclient_context:context(),
     FeatureStore :: atom(),
-    Tag :: atom()) -> match | no_match | malformed_flag.
-check_segment_key_match_result(malformed_flag, _Rest, _Context, _FeatureStore, _Tag) -> malformed_flag;
-check_segment_key_match_result(match, _Rest, _Context, _FeatureStore, _Tag) -> match;
-check_segment_key_match_result(no_match, Rest, Context, FeatureStore, Tag) ->
-    check_segment_keys_match(Rest, Context, FeatureStore, Tag).
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+check_segment_key_match_result(malformed_flag, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> malformed_flag;
+check_segment_key_match_result(match, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> match;
+check_segment_key_match_result(no_match, Rest, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_segment_keys_match(Rest, Context, FeatureStore, Tag, VisitedSegments).
 
-check_segment_key_match(SegmentKey, Context, FeatureStore, Tag) ->
+check_segment_key_match(SegmentKey, Context, FeatureStore, Tag, VisitedSegments) ->
     Segments = get_segment(Tag, FeatureStore, SegmentKey),
-    check_segments_match(Segments, Context).
+    check_segments_match(Segments, Context, FeatureStore, Tag, VisitedSegments).
 
-check_segments_match([], _Context) -> no_match;
-check_segments_match([{_SegmentKey, Segment}|_], Context) ->
-    ldclient_segment:match_context(Segment, Context).
+check_segments_match([], _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_segments_match([{_SegmentKey, Segment}|_], Context, FeatureStore, Tag, VisitedSegments) ->
+    ldclient_segment:match_context(Segment, Context, FeatureStore, Tag, VisitedSegments).
 
 -spec maybe_negate_match(clause(), match | no_match) -> match | no_match.
 maybe_negate_match(#{negate := false}, Match) -> Match;

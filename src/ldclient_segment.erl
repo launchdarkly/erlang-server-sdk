@@ -8,7 +8,7 @@
 
 %% API
 -export([new/1]).
--export([match_context/2]).
+-export([match_context/5]).
 
 %% Types
 -type segment() :: #{
@@ -59,9 +59,15 @@ new(RawSegmentMap) ->
     SegmentMap = maps:merge(SegmentTemplate, RawSegmentMap),
     new_from_template(SegmentMap).
 
--spec match_context(segment(), ldclient_context:context()) -> match | no_match | malformed_flag.
-match_context(Segment, Context) ->
-    check_context_in_segment(Segment, Context).
+-spec match_context(
+    Segment :: segment(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+match_context(Segment, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_context_in_segment(Segment, Context, FeatureStore, Tag, VisitedSegments).
 
 %%===================================================================
 %% Internal functions
@@ -162,55 +168,81 @@ context_target_search(Context, ContextTargets, Targets) ->
     end.
 
 
-check_context_in_segment(Segment, Context) ->
-    check_context_included(Segment, Context).
+check_context_in_segment(Segment, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_context_included(Segment, Context, FeatureStore, Tag, VisitedSegments).
 
-check_context_included(#{included := Included, includedContexts := IncludedContexts} = Segment, Context) ->
+check_context_included(
+    #{included := Included, includedContexts := IncludedContexts} = Segment,
+    Context,
+    FeatureStore,
+    Tag,
+    VisitedSegments
+) ->
     Result = context_target_search(Context, IncludedContexts, Included),
-    check_context_included_result(Result, Segment, Context).
+    check_context_included_result(Result, Segment, Context, FeatureStore, Tag, VisitedSegments).
 
-check_context_included_result(true, _Segment, _Context) -> match;
-check_context_included_result(false, Segment, Context) ->
-    check_context_excluded(Segment, Context).
+check_context_included_result(true, _Segment, _Context, _FeatureStore, _Tag, _VisitedSegments) -> match;
+check_context_included_result(false, Segment, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_context_excluded(Segment, Context, FeatureStore, Tag, VisitedSegments).
 
-check_context_excluded(#{excluded := Excluded, excludedContexts := ExcludedContexts} = Segment, Context) ->
+check_context_excluded(
+    #{excluded := Excluded, excludedContexts := ExcludedContexts} = Segment,
+    Context,
+    FeatureStore,
+    Tag,
+    VisitedSegments
+) ->
     Result = context_target_search(Context, ExcludedContexts, Excluded),
-    check_context_excluded_result(Result, Segment, Context).
+    check_context_excluded_result(Result, Segment, Context, FeatureStore, Tag, VisitedSegments).
 
 %% These are excluded, so it is inverted. true = no_match, versus included  where true = match.
-check_context_excluded_result(true, _Segment, _Context) -> no_match;
-check_context_excluded_result(false, #{rules := Rules}, Context) ->
-    check_rules(Rules, Context).
+check_context_excluded_result(true, _Segment, _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_context_excluded_result(false, #{rules := Rules}, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_rules(Rules, Context, FeatureStore, Tag, VisitedSegments).
 
-check_rules([], _Context) -> no_match;
-check_rules([Rule|Rest], Context) ->
-    Result = check_rule(Rule, Context),
-    check_rule_result({Result, Rule}, Rest, Context).
+check_rules([], _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_rules([Rule|Rest], Context, FeatureStore, Tag, VisitedSegments) ->
+    Result = check_rule(Rule, Context, FeatureStore, Tag, VisitedSegments),
+    check_rule_result({Result, Rule}, Rest, Context, FeatureStore, Tag, VisitedSegments).
 
-check_rule_result({malformed_flag, _Rule}, _Rest, _Context) -> malformed_flag;
-check_rule_result({match, _Rule}, _Rest, _Context) -> match;
-check_rule_result({no_match, _Rule}, Rest, Context) ->
-    check_rules(Rest, Context).
+check_rule_result({malformed_flag, _Rule}, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> malformed_flag;
+check_rule_result({match, _Rule}, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> match;
+check_rule_result({no_match, _Rule}, Rest, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_rules(Rest, Context, FeatureStore, Tag, VisitedSegments).
 
-check_rule(#{clauses := Clauses} = Rule, Context) ->
-    Result = check_clauses(Clauses, Context),
+check_rule(#{clauses := Clauses} = Rule, Context, FeatureStore, Tag, VisitedSegments) ->
+    Result = check_clauses(Clauses, Context, FeatureStore, Tag, VisitedSegments),
     check_clauses_result(Result, Rule, Context).
 
--spec check_clauses([ldclient_clause:clause()], ldclient_context:context()) -> match | no_match.
-check_clauses([], _Context) -> match;
-check_clauses([Clause|Rest], Context) ->
-    % Non-segment match
-    Result = ldclient_clause:match_context(Clause, Context),
-    check_clause_result(Result, Rest, Context).
+-spec check_clauses(
+    Clauses :: [ldclient_clause:clause()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+check_clauses([], _Context, _FeatureStore, _Tag, _VisitedSegments) -> match;
+check_clauses([Clause|Rest], Context, FeatureStore, Tag, VisitedSegments) ->
+    Result = ldclient_clause:match_context(Clause, Context, FeatureStore, Tag, VisitedSegments),
+    check_clause_result(Result, Rest, Context, FeatureStore, Tag, VisitedSegments).
 
+check_clauses_result(malformed_flag, _Rule, _Context) -> malformed_flag;
 check_clauses_result(no_match, _Rule, _Context) -> no_match;
 check_clauses_result(match, Rule, Context) ->
     check_rule_weight(Rule, Context).
 
--spec check_clause_result(match | no_match, [ldclient_clause:clause()], ldclient_context:context()) -> match | no_match.
-check_clause_result(no_match, _Rest, _Context) -> no_match;
-check_clause_result(match, Rest, Context) ->
-    check_clauses(Rest, Context).
+-spec check_clause_result(
+    Result :: match | no_match | malformed_flag,
+    Clauses :: [ldclient_clause:clause()],
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    VisitedSegments :: [binary()]
+) -> match | no_match | malformed_flag.
+check_clause_result(malformed_flag, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> malformed_flag;
+check_clause_result(no_match, _Rest, _Context, _FeatureStore, _Tag, _VisitedSegments) -> no_match;
+check_clause_result(match, Rest, Context, FeatureStore, Tag, VisitedSegments) ->
+    check_clauses(Rest, Context, FeatureStore, Tag, VisitedSegments).
 
 check_rule_weight(#{weight := null}, _Context) -> match;
 check_rule_weight(Rule, Context) ->

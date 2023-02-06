@@ -13,7 +13,9 @@
 -export([
     check_attribute_against_clause_value/1,
     match_context_kinds/1,
-    malformed_flag_for_invalid_reference/1
+    malformed_flag_for_invalid_reference/1,
+    already_visited_segment_results_in_malformed_flag/1,
+    supports_nested_segments/1
 ]).
 
 %%====================================================================
@@ -24,7 +26,9 @@ all() ->
     [
         check_attribute_against_clause_value,
         match_context_kinds,
-        malformed_flag_for_invalid_reference
+        malformed_flag_for_invalid_reference,
+        already_visited_segment_results_in_malformed_flag,
+        supports_nested_segments
     ].
 
 init_per_suite(Config) ->
@@ -97,15 +101,16 @@ match_context_kinds(_) ->
         kind => <<"multi">>,
         <<"org">> => #{key => <<"org-key">>},
         <<"user">> => #{key => <<"user-key">>}},
-    match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindUser),
-    match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindWithUser),
+    %% Feature store and client tag should not be hit in these cases. So we can pass null.
+    match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindUser, null, null),
+    match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindWithUser, null, null),
     SingleKindNotUser = #{kind => <<"org">>, key => <<"org-key">>},
     MultiKindNotUser = #{
         kind => <<"multi">>,
         <<"org">> => #{key => <<"org-key">>},
         <<"potato">> => #{key => <<"potato-key">>}},
-    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindNotUser),
-    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindNotUser).
+    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, SingleKindNotUser, null, null),
+    no_match = ldclient_clause:match_context(ClauseMatchingUserKind, MultiKindNotUser, null, null).
 
 malformed_flag_for_invalid_reference(_) ->
     BadClause = #{
@@ -115,4 +120,52 @@ malformed_flag_for_invalid_reference(_) ->
         negate => false,
         context_kind => <<"user">> %% Unused for this type of rule.
     },
-    malformed_flag = ldclient_clause:match_context(BadClause, ldclient_context:new(<<"user-key">>)).
+    %% Feature store and client tag should not be hit in these cases. So we can pass null.
+    malformed_flag = ldclient_clause:match_context(BadClause, ldclient_context:new(<<"user-key">>), null, null).
+
+already_visited_segment_results_in_malformed_flag(_) ->
+    ClauseWithSegment = #{
+        attribute => ldclient_attribute_reference:new(<<"key">>),
+        op => segmentMatch,
+        values => [<<"the-segment">>],
+        negate => false,
+        context_kind => <<"user">>
+    },
+    malformed_flag = ldclient_clause:match_context(ClauseWithSegment,
+        ldclient_context:new(<<"user-key">>), null, null, [<<"the-segment">>]).
+
+supports_nested_segments(_) ->
+    FirstSegment = ldclient_segment:new(#{
+        <<"key">> => <<"first-segment">>,
+        <<"rules">> => [#{
+            <<"clauses">> => [#{
+                <<"op">> => <<"segmentMatch">>,
+                <<"values">> => [<<"second-segment">>]
+            }]
+        }],
+        <<"deleted">> => false
+    }),
+    SecondSegment = ldclient_segment:new(#{
+        <<"key">> => <<"second-segment">>,
+        <<"included">> => [<<"user-key">>],
+        <<"rules">> => [],
+        <<"deleted">> => false
+    }),
+    Storage = #{
+        <<"first-segment">> => FirstSegment,
+        <<"second-segment">> => SecondSegment
+    },
+    meck:new(mock_store,  [non_strict]),
+    meck:expect(mock_store, get, fun(mock_client, segments, Key) ->
+                                    [{Key, maps:get(Key, Storage)}]
+                                 end),
+    ClauseWithSegment = #{
+        attribute => ldclient_attribute_reference:new(<<"key">>),
+        op => segmentMatch,
+        values => [<<"first-segment">>],
+        negate => false,
+        context_kind => <<"user">>
+    },
+    match = ldclient_clause:match_context(ClauseWithSegment,
+        ldclient_context:new(<<"user-key">>), mock_store, mock_client, []),
+    true = meck:validate(mock_store).
