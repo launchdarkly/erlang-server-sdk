@@ -49,22 +49,13 @@
 %%===================================================================
 
 -spec new(map()) -> rollout().
-new(#{<<"variations">> := Variations, <<"contextKind">> := ContextKind} = Map) ->
-    #{
-        variations => parse_variations(Variations),
-        bucketBy  => ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, Map, <<"key">>)),
-        kind => parse_rollout_kind(maps:get(<<"kind">>, Map, <<"rollout">>)),
-        seed => maps:get(<<"seed">>, Map, null),
-        contextKind => ContextKind
-    };
-%% No context kind means legacy bucketBy.
 new(#{<<"variations">> := Variations} = Map) ->
     #{
         variations => parse_variations(Variations),
-        bucketBy  => ldclient_attribute_reference:new_from_legacy(maps:get(<<"bucketBy">>, Map, <<"key">>)),
+        bucketBy => get_bucket_by(Map),
         kind => parse_rollout_kind(maps:get(<<"kind">>, Map, <<"rollout">>)),
         seed => maps:get(<<"seed">>, Map, null),
-        contextKind => <<"user">>
+        contextKind => maps:get(<<"contextKind">>, Map, <<"user">>)
     }.
 
 -spec parse_rollout_kind(Kind :: binary()) -> rollout_kind().
@@ -178,3 +169,21 @@ bucketable_value(V) when is_binary(V) -> V;
 bucketable_value(V) when is_integer(V) -> list_to_binary(integer_to_list(V));
 bucketable_value(V) when is_float(V) -> if V == trunc(V) -> list_to_binary(integer_to_list(trunc(V))); true -> null end;
 bucketable_value(_) -> null.
+
+%% @doc Get the attribute reference to bucket by.
+%%
+%% For experiments we always bucket by key, for other rollout kinds we bucket by the bucketBy field. This is done when
+%% parsing the flag, instead of when evaluating the flag, for performance and simplicity of evaluation.
+%%
+%% For backward compatibility we escape the attribute using our logic for legacy attributes when there is not
+%% a context kind. New data should always have a contextKind.
+%% @end
+-spec get_bucket_by(RawRollout :: map()) -> ldclient_attribute_reference:attribute_reference().
+get_bucket_by(#{<<"kind">> := <<"experiment">>} = _Rollout) -> ldclient_attribute_reference:new(<<"key">>);
+get_bucket_by(RawRollout) ->
+    case maps:is_key(<<"contextKind">>, RawRollout) of
+        %% Had context kind, so it is new data and we do not need to escape.
+        true -> ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, RawRollout, <<"key">>));
+        %% Did not have context kind, so we assume the data to be old, and we need to escape the attribute.
+        false -> ldclient_attribute_reference:new_from_legacy(maps:get(<<"bucketBy">>, RawRollout, <<"key">>))
+    end.

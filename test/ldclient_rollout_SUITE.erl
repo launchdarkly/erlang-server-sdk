@@ -14,7 +14,8 @@
     can_rollout_non_experiment/1,
     can_rollout_experiment/1,
     untracked_variation_for_experiment_rollout_is_not_in_experiment/1,
-    missing_kind_is_not_in_experiment/1
+    missing_kind_is_not_in_experiment/1,
+    experiment_rollouts_do_not_use_bucket_by/1
 ]).
 
 %%====================================================================
@@ -26,7 +27,8 @@ all() ->
         can_rollout_non_experiment,
         can_rollout_experiment,
         untracked_variation_for_experiment_rollout_is_not_in_experiment,
-        missing_kind_is_not_in_experiment
+        missing_kind_is_not_in_experiment,
+        experiment_rollouts_do_not_use_bucket_by
     ].
 
 init_per_suite(Config) ->
@@ -84,3 +86,33 @@ missing_kind_is_not_in_experiment(_) ->
         }),
         #{key => <<"flagKey">>, salt => <<"flagSalt">>},
         ldclient_context:new(<<"user-key">>)).
+
+experiment_rollouts_do_not_use_bucket_by(_) ->
+    {1, true} = ldclient_rollout:rollout_context(
+        ldclient_rollout:new(#{
+            <<"kind">> => <<"experiment">>,
+            <<"contextKind">> => <<"org">>,
+            <<"bucketBy">> => <<"decoy">>,
+            <<"variations">> => [
+                #{<<"variation">> => 0, <<"weight">> => 59168, <<"untracked">> => false},
+                #{<<"variation">> => 1, <<"weight">> => 2, <<"untracked">> => false}, %% org-key should be here.
+                #{<<"variation">> => 2, <<"weight">> => 40830, <<"untracked">> => false} %% valueZZZ would be here.
+                %% valueZZZ derived by adding Z until the hash value was larger than org-key.
+            ]
+        }),
+        #{key => <<"flagKey">>, salt => <<"flagSalt">>},
+        ldclient_context:set(<<"decoy">>, <<"valueZZZ">>, ldclient_context:new(<<"org-key">>, <<"org">>))),
+    %% This is a counter example, to show the some rollout, but with kind=rollout, will use bucketBy.
+    {2, false} = ldclient_rollout:rollout_context(
+        ldclient_rollout:new(#{
+            <<"kind">> => <<"rollout">>,
+            <<"contextKind">> => <<"org">>,
+            <<"bucketBy">> => <<"decoy">>,
+            <<"variations">> => [
+                #{<<"variation">> => 0, <<"weight">> => 59168, <<"untracked">> => false},
+                #{<<"variation">> => 1, <<"weight">> => 2, <<"untracked">> => false},
+                #{<<"variation">> => 2, <<"weight">> => 40830, <<"untracked">> => false}
+            ]
+        }),
+        #{key => <<"flagKey">>, salt => <<"flagSalt">>},
+        ldclient_context:set(<<"decoy">>, <<"valueZZZ">>, ldclient_context:new(<<"org-key">>, <<"org">>))).

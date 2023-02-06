@@ -222,9 +222,10 @@ parse_flag_full(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
+            %% For an experiment we discard the specified bucketBy and use <<"key">>
             bucketBy => #{
-                binary => <<"foo">>,
-                components => [<<"foo">>],
+                binary => <<"key">>,
+                components => [<<"key">>],
                 valid => true
             },
             contextKind => <<"user">>,
@@ -461,7 +462,6 @@ parse_segment_full(_) ->
                 weight => null,
                 segmentKey => <<"segment-full">>,
                 segmentSalt => <<"segment-full-salt">>,
-                rolloutContextKind => null,
                 clauses => [
                     #{
                         attribute => #{

@@ -108,12 +108,13 @@ parse_rules(SegmentKey, SegmentSalt, Rules) ->
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
 parse_rule_optional_attributes(Rule, RuleRaw) ->
     Weight = maps:get(<<"weight">>, RuleRaw, null),
-    RolloutContextKind = maps:get(<<"rolloutContextKind">>, RuleRaw, null),
+    RolloutContextKindIsKey = maps:is_key(<<"rolloutContextKind">>, RuleRaw),
+    RolloutContextKind = maps:get(<<"rolloutContextKind">>, RuleRaw, <<"user">>),
     %% Rules before U2C would have had literals for attributes.
     %% So use the rolloutContextKind to indicate if this is new or old data.
-    BucketBy = case RolloutContextKind of
-        null -> ldclient_attribute_reference:new_from_legacy(maps:get(<<"bucketBy">>, RuleRaw, <<"key">>));
-        _ -> ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, RuleRaw, <<"key">>))
+    BucketBy = case RolloutContextKindIsKey of
+        false -> ldclient_attribute_reference:new_from_legacy(maps:get(<<"bucketBy">>, RuleRaw, <<"key">>));
+        true -> ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, RuleRaw, <<"key">>))
     end,
     Rule#{weight => Weight, bucketBy => BucketBy, rolloutContextKind => RolloutContextKind}.
 
