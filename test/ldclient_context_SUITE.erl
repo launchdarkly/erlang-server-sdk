@@ -318,12 +318,14 @@ can_get_built_in_attributes(_) ->
         kind => <<"user">>, %% Will not get this one, kinds work different.
         private_attributes => [], %% Cannot get this either, as it is a meta attribute.
         key => <<"user-key">>,
-        anonymous => true
+        anonymous => true,
+        name => <<"Namerson">>
     },
     <<"user-key">> = ldclient_context:get(<<"user">>, <<"key">>, TestContext),
     true = ldclient_context:get(<<"user">>, <<"anonymous">>, TestContext),
     null = ldclient_context:get(<<"user">>, <<"kind">>, TestContext),
-    null = ldclient_context:get(<<"user">>, <<"private_attributes">>, TestContext).
+    null = ldclient_context:get(<<"user">>, <<"private_attributes">>, TestContext),
+    <<"Namerson">> = ldclient_context:get(<<"user">>, <<"name">>, TestContext).
 
 can_encode_context_key(_) ->
     <<"my%25silly%3Akey%25%3A%3A%25">> = ldclient_context:encode_key(<<"my%silly:key%::%">>),
@@ -365,13 +367,13 @@ can_create_context_from_basic_user(_) ->
 
 can_create_context_from_full_user_custom(_) ->
     Key = <<"12345">>,
-    Ip = "1.2.3.4",
+    Ip = <<"1.2.3.4">>,
     Country = <<"some-country">>,
-    Email = "foo@bar.com",
-    FirstName = "a",
-    LastName = "z",
-    Avatar = "ratavA",
-    Name = "foobar",
+    Email = <<"foo@bar.com">>,
+    FirstName = <<"a">>,
+    LastName = <<"z">>,
+    Avatar = <<"ratavA">>,
+    Name = <<"foobar">>,
     Anonymous = false,
     CustomKey1 = <<"custom-key1">>,
     CustomKey2 = <<"custom-key2">>,
@@ -398,6 +400,8 @@ can_create_context_from_full_user_custom(_) ->
     #{
         key := Key,
         kind := <<"user">>,
+        name := Name,
+        anonymous := Anonymous,
         attributes := #{
             <<"ip">> := Ip,
             <<"country">> := Country,
@@ -405,8 +409,6 @@ can_create_context_from_full_user_custom(_) ->
             <<"firstName">> := FirstName,
             <<"lastName">> := LastName,
             <<"avatar">> := Avatar,
-            <<"name">> := Name,
-            <<"anonymous">> := Anonymous,
             CustomKey1 := CustomValue1,
             CustomKey2 := CustomValue2
         }

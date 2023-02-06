@@ -18,12 +18,6 @@ evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper 
 evaluation/parameterized/prerequisites/first prerequisite is a prerequisite of the second prerequisite/first prerequisite is a prerequisite of the second prerequisite/evaluate all flags
 
 # These tests fail. Will be cleaned up as the implementation proceeds.
-evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag without detail
-evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate flag with detail
-evaluation/parameterized/built-in attributes other than kind/name match/name match/evaluate all flags
-evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag without detail
-evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag with detail
-evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate all flags
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag without detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag with detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate all flags
@@ -56,3 +50,4 @@ events/context properties/single-kind, private attribute nested property/debug e
 events/context properties/single-kind, private attribute nested property/identify event
 events/context properties/single-kind, private attribute nested property/index event from evaluation
 events/context properties/single-kind, private attribute nested property/index event from custom event
+

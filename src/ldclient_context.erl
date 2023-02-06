@@ -45,7 +45,7 @@
 %% Attribute values should all be data types which are compatible with JSON and nested JSON collections.
 %% The leaf nodes of these values are what are ultimately used when evaluating flags which are dependent on attributes.
 
--type attribute_key() :: binary() | key | kind | anonymous | private_attributes.
+-type attribute_key() :: binary() | key | kind | anonymous | private_attributes | name.
 %% Attribute keys must be binary() strings. They should not be empty, and they must not be `<<"_meta">>'.
 -type attribute_map() :: #{attribute_key() => attribute_value()}.
 
@@ -296,7 +296,7 @@ new_from_map(MapContext) ->
 new_from_user(#{key := null} = _User) -> #{};
 new_from_user(#{key := Key} = User) when is_binary(Key) ->
     Attributes = attributes_from_user(User),
-    case maps:size(Attributes) =:= 0 of
+    top_level_from_user(User, case maps:size(Attributes) =:= 0 of
         true -> #{
             kind => <<"user">>,
             key => Key
@@ -306,7 +306,7 @@ new_from_user(#{key := Key} = User) when is_binary(Key) ->
             kind => <<"user">>,
             key => Key
         }
-    end;
+    end);
 new_from_user(_User) -> #{}.
 
 %% @doc Set an attribute value with the specified key in a single kind context.
@@ -571,7 +571,9 @@ get_from_multi(ContextKind, AttributeReference, Context) ->
 get_from_common(#{components := [<<"key">>]} = _AttributeReference, Context) ->
     maps:get(key, Context, null);
 get_from_common(#{components := [<<"anonymous">>]} = _AttributeReference, Context) ->
-    maps:get(anonymous, Context, null);
+    maps:get(anonymous, Context, false);
+get_from_common(#{components := [<<"name">>]} = _AttributeReference, Context) ->
+    maps:get(name, Context, null);
 get_from_common(#{components := Components} = _AttributeReference, #{attributes := Attributes} = _Context) ->
     get_by_components(Components, Attributes);
 get_from_common(_AttributeReference, _Context) -> null.
@@ -603,6 +605,7 @@ is_built_in(key = _Key) -> true;
 is_built_in(kind = _Key) -> true;
 is_built_in(private_attributes = _Key) -> true;
 is_built_in(anonymous = _Key) -> true;
+is_built_in(name = _Key) -> true;
 is_built_in(_Key) -> false.
 
 
@@ -726,6 +729,20 @@ attributes_from_custom(Custom) ->
         end
               end, #{}, Custom).
 
+-spec top_level_from_user(User :: ldclient_user:user(), AccIn :: map()) -> map().
+top_level_from_user(User, AccIn) ->
+    %% Process custom before top level. The top level will replace
+    %% any custom attributes with conflicting names.
+    maps:fold(fun(Key,Value, ContextAcc) ->
+            case Key of
+                %% Anonymous and name are the only optional top level fields that remain
+                %% top level in a context.
+                anonymous -> ContextAcc#{anonymous => Value};
+                name -> ContextAcc#{name => Value};
+                Key -> ContextAcc
+            end
+        end, AccIn, User).
+
 -spec attributes_from_user(User :: ldclient_user:user()) -> attribute_map().
 attributes_from_user(User) ->
     %% Process custom before top level. The top level will replace
@@ -739,6 +756,7 @@ attributes_from_user(User) ->
             key -> ContextAcc;
             kind -> ContextAcc;
             private_attribute_names -> ContextAcc;
+            name -> ContextAcc;
             %% Fields which need to be converted from an atom to a binary.
             ip -> ContextAcc#{<<"ip">> => Value};
             country -> ContextAcc#{<<"country">> => Value};
@@ -747,7 +765,6 @@ attributes_from_user(User) ->
             last_name -> ContextAcc#{<<"lastName">> => Value};
             avatar -> ContextAcc#{<<"avatar">> => Value};
             anonymous -> ContextAcc#{<<"anonymous">> => Value};
-            name -> ContextAcc#{<<"name">> => Value};
             %% There were no other supported top level keys in users.
             %% TODO: Should we log something?
             Key -> ContextAcc
