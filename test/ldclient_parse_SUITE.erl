@@ -88,6 +88,7 @@ parse_flag_empty(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents              => false,
         trackEventsFallthrough   => false,
         variations               => [],
@@ -120,6 +121,7 @@ parse_flag_key_only(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -155,6 +157,7 @@ parse_flag_bare(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => true,
         trackEventsFallthrough => true,
         variations               => [true, false],
@@ -204,6 +207,11 @@ parse_flag_full(_) ->
             #{<<"variation">> => 0, <<"values">> => [<<"user-target1">>, <<"user-target-2">>]},
             #{<<"variation">> => 1, <<"values">> => [<<"user-target3">>, <<"user-target-4">>]},
             #{<<"variation">> => 2, <<"values">> => []}
+        ],
+        <<"contextTargets">> => [
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 3, <<"values">> => [<<"other-target1">>, <<"other-target-2">>]},
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 4, <<"values">> => [<<"other-target3">>, <<"other-target-4">>]},
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 5, <<"values">> => []}
         ],
         <<"trackEvents">> => true,
         <<"trackEventsFallthrough">> => true,
@@ -257,9 +265,14 @@ parse_flag_full(_) ->
         ],
         salt                     => <<"flag-full-salt">>,
         targets                  => [
-            #{variation => 0, values => [<<"user-target1">>, <<"user-target-2">>]},
-            #{variation => 1, values => [<<"user-target3">>, <<"user-target-4">>]},
-            #{variation => 2, values => []}
+            #{variation => 0, values => [<<"user-target1">>, <<"user-target-2">>], contextKind => <<"user">>},
+            #{variation => 1, values => [<<"user-target3">>, <<"user-target-4">>], contextKind => <<"user">>},
+            #{variation => 2, values => [], contextKind => <<"user">>}
+        ],
+        contextTargets           => [
+            #{variation => 3, values => [<<"other-target1">>, <<"other-target-2">>], contextKind => <<"other">>},
+            #{variation => 4, values => [<<"other-target3">>, <<"other-target-4">>], contextKind => <<"other">>},
+            #{variation => 5, values => [], contextKind => <<"other">>}
         ],
         trackEvents             => true,
         trackEventsFallthrough => true,
@@ -318,6 +331,7 @@ parse_flag_ignore_invalid(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
@@ -351,6 +365,7 @@ parse_flag_invalid_fallthrough(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -520,6 +535,7 @@ parse_flag_invalid_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -564,6 +580,7 @@ parse_flag_rollout_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -608,6 +625,7 @@ parse_flag_experiment_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],

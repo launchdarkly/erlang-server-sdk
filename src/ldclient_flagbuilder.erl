@@ -81,7 +81,7 @@ build(Flag = #{ key := Key,
                 fallthrough_variation := FallthroughVariation }, Version) ->
     Rules = maps:get(rules, Flag, []),
     Targets = lists:map(fun({K, V}) ->
-                #{ variation => K, values => V }
+                #{ variation => K, values => V, contextKind => <<"user">> }
               end, maps:to_list(maps:get(targets, Flag, #{}))),
     #{ key => list_to_binary(Key),
        version => Version,
@@ -96,7 +96,8 @@ build(Flag = #{ key := Key,
        prerequisites => [],
        salt => <<"salt">>,
        rules => Rules,
-       targets => Targets
+       targets => Targets,
+       contextTargets => []
      }.
 
 %% @doc

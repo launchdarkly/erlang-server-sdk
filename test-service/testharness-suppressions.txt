@@ -37,33 +37,6 @@ evaluation/parameterized/segment recursion/single level, two rules, one does not
 evaluation/parameterized/segment recursion/single level, two rules, one does not match/single level, two rules, one does not match/evaluate all flags
 evaluation/parameterized/segment recursion/cycle is detected at top level, recursion stops/cycle is detected at top level, recursion stops/evaluate flag with detail
 evaluation/parameterized/segment recursion/cycle is detected below top level, recursion stops/cycle is detected below top level, recursion stops/evaluate flag with detail
-evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate flag without detail
-evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate flag with detail
-evaluation/parameterized/target match/user targets only, match user key from multi-kind context/user targets only, match user key from multi-kind context/evaluate all flags
-evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate flag without detail
-evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate flag with detail
-evaluation/parameterized/target match/user targets only, non-match user key from multi-kind context/user targets only, non-match user key from multi-kind context/evaluate all flags
-evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match other 1/context targets, match other 1/evaluate all flags
-evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match other 2/context targets, match other 2/evaluate all flags
-evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match other 3/context targets, match other 3/evaluate all flags
-evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match other 4/context targets, match other 4/evaluate all flags
-evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match user key from multi-kind context/context targets, match user key from multi-kind context/evaluate all flags
-evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate flag without detail
-evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate flag with detail
-evaluation/parameterized/target match/context targets, match other key from multi-kind context/context targets, match other key from multi-kind context/evaluate all flags
-evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag without detail
-evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag with detail
-evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate all flags
 evaluation/bucketing/bucket by non-key attribute/is ignored in experiments
 events/summary events/basic counter behavior
 events/summary events/contextKinds

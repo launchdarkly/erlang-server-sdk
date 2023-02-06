@@ -336,20 +336,12 @@ flag_for_context_prerequisites({fail, Reason}, #{offVariation := OffVariation} =
 flag_for_context_prerequisites({fail, Reason}, _Flag, _Context, _FeatureStore, _Tag, DefaultValue, Events) ->
     % prerequisite failed, but offVariation is null or not set
     {{null, DefaultValue, Reason}, Events};
-flag_for_context_prerequisites(success, #{targets := Targets} = Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    check_targets(Targets, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
+flag_for_context_prerequisites(success, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+    check_targets(Flag, Context, FeatureStore, Tag, DefaultValue, Events).
 
-check_targets([], Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    flag_for_context_targets(no_match, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_targets([#{values := Values, variation := Variation}|Rest], Flag, #{key := ContextKey} = Context, FeatureStore, Tag, DefaultValue, Events) ->
-    Result = {lists:member(ContextKey, Values), Variation},
-    check_target_result(Result, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
-
-check_target_result({false, _}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    check_targets(Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_target_result({true, Variation}, _Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    % Target matched: short-circuit
-    flag_for_context_targets({match, Variation}, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
+check_targets(Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+    Result = ldclient_targets:eval_flag_targets(Flag, Context),
+    flag_for_context_targets(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
 
 flag_for_context_targets({match, Variation}, Flag, _Context, _FeatureStore, _Tag, DefaultValue, Events) ->
     Reason = target_match,

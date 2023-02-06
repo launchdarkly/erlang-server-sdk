@@ -23,6 +23,7 @@
     rules                    => [ldclient_rule:rule()],
     salt                     => binary(),
     targets                  => [target()],
+    contextTargets           => [target()],
     trackEvents             => boolean(),
     trackEventsFallthrough => boolean(),
     variations               => [variation_value()],
@@ -45,6 +46,7 @@
 %% Describes a requirement that another feature flag return a specific variation
 
 -type target() :: #{
+    contextKind => ldclient_context:kind_value(),
     values    => [ldclient_user:key()],
     variation => variation()
 }.
@@ -86,6 +88,7 @@ new(RawFlagMap) ->
         <<"rules">>                  => [],
         <<"salt">>                   => <<>>,
         <<"targets">>                => [],
+        <<"contextTargets">>         => [],
         <<"trackEvents">>            => false,
         <<"trackEventsFallthrough">> => false,
         <<"variations">>             => [],
@@ -129,6 +132,7 @@ new_from_template(#{
     <<"rules">>                  := Rules,
     <<"salt">>                   := Salt,
     <<"targets">>                := Targets,
+    <<"contextTargets">>         := ContextTargets,
     <<"trackEvents">>            := TrackEvents,
     <<"trackEventsFallthrough">> := TrackEventsFallthrough,
     <<"variations">>             := Variations,
@@ -145,6 +149,7 @@ new_from_template(#{
         rules                    => parse_rules(Rules),
         salt                     => Salt,
         targets                  => parse_targets(Targets),
+        contextTargets           => parse_targets(ContextTargets),
         trackEvents             => TrackEvents,
         trackEventsFallthrough => TrackEventsFallthrough,
         variations               => Variations,
@@ -171,8 +176,12 @@ parse_rules(Rules) ->
 
 -spec parse_targets([map()]) -> [target()].
 parse_targets(Targets) ->
-    F = fun(#{<<"values">> := Values, <<"variation">> := Variation}, Acc) ->
-            [#{values => Values, variation => Variation}|Acc];
+    F = fun(#{<<"values">> := Values, <<"variation">> := Variation} = Target, Acc) ->
+            [#{
+                contextKind => maps:get(<<"contextKind">>, Target, <<"user">>),
+                values => Values,
+                variation => Variation
+            }|Acc];
         (_, Acc) ->
             Acc
         end,
