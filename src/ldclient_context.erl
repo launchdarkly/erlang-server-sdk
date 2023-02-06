@@ -564,8 +564,7 @@ get_from_multi(ContextKind, AttributeReference, Context) ->
     case ContextPart of
         undefined -> null;
         _ -> get_from_common(AttributeReference, ContextPart)
-    end,
-    get_from_common(AttributeReference, ContextPart).
+    end.
 
 -spec get_from_common(AttributeReference :: ldclient_attribute_reference:attribute_reference(),
     Context :: map()) -> Value :: attribute_value().

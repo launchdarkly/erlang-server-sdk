@@ -24,26 +24,6 @@ evaluation/parameterized/built-in attributes other than kind/name match/name mat
 evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag without detail
 evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate flag with detail
 evaluation/parameterized/built-in attributes other than kind/anonymous match false/anonymous match false/evaluate all flags
-evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate flag without detail
-evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate flag with detail
-evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, match/multi-kind context with user, clause has default kind, match/evaluate all flags
-evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, no match/multi-kind context with user, clause has default kind, no match/evaluate flag with detail
-evaluation/parameterized/clause kind matching/multi-kind context with user, clause has default kind, no match/multi-kind context with user, clause has default kind, no match/evaluate all flags
-evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate flag without detail
-evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate flag with detail
-evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, match/multi-kind context, clause specifies existing kind, match/evaluate all flags
-evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, no match/multi-kind context, clause specifies existing kind, no match/evaluate flag with detail
-evaluation/parameterized/clause kind matching/multi-kind context, clause specifies existing kind, no match/multi-kind context, clause specifies existing kind, no match/evaluate all flags
-evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate flag without detail
-evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate flag with detail
-evaluation/parameterized/clause kind matching/kind match for multi-kind context using matches operator/kind match for multi-kind context using matches operator/evaluate all flags
-evaluation/parameterized/clause kind matching/kind non-match for multi-kind context using matches operator/kind non-match for multi-kind context using matches operator/evaluate flag with detail
-evaluation/parameterized/clause kind matching/kind non-match for multi-kind context using matches operator/kind non-match for multi-kind context using matches operator/evaluate all flags
-evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate flag without detail
-evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate flag with detail
-evaluation/parameterized/clause kind matching/kind match for multi-kind context/kind match for multi-kind context/evaluate all flags
-evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate flag with detail
-evaluation/parameterized/clause kind matching/kind non-match for multi-kind context/kind non-match for multi-kind context/evaluate all flags
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag without detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate flag with detail
 evaluation/parameterized/segment recursion/simple single-level recursion/simple single-level recursion/evaluate all flags
@@ -84,14 +64,6 @@ evaluation/parameterized/target match/context targets, match other key from mult
 evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag without detail
 evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate flag with detail
 evaluation/parameterized/target match/context targets, non-match multi-kind context/context targets, non-match multi-kind context/evaluate all flags
-evaluation/bucketing/selection of context/single-kind/rollouts
-evaluation/bucketing/selection of context/single-kind/experiments/inExperiment is false if context kind was not found
-evaluation/bucketing/selection of context/single-kind/experiments
-evaluation/bucketing/selection of context/multi-kind/rollouts
-evaluation/bucketing/selection of context/multi-kind/experiments/inExperiment is false if context kind was not found
-evaluation/bucketing/selection of context/multi-kind/experiments
-evaluation/bucketing/bucket by non-key attribute/in rollouts/string value/simple attribute name
-evaluation/bucketing/bucket by non-key attribute/in rollouts/string value/complex attribute reference
 evaluation/bucketing/bucket by non-key attribute/is ignored in experiments
 events/summary events/basic counter behavior
 events/summary events/contextKinds
@@ -99,10 +71,6 @@ events/summary events/unknown flag
 events/summary events/reset after each flush
 events/summary events/prerequisites
 events/summary events/flag versions
-events/feature events/full feature event for tracked flag/without reason/multi-kind/valid flag/type: any
-events/feature events/full feature event for tracked flag/without reason/multi-kind/malformed flag/type: any
-events/feature events/full feature event for tracked flag/with reason/multi-kind/valid flag/type: any
-events/feature events/full feature event for tracked flag/with reason/multi-kind/malformed flag/type: any
 events/context properties/single-kind, allAttributesPrivate/debug event
 events/context properties/single-kind, allAttributesPrivate/identify event
 events/context properties/single-kind, allAttributesPrivate/index event from evaluation

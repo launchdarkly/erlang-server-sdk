@@ -45,9 +45,12 @@ fl_eq(L, R) ->
     true = abs(L - R) < 0.0000001.
 
 make_and_bucket(Seed, Key, Salty) ->
-    Point1 = ldclient_rollout:bucket_context(Seed, Key, Salty, ldclient_context:new(<<"userKeyA">>), <<"/key">>),
-    Point2 = ldclient_rollout:bucket_context(Seed, Key, Salty, ldclient_context:new(<<"userKeyB">>), <<"/key">>),
-    Point3 = ldclient_rollout:bucket_context(Seed, Key, Salty, ldclient_context:new(<<"userKeyC">>), <<"/key">>),
+    Point1 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyA">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
+    Point2 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyB">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
+    Point3 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyC">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
     {Point1, Point2, Point3}.
 
 %%====================================================================

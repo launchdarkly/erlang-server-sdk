@@ -76,6 +76,7 @@ parse_flag_empty(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -107,6 +108,7 @@ parse_flag_key_only(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -217,6 +219,7 @@ parse_flag_full(_) ->
                 components => [<<"foo">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [
                 #{variation => 0, weight => 0, untracked => true},
                 #{variation => 1, weight => 40000, untracked => false},
@@ -303,6 +306,7 @@ parse_flag_ignore_invalid(_) ->
                 components => [<<"foo">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [
                 #{variation => 1, weight => 0, untracked => false}
             ]
@@ -335,6 +339,7 @@ parse_flag_invalid_fallthrough(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -437,6 +442,7 @@ parse_segment_full(_) ->
                     components => [<<"key">>],
                     valid => true
                 },
+                rolloutContextKind => <<"user">>,
                 weight => null,
                 segmentKey => <<"segment-full">>,
                 segmentSalt => <<"segment-full-salt">>,
@@ -502,6 +508,7 @@ parse_flag_invalid_kind(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             kind => rollout,
             seed => null
@@ -545,6 +552,7 @@ parse_flag_rollout_kind(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             kind => rollout,
             seed => null
@@ -588,6 +596,7 @@ parse_flag_experiment_kind(_) ->
                 components => [<<"key">>],
                 valid => true
             },
+            contextKind => <<"user">>,
             variations => [],
             kind => experiment,
             seed => null

@@ -8,7 +8,7 @@
 
 %% API
 -export([new/1]).
--export([bucket_context/5]).
+-export([bucket_context/6]).
 -export([rollout_context/3]).
 
 %% Types
@@ -18,6 +18,7 @@
 -type rollout() :: #{
     variations  => [weighted_variation()],
     bucketBy    => ldclient_attribute_reference:attribute_reference(),
+    contextKind => ldclient_context:kind_value(),
     kind        => rollout_kind(),
     seed        => seed()
 }.
@@ -48,12 +49,13 @@
 %%===================================================================
 
 -spec new(map()) -> rollout().
-new(#{<<"variations">> := Variations, <<"contextKind">> := _ContextKind} = Map) ->
+new(#{<<"variations">> := Variations, <<"contextKind">> := ContextKind} = Map) ->
     #{
         variations => parse_variations(Variations),
-        bucketBy  => ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, Map, <<"/key">>)),
+        bucketBy  => ldclient_attribute_reference:new(maps:get(<<"bucketBy">>, Map, <<"key">>)),
         kind => parse_rollout_kind(maps:get(<<"kind">>, Map, <<"rollout">>)),
-        seed => maps:get(<<"seed">>, Map, null)
+        seed => maps:get(<<"seed">>, Map, null),
+        contextKind => ContextKind
     };
 %% No context kind means legacy bucketBy.
 new(#{<<"variations">> := Variations} = Map) ->
@@ -61,7 +63,8 @@ new(#{<<"variations">> := Variations} = Map) ->
         variations => parse_variations(Variations),
         bucketBy  => ldclient_attribute_reference:new_from_legacy(maps:get(<<"bucketBy">>, Map, <<"key">>)),
         kind => parse_rollout_kind(maps:get(<<"kind">>, Map, <<"rollout">>)),
-        seed => maps:get(<<"seed">>, Map, null)
+        seed => maps:get(<<"seed">>, Map, null),
+        contextKind => <<"user">>
     }.
 
 -spec parse_rollout_kind(Kind :: binary()) -> rollout_kind().
@@ -78,13 +81,26 @@ parse_rollout_kind(Kind) ->
     Context :: ldclient_context:context()) -> rollout_result().
 rollout_context(#{bucketBy := #{valid := false}} = _Rollout, _Flag, _Context) ->
     malformed_flag;
-rollout_context(#{kind := experiment, seed := Seed, variations := WeightedVariations, bucketBy := BucketBy},
-    #{key := FlagKey, salt := FlagSalt}, Context) ->
-    Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy),
+rollout_context(#{
+        kind := experiment,
+        seed := Seed,
+        variations := WeightedVariations,
+        bucketBy := BucketBy,
+        contextKind := ContextKind
+    } = _Rollout,
+    #{key := FlagKey, salt := FlagSalt} = _Flag, Context) ->
+    HasContext = lists:member(ContextKind, ldclient_context:get_kinds(Context)),
+    Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy, ContextKind),
     #{variation := Variation, untracked := Untracked} = match_weighted_variations(Bucket, WeightedVariations),
-    {Variation, not Untracked};
-rollout_context(#{variations := WeightedVariations, bucketBy := BucketBy, seed := Seed} = _Rollout, #{key := FlagKey, salt := FlagSalt}, Context) ->
-    Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy),
+    %% If the context did not contain the kind, then we are not in an experiment.
+    {Variation, (not Untracked) and HasContext};
+rollout_context(#{
+        variations := WeightedVariations,
+        bucketBy := BucketBy,
+        seed := Seed,
+        contextKind := ContextKind
+    } = _Rollout, #{key := FlagKey, salt := FlagSalt} = _Flag, Context) ->
+    Bucket = bucket_context(Seed, FlagKey, FlagSalt, Context, BucketBy,ContextKind),
     VariationBucket = match_weighted_variations(Bucket, WeightedVariations),
     extract_variation(VariationBucket, false).
 
@@ -92,9 +108,15 @@ extract_variation(null, false) -> {null, false};
 extract_variation(#{variation := Variation}, InExperiment) ->
     {Variation, InExperiment}.
 
--spec bucket_context(seed(), ldclient_flag:key(), binary(), ldclient_context:context(), ldclient_context:attribute()) -> float().
-bucket_context(Seed, Key, Salt, Context, BucketBy) ->
-    ContextValue = ldclient_context:get(<<"user">>, BucketBy, Context),
+-spec bucket_context(
+    Seed :: seed(),
+    Key :: ldclient_flag:key(),
+    Salt :: binary(),
+    Context :: ldclient_context:context(),
+    BucketBy :: ldclient_attribute_reference:attribute_reference(),
+    ContextKind :: ldclient_context:kind_value()) -> float().
+bucket_context(Seed, Key, Salt, Context, BucketBy, ContextKind) ->
+    ContextValue = ldclient_context:get(ContextKind, BucketBy, Context),
     bucket_context_value(Seed, Key, Salt, bucketable_value(ContextValue)).
 
 %%===================================================================

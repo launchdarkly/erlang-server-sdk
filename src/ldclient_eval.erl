@@ -256,20 +256,17 @@ flag_recs_for_context(FlagKey, [{FlagKey, #{deleted := true}}|_], Context, _Feat
     {{null, DefaultValue, Reason}, Events};
 flag_recs_for_context(FlagKey, [{FlagKey, Flag}|_], Context, FeatureStore, Tag, DefaultValue) ->
     % Flag found
-    flag_for_context_check_empty_key(Flag, Context, FeatureStore, Tag, DefaultValue).
+    flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue).
 
--spec flag_for_context_check_empty_key(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
-flag_for_context_check_empty_key(Flag, #{key := <<>>} = Context, FeatureStore, Tag, DefaultValue) ->
-    error_logger:warning_msg("Context key is blank. Flag evaluation will proceed, but the context will not be stored in Launchdarkly"),
-    flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue);
-flag_for_context_check_empty_key(Flag, #{key := _Key} = Context, FeatureStore, Tag, DefaultValue) ->
-    flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue);
-flag_for_context_check_empty_key(Flag, Context, _FeatureStore, _Tag, DefaultValue) ->
-    % Context has no key
-    flag_for_context_with_no_key(Flag, Context, DefaultValue).
+-spec flag_for_context_check_valid(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
+flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue) ->
+    case ldclient_context:is_valid(Context, true) of
+        true -> flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue);
+        false -> flag_for_invalid_context(Flag, Context, DefaultValue)
+    end.
 
--spec flag_for_context_with_no_key(ldclient_flag:flag(), ldclient_context:context(), result_value()) -> result().
-flag_for_context_with_no_key(Flag, Context, DefaultValue) ->
+-spec flag_for_invalid_context(ldclient_flag:flag(), ldclient_context:context(), result_value()) -> result().
+flag_for_invalid_context(Flag, Context, DefaultValue) ->
     Reason = {error, user_not_specified},
     Events = [ldclient_event:new_flag_eval(null, DefaultValue, DefaultValue, Context, Reason, Flag)],
     {{null, DefaultValue, Reason}, Events}.

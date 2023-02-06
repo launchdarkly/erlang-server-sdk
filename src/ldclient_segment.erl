@@ -34,7 +34,7 @@
     bucketBy    => ldclient_attribute_reference:attribute_reference(),
     segmentKey  => binary(),
     segmentSalt => binary(),
-    rolloutContextKind => binary()
+    rolloutContextKind => ldclient_context:kind_value()
 }.
 
 -export_type([segment/0]).
@@ -215,9 +215,15 @@ check_rule_weight(#{weight := null}, _Context) -> match;
 check_rule_weight(Rule, Context) ->
     check_context_bucket(Rule, Context).
 
-check_context_bucket(#{bucketBy := #{valid := false}} = _Segment, _Context) -> malformed_flag;
-check_context_bucket(#{segmentKey := SegmentKey, segmentSalt := SegmentSalt, bucketBy := BucketBy, weight := Weight}, Context) ->
-    Bucket = ldclient_rollout:bucket_context(null, SegmentKey, SegmentSalt, Context, BucketBy),
+check_context_bucket(#{bucketBy := #{valid := false}} = _SegmentRule, _Context) -> malformed_flag;
+check_context_bucket(#{
+    segmentKey := SegmentKey,
+    segmentSalt := SegmentSalt,
+    bucketBy := BucketBy,
+    weight := Weight,
+    rolloutContextKind := RolloutContextKind
+} = _SegmentRule, Context) ->
+    Bucket = ldclient_rollout:bucket_context(null, SegmentKey, SegmentSalt, Context, BucketBy, RolloutContextKind),
     check_context_bucket_result(Bucket, Weight).
 
 check_context_bucket_result(Bucket, Weight) when Bucket < Weight / 100000 -> match;

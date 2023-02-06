@@ -285,6 +285,11 @@ track_metric(Key, Context, Data, Metric, Tag) ->
 -spec ensure_context(UserOrContext :: ldclient_user:user() | ldclient_context:context()) -> ldclient_context:context().
 ensure_context(#{kind := _Kind} = ContextOrContext) -> ContextOrContext;
 ensure_context(UserOrContext) ->
+    case maps:is_key(key, UserOrContext) of
+        %% We allow legacy users to have an empty key, but we log it.
+        false -> error_logger:warning_msg("Context key is blank. Flag evaluation will proceed, but the context will not be stored in Launchdarkly");
+        true -> ok
+    end,
     ldclient_context:new_from_user(UserOrContext).
 
 %% @doc High order function that calls a function when a context is valid, otherwise returns true.
