@@ -29,7 +29,10 @@
 -type summary_event() :: #{} | #{
     counters := counters(),
     start_date := non_neg_integer(),
-    end_date := non_neg_integer()
+    end_date := non_neg_integer(),
+    context_kinds := #{
+        flag_key := [ldclient_context:kind_value()]
+    }
 }.
 
 -type counters() :: #{
@@ -200,6 +203,7 @@ add_raw_event(_, Events, _) ->
 add_feature_request_event(
     #{
         timestamp := Timestamp,
+        context := Context,
         data := #{
             key := Key,
             value := Value,
@@ -215,11 +219,15 @@ add_feature_request_event(
     #{
         start_date => Timestamp,
         end_date => Timestamp,
-        counters => #{SummaryEventKey => SummaryEventValue}
+        counters => #{SummaryEventKey => SummaryEventValue},
+        context_kinds => #{
+            Key => ldclient_context:get_kinds(Context)
+        }
     };
 add_feature_request_event(
     #{
         timestamp := Timestamp,
+        context := Context,
         data := #{
             key := Key,
             value := Value,
@@ -231,9 +239,11 @@ add_feature_request_event(
     #{
         start_date := CurrStartDate,
         end_date := CurrEndDate,
-        counters := SummaryEventCounters
+        counters := SummaryEventCounters,
+        context_kinds := SummaryContextKinds
     } = SummaryEvent
 ) ->
+    ContextKindsForKey = maps:get(Key, SummaryContextKinds, []),
     SummaryEventKey = create_summary_event_key(Key, Variation, Version),
     NewSummaryEvenValue = case maps:get(SummaryEventKey, SummaryEventCounters, undefined) of
         undefined ->
@@ -247,7 +257,10 @@ add_feature_request_event(
     SummaryEvent#{
         counters => NewSummaryEventCounters,
         start_date => NewStartDate,
-        end_date => NewEndDate
+        end_date => NewEndDate,
+        context_kinds => SummaryContextKinds#{
+            Key => sets:to_list(sets:from_list(ldclient_context:get_kinds(Context) ++ ContextKindsForKey))
+        }
     }.
 
 -spec should_add_full_event(ldclient_event:event()) -> boolean().

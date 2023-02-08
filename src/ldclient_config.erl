@@ -86,7 +86,7 @@
 }.
 % Settings stored for each running SDK instance
 
--type private_attributes() :: all | [ldclient_user:attribute()].
+-type private_attributes() :: all | [ldclient_attribute_reference:attribute_reference()].
 
 -export_type([private_attributes/0]).
 -export_type([http_options/0]).
@@ -195,7 +195,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
         context_keys_capacity => ContextKeysCapacity,
-        private_attributes => PrivateAttributes,
+        private_attributes => parse_private_attributes(PrivateAttributes),
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
         offline => OfflineMode,
@@ -417,3 +417,12 @@ valid_tag_char(H) ->
     ((H >= $0) and (H =< $9)) orelse %% Numbers
     ((H >= $A) and (H =< $Z)) orelse %% Capital letters
     ((H >= $a) and (H =< $z)). %% Lowercase letters
+
+-spec parse_private_attributes(Attributes :: all | [binary() | ldclient_attribute_reference:attribute_reference()]) -> all | [ldclient_attribute_reference:attribute_reference()].
+parse_private_attributes(all) -> all;
+parse_private_attributes(Attributes) -> lists:map(fun ensure_attribute_reference/1, Attributes).
+
+-spec ensure_attribute_reference(Attribute :: binary() | ldclient_attribute_reference:attribute_reference()) ->
+    ldclient_attribute_reference:attribute_reference().
+ensure_attribute_reference(Attribute) when is_binary(Attribute) -> ldclient_attribute_reference:new(Attribute);
+ensure_attribute_reference(Attribute) -> Attribute.

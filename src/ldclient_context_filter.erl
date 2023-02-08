@@ -22,7 +22,7 @@
 %% The private attributes specified in the context, and those included in the private attributes parameter, will be
 %% removed from the context. Additionally they will be added to the redacted attributes list in _meta.
 %% @end
--spec format_context_for_event(PrivateAttributes :: [ldclient_attribute_reference:attribute_reference()],
+-spec format_context_for_event(PrivateAttributes :: [ldclient_attribute_reference:attribute_reference()] | all,
     Context :: ldclient_context:context()
     ) -> Formatted :: map().
 format_context_for_event(PrivateAttributes, #{kind := <<"multi">>} = Context) ->
@@ -36,8 +36,12 @@ format_context_for_event(PrivateAttributes, Context) ->
                                            end, maps:get(private_attributes, Context, [])),
     ContextWithoutAttributes = maps:remove(attributes, Context),
     ContextWithoutPrivateAttributes = maps:remove(private_attributes, ContextWithoutAttributes),
-    clone_with_redaction(PrivateAttributes ++ ContextPrivateAttributes,
-        merge_attributes(ContextWithoutPrivateAttributes, Attributes)).
+    case PrivateAttributes of
+        all -> clone_with_redaction(all,
+            merge_attributes(ContextWithoutPrivateAttributes, Attributes));
+        _ -> clone_with_redaction(PrivateAttributes ++ ContextPrivateAttributes,
+            merge_attributes(ContextWithoutPrivateAttributes, Attributes))
+    end.
 
 %%===================================================================
 %% Internal functions
@@ -50,9 +54,20 @@ merge_attributes(Context, Attributes) ->
     maps:merge(Attributes, Context).
 
 -spec clone_with_redaction(
-    PrivateAttributes :: [ldclient_attribute_reference:attribute_reference()],
+    PrivateAttributes :: [ldclient_attribute_reference:attribute_reference()] | all,
     Context :: map()
 ) -> map().
+clone_with_redaction(all, Context) ->
+    #{redacted := RedactedAttributes, item := RedactedContext} = clone_with_redaction(all, Context, []),
+    ContextMaybeWithMeta = case RedactedAttributes of
+                               [] -> RedactedContext;
+                               _ -> RedactedContext#{
+                                   <<"_meta">> => #{
+                                       <<"redactedAttributes">> => [Binary || #{binary := Binary} <- RedactedAttributes]
+                                   }
+                               }
+                           end,
+    ContextMaybeWithMeta;
 clone_with_redaction(PrivateAttributes, Context) ->
     AttributeReferences =
     [Reference || #{valid := Valid, components := Components} = Reference <- PrivateAttributes, Valid and can_redact(Components)],
@@ -68,9 +83,21 @@ clone_with_redaction(PrivateAttributes, Context) ->
     ContextMaybeWithMeta.
 
 -spec clone_with_redaction(
-    PrivateAttributeComponents :: [[binary()]],
+    PrivateAttributeComponents :: [[binary()]] | all,
     MapOrItem :: term(), ParentComponents :: [binary()]
 ) -> map().
+%% When redacting `all' we never recurse, so we don't need parent components.
+clone_with_redaction(all, MapOrItem, _ParentComponents) when is_map(MapOrItem) ->
+    maps:fold(fun(Key, Value, #{redacted := Redacted, item := Item} = _Acc) ->
+        BinaryKey = ensure_binary(Key),
+        case can_redact([BinaryKey]) of
+            true ->
+                #{redacted => Redacted ++ [#{binary => BinaryKey}], item => Item};
+            false ->
+                %% No need to recurse, because you always remove the top level when all attribute are private.
+                #{redacted => Redacted, item => Item#{BinaryKey => Value}}
+        end
+              end, #{redacted => [],item => #{}}, MapOrItem);
 clone_with_redaction(PrivateAttributeComponents, MapOrItem, ParentComponents) when is_map(MapOrItem) ->
     maps:fold(fun(Key, Value, #{redacted := Redacted, item := Item} = _Acc) ->
         Components = lists:append(ParentComponents, [ensure_binary(Key)]),

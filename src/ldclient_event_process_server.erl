@@ -253,19 +253,20 @@ maybe_set_metric_value(_, OutputEvent) ->
 
 -spec format_summary_event(ldclient_event_server:summary_event()) -> map().
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
-format_summary_event(#{start_date := StartDate, end_date := EndDate, counters := Counters}) ->
+format_summary_event(#{start_date := StartDate, end_date := EndDate, counters := Counters, context_kinds := ContextKinds}) ->
     #{
         <<"kind">> => <<"summary">>,
         <<"startDate">> => StartDate,
         <<"endDate">> => EndDate,
-        <<"features">> => format_summary_event_counters(Counters)
+        <<"features">> => format_summary_event_counters(Counters, ContextKinds)
     }.
 
--spec format_summary_event_counters(ldclient_event_server:counters()) -> map().
-format_summary_event_counters(Counters) ->
-    maps:fold(fun format_summary_event_counters/3, #{}, Counters).
+-spec format_summary_event_counters(ldclient_event_server:counters(), map()) -> map().
+format_summary_event_counters(Counters, ContextKinds) ->
+    maps:fold(fun(CounterKey, CounterValue, Acc) ->
+        format_summary_event_counters(CounterKey, CounterValue, ContextKinds, Acc) end, #{}, Counters).
 
--spec format_summary_event_counters(ldclient_event_server:counter_key(), ldclient_event_server:counter_value(), map()) ->
+-spec format_summary_event_counters(ldclient_event_server:counter_key(), ldclient_event_server:counter_value(), map(), map()) ->
     map().
 format_summary_event_counters(
     #{
@@ -278,6 +279,7 @@ format_summary_event_counters(
         flag_value := FlagValue,
         flag_default := Default
     },
+    ContextKinds,
     Acc
 ) ->
     FlagMap = maps:get(FlagKey, Acc, #{default => Default, counters => []}),
@@ -287,7 +289,9 @@ format_summary_event_counters(
     }),
     CounterWithVariation = maybe_set_variation(Variation, CounterWithVersion),
     Counter = maybe_add_version(Version, CounterWithVariation),
-    NewFlagMap = FlagMap#{counters := [Counter|maps:get(counters, FlagMap)]},
+    NewFlagMap = FlagMap#{
+        counters => [Counter|maps:get(counters, FlagMap)],
+        contextKinds => maps:get(FlagKey, ContextKinds)},
     Acc#{FlagKey => NewFlagMap}.
 
 maybe_set_unknown(null = _Version, Counter) -> Counter#{unknown => true};

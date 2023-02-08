@@ -15,7 +15,9 @@
     cannot_redact_key_kind_anonymous_single_context/1,
     can_redact_attributes_multi_context/1,
     redacts_from_meta_single_context/1,
-    handles_missing_attributes/1
+    handles_missing_attributes/1,
+    can_redact_all_attributes_single_context/1,
+    can_redact_all_attributes_multi_context/1
 ]).
 
 %%====================================================================
@@ -29,7 +31,9 @@ all() ->
         cannot_redact_key_kind_anonymous_single_context,
         can_redact_attributes_multi_context,
         redacts_from_meta_single_context,
-        handles_missing_attributes
+        handles_missing_attributes,
+        can_redact_all_attributes_single_context,
+        can_redact_all_attributes_multi_context
     ].
 
 init_per_suite(Config) ->
@@ -208,3 +212,53 @@ handles_missing_attributes(_) ->
     } = ldclient_context_filter:format_context_for_event([
         ldclient_attribute_reference:new(<<"potato">>)
     ], AttributesContext).
+
+can_redact_all_attributes_single_context(_) ->
+    TestContext =
+        ldclient_context:set(name, <<"the-name">>,
+        ldclient_context:set(anonymous, true,
+        ldclient_context:set(<<"org">>, <<"anAttribute">>, <<"aValue">>,
+            ldclient_context:set(<<"org">>, <<"nested">>, #{
+                <<"key1">> => <<"value1">>,
+                <<"key2">> => <<"value2">>
+            },
+                ldclient_context:new(<<"org-key">>, <<"org">>))))),
+    #{
+        <<"kind">> := <<"org">>,
+        <<"key">> := <<"org-key">>,
+        <<"anonymous">> := true,
+        <<"_meta">> := #{
+            <<"redactedAttributes">> := [
+                <<"name">>,
+                <<"anAttribute">>,
+                <<"nested">>
+            ]
+        }
+    } = ldclient_context_filter:format_context_for_event(all, TestContext).
+
+can_redact_all_attributes_multi_context(_) ->
+    TestContext = ldclient_context:new_multi_from([
+        ldclient_context:set(<<"org">>, <<"anAttribute">>, <<"aValue">>,
+            ldclient_context:set(<<"org">>, <<"nested">>, #{
+                <<"key1">> => <<"value1">>,
+                <<"key2">> => <<"value2">>
+            },
+                ldclient_context:new(<<"org-key">>, <<"org">>))),
+        ldclient_context:set(<<"user">>, <<"anAttribute">>, <<"aValue">>,
+            ldclient_context:set(<<"user">>, <<"nested">>, #{
+                <<"key1">> => <<"value1">>,
+                <<"key2">> => <<"value2">>
+            },
+                ldclient_context:new(<<"user-key">>, <<"user">>)))
+    ]),
+    #{
+        <<"kind">> := <<"multi">>,
+        <<"org">> := #{
+            <<"key">> := <<"org-key">>,
+            <<"_meta">> := #{<<"redactedAttributes">> := [<<"anAttribute">>, <<"nested">>]}
+        },
+        <<"user">> := #{
+            <<"key">> := <<"user-key">>,
+            <<"_meta">> := #{<<"redactedAttributes">> := [<<"anAttribute">>, <<"nested">>]}
+        }
+    } = ldclient_context_filter:format_context_for_event(all, TestContext).

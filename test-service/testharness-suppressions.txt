@@ -16,23 +16,3 @@ evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper 
 evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper level, recursion stops/prerequisite cycle is detected at deeper level, recursion stops/evaluate flag with detail
 evaluation/parameterized/prerequisites/prerequisite cycle is detected at deeper level, recursion stops/prerequisite cycle is detected at deeper level, recursion stops/evaluate all flags
 evaluation/parameterized/prerequisites/first prerequisite is a prerequisite of the second prerequisite/first prerequisite is a prerequisite of the second prerequisite/evaluate all flags
-
-# These tests fail. Will be cleaned up as the implementation proceeds.
-events/summary events/basic counter behavior
-events/summary events/contextKinds
-events/summary events/unknown flag
-events/summary events/reset after each flush
-events/summary events/prerequisites
-events/summary events/flag versions
-events/context properties/single-kind, allAttributesPrivate/debug event
-events/context properties/single-kind, allAttributesPrivate/identify event
-events/context properties/single-kind, allAttributesPrivate/index event from evaluation
-events/context properties/single-kind, allAttributesPrivate/index event from custom event
-events/context properties/single-kind, specific private attributes/debug event
-events/context properties/single-kind, specific private attributes/identify event
-events/context properties/single-kind, specific private attributes/index event from evaluation
-events/context properties/single-kind, specific private attributes/index event from custom event
-events/context properties/single-kind, private attribute nested property/debug event
-events/context properties/single-kind, private attribute nested property/identify event
-events/context properties/single-kind, private attribute nested property/index event from evaluation
-events/context properties/single-kind, private attribute nested property/index event from custom event
