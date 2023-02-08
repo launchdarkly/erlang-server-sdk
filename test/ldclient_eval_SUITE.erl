@@ -69,7 +69,8 @@
     all_flags_state_offline/1,
     malformed_clause/1,
     malformed_rollout/1,
-    malformed_segment_rollout/1
+    malformed_segment_rollout/1,
+    detects_circular_reference/1
 ]).
 
 %%====================================================================
@@ -136,7 +137,8 @@ all() ->
         all_flags_state_offline,
         malformed_clause,
         malformed_rollout,
-        malformed_segment_rollout
+        malformed_segment_rollout,
+        detects_circular_reference
     ].
 
 init_per_suite(Config) ->
@@ -1319,3 +1321,9 @@ malformed_segment_rollout(_) ->
             #{key => <<"some-context">>, kind => <<"user">>},
             "foo"
         ).
+
+detects_circular_reference(_) ->
+    {{null,"foo",{error,malformed_flag}}, Events} = ldclient_eval:flag_key_for_context(another1, <<"circular-reference-flag">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
+    ExpectedEvents = lists:sort([{<<"circular-reference-flag">>,feature_request,null,"foo","foo", {error,malformed_flag}, null}]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.

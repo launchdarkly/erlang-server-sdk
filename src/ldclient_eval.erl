@@ -202,10 +202,8 @@ all_flags_eval(Context, Tag) ->
     Initialized :: atom()
 ) -> feature_flags_state().
 all_flags_eval(_Context, _Tag, offline, _) ->
-    error_logger:warning_msg("Called all_flags_state in offline mode. Returning empty state"),
     #{flag_values => #{}};
 all_flags_eval(_Context, _Tag, _, not_initialized) ->
-    error_logger:warning_msg("Called all_flags_state before client initialization. Returning empty state"),
     #{flag_values => #{}};
 all_flags_eval(Context, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
@@ -294,42 +292,148 @@ flag_for_context_valid(#{prerequisites := Prerequisites} = Flag, Context, Featur
 
 -spec check_prerequisites([ldclient_flag:prerequisite()], ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) ->
     result().
-check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue) ->
-    check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, []).
+check_prerequisites(Prerequisites, #{key := FlagKey} = Flag, Context, FeatureStore, Tag, DefaultValue) ->
+    check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, [], [FlagKey]).
 
-check_prerequisites([], Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+-spec check_prerequisites(
+    Prerequisites :: [ldclient_flag:prerequisite()],
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    DefaultValue :: result_value(),
+    Events :: [ldclient_event:event()],
+    VisitedFlags :: [binary()]
+) -> result().
+check_prerequisites(
+    [],
+    Flag,
+    Context,
+    FeatureStore,
+    Tag,
+    DefaultValue,
+    Events,
+    _VisitedFlags
+) ->
     flag_for_context_prerequisites(success, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisites([#{key := PrerequisiteKey, variation := Variation}|Rest], Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    PrerequisiteFlagRecs = FeatureStore:get(Tag, features, PrerequisiteKey),
-    check_prerequisite_recs(PrerequisiteFlagRecs, PrerequisiteKey, Variation, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
+check_prerequisites(
+    [#{key := PrerequisiteKey, variation := Variation}|Rest],
+    #{key := FlagKey} = Flag,
+    Context,
+    FeatureStore,
+    Tag,
+    DefaultValue,
+    Events,
+    VisitedFlags
+) ->
+    case lists:member(PrerequisiteKey, VisitedFlags) of
+        true ->
+            error_logger:error_msg("Prerequisite of ~p causing a circular reference."
+            " This is probably a temporary condition due to an incomplete update.", [FlagKey]),
+            flag_for_context_prerequisites({malformed_flag, {error, malformed_flag}},
+                Flag, Context, FeatureStore, Tag, DefaultValue, Events);
+        false ->
+            PrerequisiteFlagRecs = FeatureStore:get(Tag, features, PrerequisiteKey),
+            check_prerequisite_recs(PrerequisiteFlagRecs, PrerequisiteKey, Variation,
+                Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events, [PrerequisiteKey | VisitedFlags])
+    end.
 
-check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+-spec check_prerequisite_recs(
+    PrerequisiteFlagRecs :: [ldclient_flag:flag()], %% Contains 0 or 1 flags.
+    PrerequisiteKey :: binary(),
+    Variation :: non_neg_integer(),
+    Prerequisites :: [binary()],
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    DefaultValue :: result_value(),
+    Events :: [ldclient_event:event()],
+    VisitedFlags :: [binary()]
+    ) -> result().
+check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag,
+    Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
     % Short circuit if prerequisite flag is not found
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
-    flag_for_context_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag}|_], PrerequisiteKey, Variation, Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
+    flag_for_context_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, Context,
+        FeatureStore, Tag, DefaultValue, Events);
+check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag}|_], PrerequisiteKey, Variation, Prerequisites, Flag,
+    Context, FeatureStore, Tag, DefaultValue, Events, VisitedFlags) ->
+    check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, Context,
+        FeatureStore, Tag, DefaultValue, Events, VisitedFlags).
 
-check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+-spec check_prerequisite_flag(
+    PrerequisiteFlag :: ldclient_flag:flag(),
+    Variation :: non_neg_integer(),
+    Prerequisites :: [binary()],
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    DefaultValue :: result_value(),
+    Events :: [ldclient_event:event()],
+    VisitedFlags :: [binary()]
+) -> result().
+check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, Context, FeatureStore,
+    Tag, DefaultValue, Events, _VisitedFlags) ->
     % Prerequisite flag is deleted, short circuit fail
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
     flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_flag(#{key := PrerequisiteKey, on := false}, _, _, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+check_prerequisite_flag(#{key := PrerequisiteKey, on := false}, _, _, Flag, Context, FeatureStore, Tag,
+    DefaultValue, Events, _VisitedFlags) ->
     % Prerequisite flag is off, short circuit fail
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
     flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag, Variation, Prerequisites, #{key := FlagKey} = Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents} = check_prerequisites(SubPrerequisites, PrerequisiteFlag, Context, FeatureStore, Tag, DefaultValue, Events),
-    NewEvents = [ldclient_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey, Context, ResultReason, PrerequisiteFlag)|ResultEvents],
-    check_prerequisite_flag_result(PrerequisiteFlag, Variation =:= ResultVariation, Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, NewEvents).
+check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag, Variation, Prerequisites,
+    #{key := FlagKey} = Flag, Context, FeatureStore, Tag, DefaultValue, Events, VisitedFlags) ->
+    {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents} =
+        check_prerequisites(SubPrerequisites, PrerequisiteFlag, Context, FeatureStore,
+            Tag, DefaultValue, Events, VisitedFlags),
+    NewEvents = [
+        ldclient_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey,
+            Context, ResultReason, PrerequisiteFlag)|ResultEvents
+    ],
+    case ResultReason of
+        %% If there was a malformed dependent flag, when we want to short circuit, not treat it as a prerequisite
+        %% failure.
+        {error, malformed_flag} -> {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents};
+        _ -> check_prerequisite_flag_result(PrerequisiteFlag, Variation =:= ResultVariation, Prerequisites,
+                Flag, Context, FeatureStore, Tag, DefaultValue, NewEvents, VisitedFlags)
+    end.
 
-check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
+-spec check_prerequisite_flag_result(
+    PrerequisiteFlag :: ldclient_flag:flag(),
+    MatchedVariation :: boolean(),
+    Prerequisites :: [binary()],
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    DefaultValue :: result_value(),
+    Events :: [ldclient_event:event()],
+    VisitedFlags :: [binary()]
+) -> result().
+check_prerequisite_flag_result(#{key := PrerequisiteKey}, false, _Prerequisites,
+    Flag, Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
     % Prerequisite flag variation didn't match: short-circuit fail and move on
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
     flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
-    check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
+check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag,
+    Context, FeatureStore, Tag, DefaultValue, Events, VisitedFlags) ->
+    %% This moves to the next flag is the list of prerequisites, so we want to remove the head from the VisitedFlags
+    check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events, tl(VisitedFlags)).
 
+-spec flag_for_context_prerequisites(
+    Reason :: {fail | malformed_flag, Reason:: reason()} | success,
+    Flag :: ldclient_flag:flag(),
+    Context :: ldclient_context:context(),
+    FeatureStore :: atom(),
+    Tag :: atom(),
+    DefaultValue :: result_value(),
+    Events :: [ldclient_event:event()]
+) -> result().
+flag_for_context_prerequisites({malformed_flag, Reason}, _Flag, _Context, _FeatureStore, _Tag, DefaultValue, Events) ->
+    {{null, DefaultValue, Reason}, Events};
 flag_for_context_prerequisites({fail, Reason}, #{offVariation := OffVariation} = Flag, _Context, _FeatureStore, _Tag, DefaultValue, Events)
     when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, Reason, Flag, Events, DefaultValue);
