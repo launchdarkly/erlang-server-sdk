@@ -15,30 +15,36 @@
          off_variation/2,
          fallthrough_variation/2,
          variations/2,
-         variation_for_all_users/2,
-         value_for_all_users/2,
-         variation_for_user/3,
+         variation_for_all/2,
+         value_for_all/2,
+         variation_for_context/4,
          if_match/3,
          if_not_match/3,
          and_match/3,
          and_not_match/3,
          then_return/2,
          clear_rules/1,
-         clear_user_targets/1
+         clear_targets/1
         ]).
 
 -export_type([flag_builder/0, flag_rule_builder/0]).
 
 
 -opaque flag_builder() :: #{
-        key => string(),
+        key => binary(),
         on  => boolean(),
         variations => [ldclient_flag:variations()],
         off_variation => non_neg_integer(),
         fallthrough_variation => non_neg_integer(),
         rules => [ldclient_rules:rule()],
-        targets => #{ non_neg_integer() => [binary()] }
+        context_targets => builder_targets()
 }. %% A builder for feature flag configurations to be used with {@link ldclient_testdata}.
+
+-type builder_targets() :: #{
+        Variation :: non_neg_integer() => #{
+        ContextKind :: ldclient_context:kind_value() => sets:set()
+    }
+}. %% Representation of targets used by the flag builder.
 
 %% In the LaunchDarkly model, a flag can have any number of rules, and a rule can have any number of
 %% clauses. A clause is an individual test such as "name is 'X'". A rule matches a user if all of the
@@ -58,10 +64,14 @@
 -compile(export_all).
 -endif.
 
-%% @doc
+%% @doc Create a new flag builder.
+%%
+%% This method is used by other SDK modules, but should not be used by non-SDK code.
 %% @private
 %% @end
--spec new(FlagName :: string()) -> flag_builder().
+-spec new(FlagName :: binary() | string()) -> flag_builder().
+new(FlagName) when is_list(FlagName) ->
+    new(list_to_binary(FlagName));
 new(FlagName) -> #{
     key => FlagName,
     on  => true,
@@ -70,7 +80,9 @@ new(FlagName) -> #{
     variations => [true, false]
 }.
 
-%% @doc
+%% @doc Build a flag from a flag builder.
+%%
+%% This method is used by other SDK modules, but should not be used by non-SDK code.
 %% @private
 %% @end
 -spec build(Flag :: flag_builder(), Version :: non_neg_integer()) -> ldclient_flag:flag().
@@ -80,30 +92,31 @@ build(Flag = #{ key := Key,
                 off_variation := OffVariation,
                 fallthrough_variation := FallthroughVariation }, Version) ->
     Rules = maps:get(rules, Flag, []),
-    Targets = lists:map(fun({K, V}) ->
-                #{ variation => K, values => V, contextKind => <<"user">> }
-              end, maps:to_list(maps:get(targets, Flag, #{}))),
-    #{ key => list_to_binary(Key),
-       version => Version,
-       on => On,
-       variations => Variations,
-       offVariation => OffVariation,
-       fallthrough => FallthroughVariation,
-       trackEvents => false,
-       trackEventsFallthrough => false,
-       deleted => false,
-       debugEventsUntilDate => null,
-       prerequisites => [],
-       salt => <<"salt">>,
-       rules => Rules,
-       targets => Targets,
-       contextTargets => []
+    {ContextTargets, UserTargets} = build_targets(maps:get(context_targets, Flag, #{})),
+    #{
+        key => Key,
+        version => Version,
+        on => On,
+        variations => Variations,
+        offVariation => OffVariation,
+        fallthrough => FallthroughVariation,
+        trackEvents => false,
+        trackEventsFallthrough => false,
+        deleted => false,
+        debugEventsUntilDate => null,
+        prerequisites => [],
+        salt => <<"salt">>,
+        rules => Rules,
+        contextTargets => ContextTargets,
+        targets => UserTargets
      }.
 
-%% @doc
+%% @doc Set the key on the flag builder.
+%%
+%% This method is used by other SDK modules, but should not be used by non-SDK code.
 %% @private
 %% @end
--spec key(FlagBuilder :: flag_builder()) -> string().
+-spec key(FlagBuilder :: flag_builder()) -> binary().
 key(#{key := FlagName}) ->
     FlagName.
 
@@ -138,16 +151,16 @@ is_boolean_flag(_) -> false.
 clear_rules(FlagBuilder) ->
     maps:remove(rules, FlagBuilder).
 
-%% @doc Removes any existing user targets from the flag.
+%% @doc Removes any existing targets from the flag.
 %%
-%% This undoes the effect of {@link variation_for_user/3}.
+%% This undoes the effect of {@link variation_for_user/3} and {@link variation_for_context/4}.
 %%
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
--spec clear_user_targets(FlagBuilder :: flag_builder()) -> flag_builder().
-clear_user_targets(FlagBuilder) ->
-    maps:remove(targets, FlagBuilder).
+-spec clear_targets(FlagBuilder :: flag_builder()) -> flag_builder().
+clear_targets(FlagBuilder) ->
+    maps:remove(context_targets, FlagBuilder).
 
 %% @doc A shortcut for setting the flag to use the standard boolean configuration.
 %%
@@ -221,11 +234,11 @@ fallthrough_variation(Variation, FlagBuilder) when is_integer(Variation) ->
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
--spec variations(Values :: [ldclient_flag:variation_value()], FlagBuilder :: flag_builder() ) -> flag_builder().
+-spec variations(Values :: [ldclient_flag:variation_value()], FlagBuilder :: flag_builder()) -> flag_builder().
 variations(Values, FlagBuilder) ->
     FlagBuilder#{variations := Values}.
 
-%% @doc Sets the flag to always return the specified variation for all users.
+%% @doc Sets the flag to always return the specified variation for all contexts.
 %%
 %% The variation is set, targeting is switched on, and any existing targets or rules are removed.
 %% The fallthrough variation is set to the specified value.
@@ -238,16 +251,16 @@ variations(Values, FlagBuilder) ->
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
--spec variation_for_all_users(Variation :: variation(), FlagBuilder :: flag_builder()) -> flag_builder().
-variation_for_all_users(Variation, FlagBuilder) when is_boolean(Variation) ->
-    variation_for_all_users(variation_for_boolean(Variation), boolean_flag(FlagBuilder));
-variation_for_all_users(Variation, FlagBuilder) when is_integer(Variation) ->
+-spec variation_for_all(Variation :: variation(), FlagBuilder :: flag_builder()) -> flag_builder().
+variation_for_all(Variation, FlagBuilder) when is_boolean(Variation) ->
+    variation_for_all(variation_for_boolean(Variation), boolean_flag(FlagBuilder));
+variation_for_all(Variation, FlagBuilder) when is_integer(Variation) ->
     Fallthrough = fallthrough_variation(Variation, FlagBuilder),
-    NoTargets = clear_user_targets(Fallthrough),
+    NoTargets = clear_targets(Fallthrough),
     NoRules = clear_rules(NoTargets),
     on(true, NoRules).
 
-%% @doc Sets the flag to always return the specified variation value for all users.
+%% @doc Sets the flag to always return the specified variation value for all contexts.
 %%
 %% The value may be of any JSON type, as defined by }. This method changes the
 %% flag to have only a single variation, which is this value, and to return the same
@@ -258,11 +271,11 @@ variation_for_all_users(Variation, FlagBuilder) when is_integer(Variation) ->
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
--spec value_for_all_users(Value :: term(), FlagBuilder :: flag_builder()) -> flag_builder().
-value_for_all_users(Value, FlagBuilder) ->
-    variation_for_all_users(0, variations([Value], FlagBuilder)).
+-spec value_for_all(Value :: term(), FlagBuilder :: flag_builder()) -> flag_builder().
+value_for_all(Value, FlagBuilder) ->
+    variation_for_all(0, variations([Value], FlagBuilder)).
 
-%% @doc Sets the flag to return the specified variation for a specific user key when
+%% @doc Sets the flag to return the specified variation for a specific context kind and key when
 %% targeting is on.
 %%
 %% This has no effect when targeting is turned off for the flag.
@@ -271,26 +284,33 @@ value_for_all_users(Value, FlagBuilder) ->
 %% this also changes the flagbuilder to a boolean flag.
 %%
 %% @param Variation `true', `false', or the index of the desired variation to return: 0 for the first, 1 for the second, etc.
-%% @param UserKey a user key
+%% @param ContextKind the kind of context to target
+%% @param ContextKey the key of the context to target
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
--spec variation_for_user(Variation :: variation(), UserKey :: string(), FlagBuilder :: flag_builder()) -> flag_builder().
-variation_for_user(Variation, UserKey, FlagBuilder) when is_boolean(Variation) ->
-    variation_for_user(variation_for_boolean(Variation), UserKey, boolean_flag(FlagBuilder));
-variation_for_user(Variation, UserKey, FlagBuilder) when is_integer(Variation) ->
-    Targets = maps:get(targets, FlagBuilder, #{}),
-    UserKeyBin = list_to_binary(UserKey),
-    FilteredTargets = maps:map(fun(_K, V) -> lists:delete(UserKeyBin, V) end, Targets),
-    UpdatedTargets = maps:update_with(Variation, fun(Users) -> [UserKeyBin|Users] end, [UserKeyBin], FilteredTargets),
-    maps:put(targets, UpdatedTargets, FlagBuilder).
+-spec variation_for_context(
+    Variation :: variation(),
+    ContextKind :: ldclient_context:kind_value(),
+    ContextKey :: binary(),
+    FlagBuilder :: flag_builder()
+) -> flag_builder().
+variation_for_context(Variation, ContextKind, ContextKey, FlagBuilder) when is_boolean(Variation) ->
+    variation_for_context(variation_for_boolean(Variation), ContextKind, ContextKey, FlagBuilder);
+variation_for_context(Variation, ContextKind, ContextKey, FlagBuilder) ->
+    ContextTargets = maps:get(context_targets, FlagBuilder, #{}),
+    TargetsForVariation = maps:get(Variation, ContextTargets, #{}),
+    KeysForKind = maps:get(ContextKind, TargetsForVariation, sets:new()),
+    FlagBuilder#{
+        context_targets => ContextTargets#{Variation => #{ContextKind => sets:add_element(ContextKey, KeysForKind)}}
+    }.
 
 %% @doc Starts defining a flag rule, using the "is one of" operator.
 %%
 %% For example, this creates a rule that returns `true' if the name is "Patsy" or "Edina":
 %%
 %% ```
-%%     {ok, Flag} = ldclient_testdata:flag(TestData, "flag"),
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
 %%     RuleBuilder = ldclient_flagbuilder:if_match(<<"name">>, [<<"Patsy">>, <<"Edina">>], Flag),
 %%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
@@ -311,7 +331,7 @@ if_match(UserAttribute, Values, FlagBuilder) ->
 %% For example, this creates a rule that returns `true' if the name is neither "Saffron" nor "Bubble":
 %%
 %% ```
-%%     {ok, Flag} = ldclient_testdata:flag(TestData, "flag"),
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
 %%     RuleBuilder = ldclient_flagbuilder:if_not_match(<<"name">>, [<<"Saffron">>, <<"Bubble">>], Flag),
 %%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
@@ -337,7 +357,7 @@ if_not_match(UserAttribute, Values, FlagBuilder) ->
 %% country is "gb":
 %%
 %% ```
-%%     {ok, Flag} = ldclient_testdata:flag(TestData, "flag"),
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
 %%     RuleBuilder = ldclient_flagbuilder:and_match(<<"country">>, [<<"gb">>],
 %%                   ldclient_flagbuilder:if_match(<<"name">>, [<<"Patsy">>], Flag)),
 %%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
@@ -360,7 +380,7 @@ and_match(UserAttribute, Values, RuleBuilder) ->
 %% country is not "gb":
 %%
 %% ```
-%%     {ok, Flag} = ldclient_testdata:flag(TestData, "flag"),
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
 %%     RuleBuilder = ldclient_flagbuilder:and_not_match(<<"country">>, [<<"gb">>],
 %%                   ldclient_flagbuilder:if_match(<<"name">>, [<<"Patsy">>], Flag)),
 %%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
@@ -412,13 +432,58 @@ then_return(Variation, RuleBuilder) when is_integer(Variation) ->
     Rule = build_rule(length(ExistingRules), RuleBuilderWithVariation),
     maps:put(rules, [Rule|ExistingRules], RuleFlag).
 
+%%===================================================================
+%% Internal functions
+%%===================================================================
 
 -spec build_rule(Index :: non_neg_integer(), RuleBuilder :: flag_rule_builder()) -> ldclient_rule:rule().
 build_rule(Index, #{variation := Variation, clauses := Clauses}) ->
+    IndexBinary = integer_to_binary(Index),
     #{
-        id => list_to_binary("rule" ++ integer_to_list(Index)),
+        id => <<<<"rule">>/binary, IndexBinary/binary>>,
         clauses => Clauses,
         trackEvents => false,
         variationOrRollout => Variation
     }.
 
+%% @doc Builds both context targets and user targets.
+%%
+%% When building targets there are special rules for user targets. A user target needs an entry in the context targets
+%% to control the ordering of target evaluations, but this entry does not contain the targeted keys. Instead
+%% evaluation will find a corresponding user target with the same variation. Here we always build both and add
+%% the special entries for user targets.
+%% @end
+-spec build_targets(InTargets :: builder_targets()) ->
+    {ContextTargets :: [ldclient_flag:target()], UserTargets :: [ldclient_flag:target()]}.
+build_targets(InTargets) ->
+    maps:fold(fun(Variation, KindsAndKeys, AccIn) ->
+        {ContextTargets, UserTargets} = AccIn,
+        {ContextTargetsToAdd, UserTargetsToAdd} = targets_for_kinds(Variation, KindsAndKeys),
+        {ContextTargets ++ ContextTargetsToAdd, UserTargets ++ UserTargetsToAdd}
+              end, {[], []}, InTargets).
+
+-spec targets_for_kinds(
+    Variation :: non_neg_integer(), KindsAndKeys :: #{ContextKind :: ldclient_context:kind_value() => sets:set()}
+) -> {ContextTargets :: [ldclient_flag:target()], UserTargets :: [ldclient_flag:target()]}.
+targets_for_kinds(Variation, KindsAndKeys) ->
+    ContextTargets = maps:fold(fun(Kind, KeySet, AccIn) ->
+        [#{
+            variation => Variation,
+            contextKind => Kind,
+            values => case Kind of
+                          <<"user">> -> [];
+                          _ -> sets:to_list(KeySet)
+                      end
+        }|AccIn]
+                               end, [], KindsAndKeys),
+    UserTargets = maps:fold(fun(Kind, KeySet, AccIn) ->
+        case Kind of
+            <<"user">> -> [#{
+                contextKind => Kind,
+                variation => Variation,
+                values => sets:to_list(KeySet)
+            }|AccIn];
+            _ -> AccIn
+        end
+                            end, [], KindsAndKeys),
+    {ContextTargets, UserTargets}.
