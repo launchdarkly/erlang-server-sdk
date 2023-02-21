@@ -179,7 +179,12 @@ check_attribute_against_clause_value(ContextValue, startsWith, ClauseValue)
     binary:longest_common_prefix([ContextValue, ClauseValue]) == byte_size(ClauseValue);
 check_attribute_against_clause_value(ContextValue, matches, ClauseValue)
     when is_binary(ContextValue), is_binary(ClauseValue) ->
-    re:run(ContextValue, ClauseValue) =/= nomatch;
+    try
+        re:run(ContextValue, ClauseValue) =/= nomatch
+    catch _:_ ->
+        %% If the regex was not valid, then it isn't a match.
+        false
+    end;
 check_attribute_against_clause_value(ContextValue, contains, ClauseValue)
     when is_binary(ContextValue), is_binary(ClauseValue) ->
     binary:match(ContextValue, ClauseValue) =/= nomatch;
