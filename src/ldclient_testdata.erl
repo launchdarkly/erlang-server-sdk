@@ -10,7 +10,7 @@
 %%
 %% ```
 %%    {ok, Flag} = ldclient_testdata:flag("flag-key-1"),
-%%    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(true, Flag)),
+%%    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all(true, Flag)),
 %%
 %%    Options = #{
 %%        datasource => testdata,
@@ -22,7 +22,7 @@
 %%    %% flags can be updated at any time:
 %%    {ok, Flag2} = ldclient_testdata:flag("flag-key-2"),
 %%    UpdatedFlag2 = ldclient_flagbuilder:fallthrough_variation(false,
-%%                   ldclient_flagbuilder:variation_for_user(<<"some-user-key">>, true, Flag2)),
+%%                   ldclient_flagbuilder:variation_for_context(<<"user">>, <<"some-user-key">>, true, Flag2)),
 %% '''
 %%
 %% The above example uses a simple boolean flag, but more complex configurations
@@ -120,7 +120,7 @@ initial_state() ->
 %% then the builder starts with the same configuration that was last provided for this flag.
 %%
 %% Otherwise, it starts with a new default configuration in which the flag has `true'
-%% and `false' variations, is `true' for all users when targeting is turned on and
+%% and `false' variations, is `true' for all contexts when targeting is turned on and
 %% `false' otherwise, and currently has targeting turned on.
 %%
 %% You can change any of those properties, and provide more complex behavior,
@@ -145,7 +145,7 @@ flag(FlagKey) ->
 %% then the builder starts with the same configuration that was last provided for this flag.
 %%
 %% Otherwise, it starts with a new default configuration in which the flag has `true'
-%% and `false' variations, is `true' for all users when targeting is turned on and
+%% and `false' variations, is `true' for all contexts when targeting is turned on and
 %% `false' otherwise, and currently has targeting turned on.
 %%
 %% You can change any of those properties, and provide more complex behavior,

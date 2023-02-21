@@ -10,22 +10,27 @@
 -export([new/1, key/1, build/2]).
 
 % Public API
--export([boolean_flag/1,
-         on/2,
-         off_variation/2,
-         fallthrough_variation/2,
-         variations/2,
-         variation_for_all/2,
-         value_for_all/2,
-         variation_for_context/4,
-         if_match/3,
-         if_not_match/3,
-         and_match/3,
-         and_not_match/3,
-         then_return/2,
-         clear_rules/1,
-         clear_targets/1
-        ]).
+-export([
+    boolean_flag/1,
+    on/2,
+    off_variation/2,
+    fallthrough_variation/2,
+    variations/2,
+    variation_for_all/2,
+    value_for_all/2,
+    variation_for_context/4,
+    if_match/3,
+    if_not_match/3,
+    and_match/3,
+    and_not_match/3,
+    then_return/2,
+    clear_rules/1,
+    clear_targets/1,
+    if_match/4,
+    if_not_match/4,
+    and_match/4,
+    and_not_match/4
+]).
 
 -export_type([flag_builder/0, flag_rule_builder/0]).
 
@@ -50,9 +55,9 @@
 %% clauses. A clause is an individual test such as "name is 'X'". A rule matches a user if all of the
 %% rule's clauses match the user.
 %%
-%% To start defining a rule, use either {@link if_match/3} or {@link if_not_match/3}.
+%% To start defining a rule, use either {@link if_match/4} or {@link if_not_match/4}.
 %% This defines the first clause for the rule.
-%% Optionally, you may add more clauses with {@link and_match/3} or {@link and_not_match/3} .
+%% Optionally, you may add more clauses with {@link and_match/4} or {@link and_not_match/4} .
 %% Finally, call {@link then_return/2} to finish defining the rule.
 -opaque flag_rule_builder() :: #{
         variation => non_neg_integer(),
@@ -153,7 +158,7 @@ clear_rules(FlagBuilder) ->
 
 %% @doc Removes any existing targets from the flag.
 %%
-%% This undoes the effect of {@link variation_for_user/3} and {@link variation_for_context/4}.
+%% This undoes the effect of {@link variation_for_context/4}.
 %%
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
@@ -223,14 +228,14 @@ fallthrough_variation(Variation, FlagBuilder) when is_boolean(Variation) ->
 fallthrough_variation(Variation, FlagBuilder) when is_integer(Variation) ->
     FlagBuilder#{fallthrough_variation := Variation}.
 
-%% @doc Sets the flag to always return the specified variation value for all users.
+%% @doc Sets the flag to always return the specified variation value for all contexts.
 %%
 %% The value may be of any JSON type.
 %% This method changes the flag to have only a single variation, which is this value,
 %% and to return the same variation regardless of whether targeting is on or off.
 %% Any existing targets or rules are removed.
 %%
-%% @param Value the desired value to be returned for all users
+%% @param Value the desired value to be returned for all contexts
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
@@ -267,7 +272,7 @@ variation_for_all(Variation, FlagBuilder) when is_integer(Variation) ->
 %% variation regardless of whether targeting is on or off. Any existing targets or rules
 %% are removed.
 %%
-%% @param Value the desired value to be returned for all users
+%% @param Value the desired value to be returned for all contexts
 %% @param FlagBuilder the flag builder to modify
 %% @returns the modified builder
 %% @end
@@ -305,7 +310,8 @@ variation_for_context(Variation, ContextKind, ContextKey, FlagBuilder) ->
         context_targets => ContextTargets#{Variation => #{ContextKind => sets:add_element(ContextKey, KeysForKind)}}
     }.
 
-%% @doc Starts defining a flag rule, using the "is one of" operator.
+%% @doc Starts defining a flag rule, using the "is one of" operator. The kind of the context is implicitly "user"
+%% for non-user contexts use {@link if_match/4}.
 %%
 %% For example, this creates a rule that returns `true' if the name is "Patsy" or "Edina":
 %%
@@ -316,17 +322,46 @@ variation_for_context(Variation, ContextKind, ContextKey, FlagBuilder) ->
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
 %% '''
 %%
-%% @param UserAttribute the user attribute to match against
+%% @param ContextAttribute the context attribute to match against
 %% @param Values values to compare to
 %% @param FlagBuilder the flag builder to modify
 %% @returns a {@link flag_rule_builder()}; call {@link then_return/2} to finish the rule,
-%%          or add more tests with {@link and_match/3} or {@link and_not_match/3}.
+%%          or add more tests with {@link and_match/4} or {@link and_not_match/4}.
 %% @end
--spec if_match(UserAttribute :: atom() | binary(), Values :: [term()], FlagBuilder :: flag_builder()) -> flag_rule_builder().
-if_match(UserAttribute, Values, FlagBuilder) ->
-    and_match(UserAttribute, Values, #{ flag => FlagBuilder }).
+-spec if_match(
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    FlagBuilder :: flag_builder()) -> flag_rule_builder().
+if_match(ContextAttribute, Values, FlagBuilder) ->
+    if_match(<<"user">>, ContextAttribute, Values, FlagBuilder).
 
-%% @doc Starts defining a flag rule, using the "is not one of" operator.
+%% @doc Starts defining a flag rule, using the "is one of" operator.
+%%
+%% For example, this creates a rule that returns `true' if the name is "Patsy" or "Edina":
+%%
+%% ```
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
+%%     RuleBuilder = ldclient_flagbuilder:if_match(<<"user">>, <<"name">>, [<<"Patsy">>, <<"Edina">>], Flag),
+%%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
+%%     ldclient_testdata:update(TestData, UpdatedFlag).
+%% '''
+%%
+%% @param ContextAttribute the context attribute to match against
+%% @param Values values to compare to
+%% @param FlagBuilder the flag builder to modify
+%% @returns a {@link flag_rule_builder()}; call {@link then_return/2} to finish the rule,
+%%          or add more tests with {@link and_match/4} or {@link and_not_match/4}.
+%% @end
+-spec if_match(
+    ContextKind :: ldclient_context:kind_value(),
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    FlagBuilder :: flag_builder()) -> flag_rule_builder().
+if_match(ContextKind, ContextAttribute, Values, FlagBuilder) ->
+    and_match(ContextKind, ContextAttribute, Values, #{ flag => FlagBuilder }).
+
+%% @doc Starts defining a flag rule, using the "is not one of" operator. The kind of the context is implicitly
+%% "user" for non-user contexts use {@link if_not_match/4}.
 %%
 %% For example, this creates a rule that returns `true' if the name is neither "Saffron" nor "Bubble":
 %%
@@ -337,21 +372,50 @@ if_match(UserAttribute, Values, FlagBuilder) ->
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
 %% '''
 %%
-%% @param UserAttribute the user attribute to match against
+%% @param ContextAttribute the context attribute to match against
 %% @param Values values to compare to
 %% @param FlagBuilder the flag builder to modify
 %% @returns a {@link flag_rule_builder()}; call {@link then_return/2} to finish the rule,
-%%          or add more tests with {@link and_match/3} or {@link and_not_match/3}.
+%%          or add more tests with {@link and_match/4} or {@link and_not_match/4}.
 %% @end
--spec if_not_match(UserAttribute :: atom() | binary(), Values :: [term()], FlagBuilder :: flag_builder()) -> flag_rule_builder().
-if_not_match(UserAttribute, Values, FlagBuilder) ->
-    and_not_match(UserAttribute, Values, #{ flag => FlagBuilder }).
+-spec if_not_match(
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    FlagBuilder :: flag_builder()) -> flag_rule_builder().
+if_not_match(ContextAttribute, Values, FlagBuilder) ->
+    if_not_match(<<"user">>, ContextAttribute, Values, FlagBuilder).
+
+%% @doc Starts defining a flag rule, using the "is not one of" operator.
+%%
+%% For example, this creates a rule that returns `true' if the name is neither "Saffron" nor "Bubble":
+%%
+%% ```
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
+%%     RuleBuilder = ldclient_flagbuilder:if_not_match(<<"user">>, <<"name">>, [<<"Saffron">>, <<"Bubble">>], Flag),
+%%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
+%%     ldclient_testdata:update(TestData, UpdatedFlag).
+%% '''
+%%
+%% @param ContextAttribute the context attribute to match against
+%% @param Values values to compare to
+%% @param FlagBuilder the flag builder to modify
+%% @returns a {@link flag_rule_builder()}; call {@link then_return/2} to finish the rule,
+%%          or add more tests with {@link and_match/4} or {@link and_not_match/4}.
+%% @end
+-spec if_not_match(
+    ContextKind :: ldclient_context:kind_value(),
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    FlagBuilder :: flag_builder()) -> flag_rule_builder().
+if_not_match(ContextKind, ContextAttribute, Values, FlagBuilder) ->
+    and_not_match(ContextKind, ContextAttribute, Values, #{ flag => FlagBuilder }).
 
 %%-------------------------------------------------------------------
 %% Flag Rule Builder
 %%-------------------------------------------------------------------
 
-%% @doc Adds another clause, using the "is one of" operator.
+%% @doc Adds another clause, using the "is one of" operator. The kind of the context is implicitly "user"
+%% for non-user contexts use {@link any_match/4}.
 %%
 %% For example, this creates a rule that returns `true' if the name is "Patsy" and the
 %% country is "gb":
@@ -364,17 +428,46 @@ if_not_match(UserAttribute, Values, FlagBuilder) ->
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
 %% '''
 %%
-%% @param UserAttribute the user attribute to match against
+%% @param ContextAttribute the context attribute to match against
 %% @param Values values to compare to
 %% @param RuleBuilder the rule builder to modify
 %% @returns the modified rule builder
 %% @end
--spec and_match(UserAttribute :: atom() | binary(), Values :: [term()], RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
-and_match(UserAttribute, Values, RuleBuilder) ->
-    Clauses = maps:get(clauses, RuleBuilder, []),
-    maps:put(clauses, [new_clause(UserAttribute, Values, false)|Clauses], RuleBuilder).
+-spec and_match(
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
+and_match(ContextAttribute, Values, RuleBuilder) ->
+    and_match(<<"user">>, ContextAttribute, Values, RuleBuilder).
 
-%% @doc Adds another clause, using the "is not one of" operator.
+%% @doc Adds another clause, using the "is one of" operator. The kind of the context is implicitly "user"
+%% for non-user contexts use {@link any_match/4}.
+%%
+%% For example, this creates a rule that returns `true' if the name is "Patsy" and the
+%% country is "gb":
+%%
+%% ```
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
+%%     RuleBuilder = ldclient_flagbuilder:and_match(<<"user">>, <<"country">>, [<<"gb">>],
+%%                   ldclient_flagbuilder:if_match(<<"user">>, <<"name">>, [<<"Patsy">>], Flag)),
+%%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
+%%     ldclient_testdata:update(TestData, UpdatedFlag).
+%% '''
+%%
+%% @param ContextAttribute the context attribute to match against
+%% @param Values values to compare to
+%% @param RuleBuilder the rule builder to modify
+%% @returns the modified rule builder
+-spec and_match(
+    ContextKind:: ldclient_context:kind_value(),
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()], RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
+and_match(ContextKind, ContextAttribute, Values, RuleBuilder) ->
+    Clauses = maps:get(clauses, RuleBuilder, []),
+    maps:put(clauses, [new_clause(ContextKind, ContextAttribute, Values, false)|Clauses], RuleBuilder).
+
+%% @doc Adds another clause, using the "is not one of" operator. The kind of the context is implicitly "user"
+%% for non-user contexts use {@link any_match/4}.
 %%
 %% For example, this creates a rule that returns `true' if the name is "Patsy" and the
 %% country is not "gb":
@@ -387,29 +480,44 @@ and_match(UserAttribute, Values, RuleBuilder) ->
 %%     ldclient_testdata:update(TestData, UpdatedFlag).
 %% '''
 %%
-%% @param UserAttribute the user attribute to match against
+%% @param ContextAttribute the context attribute to match against
 %% @param Values values to compare to
 %% @param RuleBuilder the rule builder to modify
 %% @returns the modified rule builder
 %% @end
--spec and_not_match(UserAttribute :: atom() | binary(), Values :: [term()], RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
-and_not_match(UserAttribute, Values, RuleBuilder) ->
-    Clauses = maps:get(clauses, RuleBuilder, []),
-    maps:put(clauses, [new_clause(UserAttribute, Values, true)|Clauses], RuleBuilder).
+-spec and_not_match(
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
+and_not_match(ContextAttribute, Values, RuleBuilder) ->
+    and_not_match(<<"user">>, ContextAttribute, Values, RuleBuilder).
 
--spec new_clause(UserAttribute :: atom() | binary(), Values :: [term()], Negate :: boolean()) -> ldclient_clause:clause().
-new_clause(UserAttribute, Values, Negate) ->
-    AttributeBinary = if
-                          is_binary(UserAttribute) -> UserAttribute;
-                          is_atom(UserAttribute) -> atom_to_binary(UserAttribute, utf8);
-                          true -> unknown
-                      end,
-    #{attribute => ldclient_attribute_reference:new(AttributeBinary),
-      values => Values,
-      negate => Negate,
-      op => in,
-      context_kind => <<"user">>
-     }.
+%% @doc Adds another clause, using the "is not one of" operator.
+%%
+%% For example, this creates a rule that returns `true' if the name is "Patsy" and the
+%% country is not "gb":
+%%
+%% ```
+%%     {ok, Flag} = ldclient_testdata:flag(TestData, <<"flag">>),
+%%     RuleBuilder = ldclient_flagbuilder:and_not_match(<<"user">>, <<"country">>, [<<"gb">>],
+%%                   ldclient_flagbuilder:if_match(<<"user">>, <<"name">>, [<<"Patsy">>], Flag)),
+%%     UpdatedFlag = ldclient_flagbuilder:then_return(true, RuleBuilder),
+%%     ldclient_testdata:update(TestData, UpdatedFlag).
+%% '''
+%%
+%% @param ContextAttribute the context attribute to match against
+%% @param Values values to compare to
+%% @param RuleBuilder the rule builder to modify
+%% @returns the modified rule builder
+%% @end
+-spec and_not_match(
+    ContextKind :: ldclient_context:kind_value(),
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    RuleBuilder :: flag_rule_builder()) -> flag_rule_builder().
+and_not_match(ContextKind, ContextAttribute, Values, RuleBuilder) ->
+    Clauses = maps:get(clauses, RuleBuilder, []),
+    maps:put(clauses, [new_clause(ContextKind, ContextAttribute, Values, true)|Clauses], RuleBuilder).
 
 %% @doc Finishes defining the rule, specifying the result variation.
 %%
@@ -435,6 +543,24 @@ then_return(Variation, RuleBuilder) when is_integer(Variation) ->
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec new_clause(
+    ContextKind :: ldclient_context:kind_value(),
+    ContextAttribute :: ldclient_context:attribute_key(),
+    Values :: [term()],
+    Negate :: boolean()) -> ldclient_clause:clause().
+new_clause(ContextKind, ContextAttribute, Values, Negate) ->
+    AttributeBinary = if
+                          is_binary(ContextAttribute) -> ContextAttribute;
+                          is_atom(ContextAttribute) -> atom_to_binary(ContextAttribute, utf8);
+                          true -> unknown
+                      end,
+    #{attribute => ldclient_attribute_reference:new(AttributeBinary),
+        values => Values,
+        negate => Negate,
+        op => in,
+        context_kind => ContextKind
+    }.
 
 -spec build_rule(Index :: non_neg_integer(), RuleBuilder :: flag_rule_builder()) -> ldclient_rule:rule().
 build_rule(Index, #{variation := Variation, clauses := Clauses}) ->
