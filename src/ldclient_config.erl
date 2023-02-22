@@ -59,8 +59,7 @@
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
-    user_keys_capacity => pos_integer(),
-    inline_users_in_events => boolean(),
+    context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
     polling_interval => pos_integer(),
@@ -87,7 +86,7 @@
 }.
 % Settings stored for each running SDK instance
 
--type private_attributes() :: all | [ldclient_user:attribute()].
+-type private_attributes() :: all | [ldclient_attribute_reference:attribute_reference()].
 
 -export_type([private_attributes/0]).
 -export_type([http_options/0]).
@@ -100,15 +99,14 @@
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
--define(DEFAULT_USER_KEYS_CAPACITY, 1000).
--define(DEFAULT_INLINE_USERS_IN_EVENTS, false).
+-define(DEFAULT_CONTEXT_KEYS_CAPACITY, 1000).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
 -define(VERSION, "1.6.0").
--define(EVENT_SCHEMA, "3").
+-define(EVENT_SCHEMA, "4").
 -define(DEFAULT_OFFLINE, false).
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
 -define(DEFAULT_REDIS_PORT, 6379).
@@ -160,8 +158,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
-    UserKeysCapacity = maps:get(user_keys_capacity, Options, ?DEFAULT_USER_KEYS_CAPACITY),
-    InlineUsersInEvents = maps:get(inline_users_in_events, Options, ?DEFAULT_INLINE_USERS_IN_EVENTS),
+    ContextKeysCapacity = maps:get(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
@@ -197,9 +194,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_capacity => EventsCapacity,
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
-        user_keys_capacity => UserKeysCapacity,
-        inline_users_in_events => InlineUsersInEvents,
-        private_attributes => PrivateAttributes,
+        context_keys_capacity => ContextKeysCapacity,
+        private_attributes => parse_private_attributes(PrivateAttributes),
         stream => Stream,
         polling_update_requestor => PollingUpdateRequestor,
         offline => OfflineMode,
@@ -421,3 +417,12 @@ valid_tag_char(H) ->
     ((H >= $0) and (H =< $9)) orelse %% Numbers
     ((H >= $A) and (H =< $Z)) orelse %% Capital letters
     ((H >= $a) and (H =< $z)). %% Lowercase letters
+
+-spec parse_private_attributes(Attributes :: all | [binary() | ldclient_attribute_reference:attribute_reference()]) -> all | [ldclient_attribute_reference:attribute_reference()].
+parse_private_attributes(all) -> all;
+parse_private_attributes(Attributes) -> lists:map(fun ensure_attribute_reference/1, Attributes).
+
+-spec ensure_attribute_reference(Attribute :: binary() | ldclient_attribute_reference:attribute_reference()) ->
+    ldclient_attribute_reference:attribute_reference().
+ensure_attribute_reference(Attribute) when is_binary(Attribute) -> ldclient_attribute_reference:new(Attribute);
+ensure_attribute_reference(Attribute) -> Attribute.

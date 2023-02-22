@@ -9,12 +9,14 @@
 %% ct functions
 %%====================================================================
 all() ->
-    [ test_default_flags
-    , test_targeting
-    , test_rules
-    , test_multiple_clients
-    , test_value_for_all_users
-    , test_multiple_testdata_sources
+    [
+        test_default_flags,
+        test_targeting,
+        test_rules,
+        test_multiple_clients,
+        test_value_for_all,
+        test_multiple_testdata_sources,
+        test_targeting_non_users
     ].
 
 init_per_suite(Config) ->
@@ -41,7 +43,7 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 
 test_default_flags(_) ->
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
     ldclient_testdata:update(Flag),
     User = ldclient_user:new(<<"user">>),
     true = ldclient:variation(<<"flag1">>, User, false),
@@ -49,28 +51,28 @@ test_default_flags(_) ->
     false = ldclient:variation(<<"flag1">>, User, true).
 
 test_targeting(_) ->
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
     UpdatedFlag = ldclient_flagbuilder:off_variation(2,
                   ldclient_flagbuilder:fallthrough_variation(1,
-                  ldclient_flagbuilder:variation_for_user(2, "greg",
-                  ldclient_flagbuilder:variation_for_user(0, "ben",
-                  ldclient_flagbuilder:variations(["red", "green", "blue"], Flag))))),
+                  ldclient_flagbuilder:variation_for_context(2, <<"user">>, <<"greg">>,
+                  ldclient_flagbuilder:variation_for_context(0, <<"user">>, <<"ben">>,
+                  ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag))))),
     ldclient_testdata:update(UpdatedFlag),
     User = ldclient_user:new(<<"user">>),
     Ben = ldclient_user:new(<<"ben">>),
     Greg = ldclient_user:new(<<"greg">>),
-    "red" = ldclient:variation(<<"flag1">>, Ben, "nothing"),
-    "blue" = ldclient:variation(<<"flag1">>, Greg, "nothing"),
-    "green" = ldclient:variation(<<"flag1">>, User, "nothing"),
+    <<"red">> = ldclient:variation(<<"flag1">>, Ben, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, Greg, <<"nothing">>),
+    <<"green">> = ldclient:variation(<<"flag1">>, User, <<"nothing">>),
 
-    {ok, SavedFlag} = ldclient_testdata:flag("flag1"),
+    {ok, SavedFlag} = ldclient_testdata:flag(<<"flag1">>),
     ldclient_testdata:update(ldclient_flagbuilder:on(false, SavedFlag)),
-    "blue" = ldclient:variation(<<"flag1">>, Ben, "nothing"),
-    "blue" = ldclient:variation(<<"flag1">>, Greg, "nothing"),
-    "blue" = ldclient:variation(<<"flag1">>, User, "nothing").
+    <<"blue">> = ldclient:variation(<<"flag1">>, Ben, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, Greg, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, User, <<"nothing">>).
 
 test_rules(_) ->
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
     UpdatedFlag = ldclient_flagbuilder:fallthrough_variation(2,
                   ldclient_flagbuilder:then_return(1,
                   ldclient_flagbuilder:and_match(country, [<<"usa">>],
@@ -78,9 +80,8 @@ test_rules(_) ->
                   ldclient_flagbuilder:then_return(0,
                   ldclient_flagbuilder:and_match(name, [<<"ben">>, <<"evelyn">>],
                   ldclient_flagbuilder:if_match(country, [<<"gb">>],
-                  ldclient_flagbuilder:variations(["red", "green", "blue"], Flag)))))))),
+                  ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag)))))))),
     ldclient_testdata:update(UpdatedFlag),
-    logger:error("~p", [ldclient_flagbuilder:build(UpdatedFlag, 1)]),
     BenW = ldclient_user:set(name, <<"ben">>,
            ldclient_user:set(country, <<"usa">>,
            ldclient_user:new(<<"user">>))),
@@ -93,17 +94,17 @@ test_rules(_) ->
     Evelyn = ldclient_user:set(name, <<"evelyn">>,
              ldclient_user:set(country, <<"gb">>,
              ldclient_user:new(<<"evelyn">>))),
-    "blue" = ldclient:variation(<<"flag1">>, BenW, "nothing"),
-    "red" = ldclient:variation(<<"flag1">>, BenL, "nothing"),
-    "green" = ldclient:variation(<<"flag1">>, Greg, "nothing"),
-    "red" = ldclient:variation(<<"flag1">>, Evelyn, "nothing").
+    <<"blue">> = ldclient:variation(<<"flag1">>, BenW, <<"nothing">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, BenL, <<"nothing">>),
+    <<"green">> = ldclient:variation(<<"flag1">>, Greg, <<"nothing">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, Evelyn, <<"nothing">>).
 
 test_multiple_clients(_) ->
     User = ldclient_user:new(<<"user">>),
 
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
     ldclient_testdata:update(default,
-        ldclient_flagbuilder:variation_for_all_users(0,
+        ldclient_flagbuilder:variation_for_all(0,
         ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag))),
 
     ldclient:start_instance("", second_client, #{
@@ -115,27 +116,27 @@ test_multiple_clients(_) ->
     <<"red">> = ldclient:variation(<<"flag1">>, User, <<"none">>),
     <<"red">> = ldclient:variation(<<"flag1">>, User, <<"none">>, second_client),
 
-    {ok, SavedFlag} = ldclient_testdata:flag("flag1"),
-    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(1, SavedFlag)),
+    {ok, SavedFlag} = ldclient_testdata:flag(<<"flag1">>),
+    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all(1, SavedFlag)),
     <<"green">> = ldclient:variation(<<"flag1">>, User, <<"none">>),
     <<"green">> = ldclient:variation(<<"flag1">>, User, <<"none">>, second_client),
 
     ldclient:stop_instance(second_client),
 
-    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(2, SavedFlag)),
+    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all(2, SavedFlag)),
     <<"blue">> = ldclient:variation(<<"flag1">>, User, <<"none">>).
 
-test_value_for_all_users(_) ->
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
-    UpdatedFlag = ldclient_flagbuilder:value_for_all_users(42,
-                  ldclient_flagbuilder:variation_for_user(0, "ben",
-                  ldclient_flagbuilder:variations(["red", "green", "blue"], Flag))),
+test_value_for_all(_) ->
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    UpdatedFlag = ldclient_flagbuilder:value_for_all(42,
+                  ldclient_flagbuilder:variation_for_context(0, <<"user">>, <<"ben">>,
+                  ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag))),
     ldclient_testdata:update( UpdatedFlag),
     Ben = ldclient_user:new(<<"ben">>),
     Greg = ldclient_user:new(<<"greg">>),
     42 = ldclient:variation(<<"flag1">>, Ben, null),
     42 = ldclient:variation(<<"flag1">>, Greg, null),
-    ldclient_testdata:update(ldclient_flagbuilder:value_for_all_users(<<"6 multiplied by 9">>, Flag)),
+    ldclient_testdata:update(ldclient_flagbuilder:value_for_all(<<"6 multiplied by 9">>, Flag)),
     <<"6 multiplied by 9">> = ldclient:variation(<<"flag1">>, Ben, null),
     <<"6 multiplied by 9">> = ldclient:variation(<<"flag1">>, Greg, null).
 
@@ -147,13 +148,112 @@ test_multiple_testdata_sources(_) ->
         testdata_tag => second_testdata
     }),
 
-    {ok, Flag} = ldclient_testdata:flag("flag1"),
-    ldclient_testdata:update(ldclient_flagbuilder:value_for_all_users(<<"orange">>, Flag)),
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    ldclient_testdata:update(ldclient_flagbuilder:value_for_all(<<"orange">>, Flag)),
 
-    {ok, SecondFlag} = ldclient_testdata:flag(second_testdata, "flag1"),
-    ldclient_testdata:update(second_testdata, ldclient_flagbuilder:value_for_all_users(<<"red">>, SecondFlag)),
+    {ok, SecondFlag} = ldclient_testdata:flag(second_testdata, <<"flag1">>),
+    ldclient_testdata:update(second_testdata, ldclient_flagbuilder:value_for_all(<<"red">>, SecondFlag)),
 
     User = ldclient_user:new(<<"user">>),
     <<"orange">> = ldclient:variation(<<"flag1">>, User, <<"">>),
     <<"red">> = ldclient:variation(<<"flag1">>, User, <<"">>, second_client),
     ok.
+
+test_targeting_non_users(_) ->
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    UpdatedFlag = ldclient_flagbuilder:off_variation(2,
+        ldclient_flagbuilder:fallthrough_variation(1,
+            ldclient_flagbuilder:variation_for_context(2, <<"org">>, <<"gregorg">>,
+                ldclient_flagbuilder:variation_for_context(0, <<"jamin">>, <<"benjamin">>,
+                    ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag))))),
+    ldclient_testdata:update(UpdatedFlag),
+    Org = ldclient_context:new(<<"org-key">>, <<"org">>),
+    Benjamin = ldclient_context:new(<<"benjamin">>, <<"jamin">>),
+    Gregorg = ldclient_context:new(<<"gregorg">>, <<"org">>),
+    Benorg = ldclient_context:new(<<"benjamin">>, <<"org">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, Benjamin, <<"nothing">>),
+    %% Same key, but different kind, falls through.
+    <<"green">> = ldclient:variation(<<"flag1">>, Benorg, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, Gregorg, <<"nothing">>),
+    <<"green">> = ldclient:variation(<<"flag1">>, Org, <<"nothing">>).
+
+test_rules_for_non_users(_) ->
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    UpdatedFlag = ldclient_flagbuilder:fallthrough_variation(2,
+        ldclient_flagbuilder:then_return(1,
+            ldclient_flagbuilder:and_match(<<"org">>, <<"country">>, [<<"usa">>],
+                ldclient_flagbuilder:if_not_match(<<"org">>, <<"name">>, [<<"ben">>],
+                    ldclient_flagbuilder:then_return(0,
+                        ldclient_flagbuilder:and_match(<<"org">>, <<"name">>, [<<"ben">>, <<"evelyn">>],
+                            ldclient_flagbuilder:if_match(<<"org">>, <<"country">>, [<<"gb">>],
+                                ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag)))))))),
+    ldclient_testdata:update(UpdatedFlag),
+    BenW = ldclient_user:set(name, <<"ben">>,
+        ldclient_user:set(country, <<"usa">>,
+            ldclient_user:new(<<"user">>))),
+    BenL = ldclient_user:set(name, <<"ben">>,
+        ldclient_user:set(country, <<"gb">>,
+            ldclient_user:new(<<"ben">>))),
+    Greg = ldclient_user:set(name, <<"greg">>,
+        ldclient_user:set(country, <<"usa">>,
+            ldclient_user:new(<<"greg">>))),
+    Evelyn = ldclient_user:set(name, <<"evelyn">>,
+        ldclient_user:set(country, <<"gb">>,
+            ldclient_user:new(<<"evelyn">>))),
+    %% No user contexts should match any rule.
+    <<"blue">> = ldclient:variation(<<"flag1">>, BenW, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, BenL, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, Greg, <<"nothing">>),
+    <<"blue">> = ldclient:variation(<<"flag1">>, Evelyn, <<"nothing">>),
+    BenWOrg = ldclient_context:set(name, <<"ben">>,
+        ldclient_context:set(<<"country">>, <<"usa">>,
+            ldclient_context:new(<<"user">>))),
+    BenLOrg = ldclient_context:set(name, <<"ben">>,
+        ldclient_context:set(<<"country">>, <<"gb">>,
+            ldclient_context:new(<<"ben">>, <<"org">>))),
+    GregOrg = ldclient_context:set(name, <<"greg">>,
+        ldclient_context:set(country, <<"usa">>,
+            ldclient_context:new(<<"greg">>, <<"org">>))),
+    EvelynOrg = ldclient_context:set(name, <<"evelyn">>,
+        ldclient_context:set(<<"country">>, <<"gb">>,
+            ldclient_context:new(<<"evelyn">>, <<"org">>))),
+    <<"blue">> = ldclient:variation(<<"flag1">>, BenWOrg, <<"nothing">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, BenLOrg, <<"nothing">>),
+    <<"green">> = ldclient:variation(<<"flag1">>, GregOrg, <<"nothing">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, EvelynOrg, <<"nothing">>).
+
+test_rule_mixed_kinds(_) ->
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    UpdatedFlag = ldclient_flagbuilder:fallthrough_variation(2,
+        ldclient_flagbuilder:then_return(1,
+            ldclient_flagbuilder:and_match(<<"org">>, <<"country">>, [<<"usa">>],
+                ldclient_flagbuilder:if_not_match(<<"user">>, <<"name">>, [<<"ben">>],
+                    ldclient_flagbuilder:then_return(0,
+                        ldclient_flagbuilder:and_match(<<"org">>, <<"name">>, [<<"ben">>, <<"evelyn">>],
+                            ldclient_flagbuilder:if_match(<<"org">>, <<"country">>, [<<"gb">>],
+                                ldclient_flagbuilder:variations([<<"red">>, <<"green">>, <<"blue">>], Flag)))))))),
+    ldclient_testdata:update(UpdatedFlag),
+    ContextUserBenOrgUsa =
+    ldclient_context:new_multi_from([
+        ldclient_context:set(<<"name">>, <<"ben">>,
+            ldclient_context:new(<<"ben">>)),
+        ldclient_context:set(<<"name">>, <<"ben">>,
+            ldclient_context:set(<<"country">>, <<"usa">>,
+            ldclient_context:new(<<"benorg">>, <<"org">>)))]),
+    ContextUserNotBenOrgUsa =
+        ldclient_context:new_multi_from([
+            ldclient_context:set(<<"name">>, <<"NotBen">>,
+                ldclient_context:new(<<"NotBen">>)),
+            ldclient_context:set(<<"name">>, <<"ben">>,
+                ldclient_context:set(<<"country">>, <<"usa">>,
+                ldclient_context:new(<<"benorg">>, <<"org">>)))]),
+    ContextUserNotBenOrgGb =
+        ldclient_context:new_multi_from([
+            ldclient_context:set(<<"name">>, <<"NotBen">>,
+                ldclient_context:new(<<"NotBen">>)),
+            ldclient_context:set(<<"name">>, <<"ben">>,
+                ldclient_context:set(<<"country">>, <<"gb">>,
+                    ldclient_context:new(<<"benorg">>, <<"org">>)))]),
+    <<"blue">> = ldclient:variation(<<"flag1">>, ContextUserBenOrgUsa, <<"nothing">>),
+    <<"green">> = ldclient:variation(<<"flag1">>, ContextUserNotBenOrgUsa, <<"nothing">>),
+    <<"red">> = ldclient:variation(<<"flag1">>, ContextUserNotBenOrgGb, <<"nothing">>).

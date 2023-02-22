@@ -2,7 +2,7 @@
 %% @doc `ldclient' module
 %%
 %% Acts as an interface to most common SDK functions: starting and stopping
-%% client instances, and evaluating feature flags for users.
+%% client instances, and evaluating feature flags for contexts.
 %%
 %% Most use cases only need a single client instance for the lifetime of
 %% their application. Consider using multiple instances only if you need to
@@ -35,8 +35,6 @@
 -export([track/4]).
 -export([track_metric/4]).
 -export([track_metric/5]).
--export([alias/2]).
--export([alias/3]).
 
 %% Constants
 -define(DEFAULT_INSTANCE_NAME, default).
@@ -128,79 +126,79 @@ initialized(Tag) ->
         _ -> IsOffline or UpdateProcessorInitialized
     end.
 
-%% @doc Evaluate given flag key for given user
+%% @doc Evaluate given flag key for given context
 %%
 %% Evaluates the flag and returns the resulting variation value. The default
 %% value will be returned in case of any errors.
 %% @end
--spec variation(FlagKey :: binary(), User :: ldclient_user:user(), DefaultValue :: ldclient_eval:result_value()) ->
+-spec variation(FlagKey :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), DefaultValue :: ldclient_eval:result_value()) ->
     ldclient_eval:result_value().
-variation(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
-     variation(FlagKey, User, DefaultValue, ?DEFAULT_INSTANCE_NAME).
+variation(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map(Context) ->
+     variation(FlagKey, ensure_context(Context), DefaultValue, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Evaluate given flag key for given user and given client instance
+%% @doc Evaluate given flag key for given context and given client instance
 %%
 %% Evaluates the flag and returns the resulting variation value. The default
 %% value will be returned in case of any errors.
 %% @end
--spec variation(FlagKey :: binary(), User :: ldclient_user:user(), DefaultValue :: ldclient_eval:result_value(), Tag :: atom()) ->
+-spec variation(FlagKey :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), DefaultValue :: ldclient_eval:result_value(), Tag :: atom()) ->
     ldclient_eval:result_value().
-variation(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_map(User) ->
+variation(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {{_Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
+    {{_Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{}) end,
     lists:foreach(SendEventsFun, Events),
     % Return evaluation result
     Value.
 
-%% @doc Evaluate given flag key for given user
+%% @doc Evaluate given flag key for given context
 %%
 %% Evaluates the flag and returns the result detail containing the variation
 %% index, value, and reason why the specific result was chosen. The default
 %% value will be returned in case of any errors.
 %% @end
--spec variation_detail(FlagKey :: binary(), User :: ldclient_user:user(), DefaultValue :: ldclient_eval:result_value()) ->
+-spec variation_detail(FlagKey :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), DefaultValue :: ldclient_eval:result_value()) ->
     ldclient_eval:detail().
-variation_detail(FlagKey, User, DefaultValue) when is_binary(FlagKey), is_map(User) ->
-    variation_detail(FlagKey, User, DefaultValue, ?DEFAULT_INSTANCE_NAME).
+variation_detail(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map(Context) ->
+    variation_detail(FlagKey, ensure_context(Context), DefaultValue, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Evaluate given flag key for given user and given client instance
+%% @doc Evaluate given flag key for given context and given client instance
 %%
 %% Evaluates the flag and returns the result detail containing the variation
 %% index, value, and reason why the specific result was chosen. The default
 %% value will be returned in case of any errors.
 %% @end
--spec variation_detail(FlagKey :: binary(), User :: ldclient_user:user(), DefaultValue :: ldclient_eval:result_value(), Tag :: atom()) ->
+-spec variation_detail(FlagKey :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), DefaultValue :: ldclient_eval:result_value(), Tag :: atom()) ->
     ldclient_eval:detail().
-variation_detail(FlagKey, User, DefaultValue, Tag) when is_binary(FlagKey), is_map(User) ->
+variation_detail(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {Detail, Events} = ldclient_eval:flag_key_for_user(Tag, FlagKey, User, DefaultValue),
+    {Detail, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{include_reasons => true}) end,
     lists:foreach(SendEventsFun, Events),
     % Return evaluation detail
     Detail.
 
-%% @doc Evaluate all flags for a given user and return their values
+%% @doc Evaluate all flags for a given context and return their values
 %%
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(User :: ldclient_user:user()) -> ldclient_eval:feature_flags_state().
-all_flags_state(User) ->
-    all_flags_state(User, ?DEFAULT_INSTANCE_NAME).
+-spec all_flags_state(Context :: ldclient_user:user() | ldclient_context:context()) -> ldclient_eval:feature_flags_state().
+all_flags_state(Context) ->
+    all_flags_state(Context, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Evaluate all flags for a given user and given client instance
+%% @doc Evaluate all flags for a given context and given client instance
 %%
 %% Evaluates all existing flags, but does not create any events as a side
 %% effect of the evaluation. It returns a map of flag keys to evaluated values.
 %% @end
--spec all_flags_state(User :: ldclient_user:user(), Tag :: atom()) -> ldclient_eval:feature_flags_state().
-all_flags_state(User, Tag) ->
-    ldclient_eval:all_flags_eval(User, Tag).
+-spec all_flags_state(Context :: ldclient_user:user() | ldclient_context:context(), Tag :: atom()) -> ldclient_eval:feature_flags_state().
+all_flags_state(Context, Tag) ->
+    ldclient_eval:all_flags_eval(ensure_context(Context), Tag).
 
-%% @doc Returns an object that encapsulates the state of all feature flags for a given user.
+%% @doc Returns an object that encapsulates the state of all feature flags for a given context.
 %%
 %% This includes the flag values, and also metadata that can be used on the front end.
 %% The most common use case for this method is to bootstrap a set of client-side feature flags from a
@@ -208,89 +206,98 @@ all_flags_state(User, Tag) ->
 %%
 %% If you are not using this to boostrap a client, then you likely want all_flags_state/1 or all_flags_state/2.
 %% @end
--spec all_flags_state(User :: ldclient_user:user(),
+-spec all_flags_state(Context :: ldclient_user:user() | ldclient_context:context(),
     Options :: ldclient_eval:all_flags_state_options(), Tag :: atom()) -> ldclient_eval:feature_flags_state().
-all_flags_state(User, Options, Tag) ->
-    ldclient_eval:all_flags_state(User, Options, Tag).
+all_flags_state(Context, Options, Tag) ->
+    ldclient_eval:all_flags_state(ensure_context(Context), Options, Tag).
 
-%% @doc Identify reports details about a user
+%% @doc Identify reports details about a context
 %%
 %% This function uses the default client instance.
 %% @end
--spec identify(User :: ldclient_user:user()) -> ok.
-identify(User) ->
-    identify(User, ?DEFAULT_INSTANCE_NAME).
+-spec identify(Context :: ldclient_user:user() | ldclient_context:context()) -> ok.
+identify(Context) ->
+    identify(ensure_context(Context), ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Identify reports details about a user
+%% @doc Identify reports details about a context
 %%
-%% This is useful to report user to a specific client instance.
+%% This is useful to report context to a specific client instance.
 %% @end
--spec identify(User :: ldclient_user:user(), Tag :: atom()) -> ok.
-identify(#{key := <<>>} = _User, Tag) when is_atom(Tag) ->
-    ok;
-identify(User, Tag) when is_atom(Tag) ->
-    Event = ldclient_event:new_identify(User),
-    ldclient_event_server:add_event(Tag, Event, #{}).
+-spec identify(Context :: ldclient_user:user() | ldclient_context:context(), Tag :: atom()) -> ok.
+identify(Context, Tag) when is_atom(Tag) ->
+    ConvertedContext = ensure_context(Context),
+    when_is_valid_context(ConvertedContext, false, fun() ->
+        Event = ldclient_event:new_identify(ConvertedContext),
+        ldclient_event_server:add_event(Tag, Event, #{})
+    end).
 
-%% @doc Track reports that a user has performed an event
+%% @doc Track reports that a context has performed an event
 %%
 %% Custom data can be attached to the event.
 %% @end
--spec track(Key :: binary(), User :: ldclient_user:user(), Data :: ldclient_event:event_data()) -> ok.
-track(Key, User, Data) when is_binary(Key), is_map(Data) ->
-    track(Key, User, Data, ?DEFAULT_INSTANCE_NAME).
+-spec track(Key :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), Data :: ldclient_event:event_data()) -> ok.
+track(Key, Context, Data) when is_binary(Key), is_map(Data) ->
+    track(Key, ensure_context(Context), Data, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Track reports that a user has performed an event
+%% @doc Track reports that a context has performed an event
 %%
 %% This is useful for specifying a specific client instance.
 %% @end
--spec track(Key :: binary(), User :: ldclient_user:user(), Data :: ldclient_event:event_data(), Tag :: atom()) -> ok.
-track(Key, User, Data, Tag) when is_atom(Tag), is_binary(Key) ->
-    Event = ldclient_event:new_custom(Key, User, Data),
-    ldclient_event_server:add_event(Tag, Event, #{}).
+-spec track(Key :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), Data :: ldclient_event:event_data(), Tag :: atom()) -> ok.
+track(Key, Context, Data, Tag) when is_atom(Tag), is_binary(Key) ->
+    ConvertedContext = ensure_context(Context),
+    when_is_valid_context(ConvertedContext, false, fun() ->
+        Event = ldclient_event:new_custom(Key, ensure_context(Context), Data),
+        ldclient_event_server:add_event(Tag, Event, #{})
+    end).
 
-%% @doc Reports that a user has performed an event, and associates it with a numeric value.
+
+%% @doc Reports that a context has performed an event, and associates it with a numeric value.
 %%
 %% This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
 %% be returned as part of the custom event for Data Export.
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_metric(Key :: binary(), User :: ldclient_user:user(), ldclient_event:event_data(), Metric :: number()) -> ok.
-track_metric(Key, User, Data, Metric) ->
-    track_metric(Key, User, Data, Metric, ?DEFAULT_INSTANCE_NAME).
+-spec track_metric(Key :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), ldclient_event:event_data(), Metric :: number()) -> ok.
+track_metric(Key, Context, Data, Metric) ->
+    track_metric(Key, ensure_context(Context), Data, Metric, ?DEFAULT_INSTANCE_NAME).
 
-%% @doc Reports that a user has performed an event, and associates it with a numeric value.
+%% @doc Reports that a context has performed an event, and associates it with a numeric value.
 %%
 %% This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
 %% be returned as part of the custom event for Data Export.
 %%
 %% Custom data can also be attached to the event.
 %% @end
--spec track_metric(Key :: binary(), User :: ldclient_user:user(), ldclient_event:event_data(), Metric :: number(), Tag :: atom()) -> ok.
-track_metric(Key, User, Data, Metric, Tag) ->
-    Event = ldclient_event:new_custom(Key, User, Data, Metric),
-    ldclient_event_server:add_event(Tag, Event, #{}).
+-spec track_metric(Key :: binary(), Context :: ldclient_user:user() | ldclient_context:context(), ldclient_event:event_data(), Metric :: number(), Tag :: atom()) -> ok.
+track_metric(Key, Context, Data, Metric, Tag) ->
+    ConvertedContext = ensure_context(Context),
+    when_is_valid_context(ConvertedContext, false, fun() ->
+        Event = ldclient_event:new_custom(Key, ensure_context(Context), Data, Metric),
+        ldclient_event_server:add_event(Tag, Event, #{})
+    end).
 
-%% @doc Associates two users for analytics purposes.
+%% @doc Take a context or a context and return a context.
 %%
-%% This can be helpful in the situation where a person is represented by multiple
-%% LaunchDarkly users. This may happen, for example, when a person initially logs into
-%% an application-- the person might be represented by an anonymous user prior to logging
-%% in and a different user after logging in, as denoted by a different user key.
+%% If the context cannot be converted, then
 %% @end
--spec alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user()) -> ok.
-alias(User, PreviousUser) ->
-    alias(User, PreviousUser, ?DEFAULT_INSTANCE_NAME).
+-spec ensure_context(UserOrContext :: ldclient_user:user() | ldclient_context:context()) -> ldclient_context:context().
+ensure_context(#{kind := _Kind} = ContextOrContext) -> ContextOrContext;
+ensure_context(UserOrContext) ->
+    case maps:is_key(key, UserOrContext) of
+        %% We allow legacy users to have an empty key, but we log it.
+        false -> error_logger:warning_msg("Context key is blank. Flag evaluation will proceed, but the context will not be stored in Launchdarkly");
+        true -> ok
+    end,
+    ldclient_context:new_from_user(UserOrContext).
 
-%% @doc Associates two users for analytics purposes.
+%% @doc High order function that calls a function when a context is valid, otherwise returns true.
 %%
-%% This can be helpful in the situation where a person is represented by multiple
-%% LaunchDarkly users. This may happen, for example, when a person initially logs into
-%% an application-- the person might be represented by an anonymous user prior to logging
-%% in and a different user after logging in, as denoted by a different user key.
 %% @end
--spec alias(User :: ldclient_user:user(), PreviousUser :: ldclient_user:user(), Tag :: atom()) -> ok.
-alias(User, PreviousUser, Tag) ->
-    Event = ldclient_event:new_alias(User, PreviousUser),
-    ldclient_event_server:add_event(Tag, Event, #{}).
+-spec when_is_valid_context(Context :: ldclient_context:context(), AllowEmptyKey :: boolean(), Fun :: function()) -> ok.
+when_is_valid_context(Context, AllowEmptyKey, Fun) ->
+    case ldclient_context:is_valid(Context, AllowEmptyKey) of
+        true -> Fun();
+        false -> ok
+    end.

@@ -39,8 +39,7 @@
     enable_diagnostics => true | false | undefined, %% Not supported
     all_attributes_private => true | false | undefined,
     global_private_attributes => [any()] | undefined,
-    flush_interval_ms => pos_integer() | undefined,
-    inline_users => true | false | undefined
+    flush_interval_ms => pos_integer() | undefined
 }.
 
 -type sdk_config_tags_params() :: #{
@@ -118,15 +117,13 @@ parse_config_events_params(#{<<"events">> := EventParams} = _Params) when EventP
     AllAttributesPrivate = map_get_null_default(<<"allAttributesPrivate">>, EventParams, undefined),
     GlobalPrivateAttributes = map_get_null_default(<<"globalPrivateAttributes">>, EventParams, undefined),
     FlushIntervalMS = map_get_null_default(<<"flushIntervalMs">>, EventParams, undefined),
-    InlineUsers = map_get_null_default(<<"inlineUsers">>, EventParams, undefined),
     #{
         base_uri => BaseUri,
         capacity => Capacity,
         enable_diagnostics => EnableDiagnostics,
         all_attributes_private => AllAttributesPrivate,
         global_private_attributes => GlobalPrivateAttributes,
-        flush_interval_ms => FlushIntervalMS,
-        inline_users => InlineUsers
+        flush_interval_ms => FlushIntervalMS
     };
 parse_config_events_params(_Params) ->
     #{
@@ -135,8 +132,7 @@ parse_config_events_params(_Params) ->
         enable_diagnostics => undefined,
         all_attributes_private => undefined,
         global_private_attributes => undefined,
-        flush_interval_ms => undefined,
-        inline_users => undefined
+        flush_interval_ms => undefined
     }.
 
 -spec to_ldclient_options(Configuration :: sdk_config_params()) -> map().
@@ -146,8 +142,7 @@ to_ldclient_options(Configuration) ->
     WithEventsCapacity = add_events_capacity(Configuration, WithStreamUri),
     WithPrivateAttributes = add_private_attributes(Configuration, WithEventsCapacity),
     WithFlushInterval = add_events_flush_interval(Configuration, WithPrivateAttributes),
-    WithInlineUsers = add_inline_users(Configuration, WithFlushInterval),
-    WithStreamRetryDelay = add_stream_retry_delay(Configuration, WithInlineUsers),
+    WithStreamRetryDelay = add_stream_retry_delay(Configuration, WithFlushInterval),
     WithTags = add_tags_config(Configuration, WithStreamRetryDelay),
     WithPollingUri = add_polling_uri(Configuration, WithTags),
     WithPollingInterval = add_poll_interval(Configuration, WithPollingUri),
@@ -217,13 +212,6 @@ add_events_flush_interval(#{events := #{
 }} = _SdkConfigParams, Options) when is_number(FlushInterval) ->
     Options#{events_flush_interval => FlushInterval};
 add_events_flush_interval(_SdkConfigParams, Options) -> Options.
-
--spec add_inline_users(Configuration :: sdk_config_params(), Options :: map()) -> map().
-add_inline_users(#{events := #{
-    inline_users := InlineUsers
-}} = _SdkConfigParams, Options) when is_boolean(InlineUsers) ->
-    Options#{inline_users_in_events => InlineUsers};
-add_inline_users(_SdkConfigParams, Options) -> Options.
 
 -spec add_tags_config(Configuration :: sdk_config_params(), Options :: map()) -> map().
 add_tags_config(Config, Options) ->

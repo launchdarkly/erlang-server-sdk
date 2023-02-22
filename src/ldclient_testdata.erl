@@ -10,7 +10,7 @@
 %%
 %% ```
 %%    {ok, Flag} = ldclient_testdata:flag("flag-key-1"),
-%%    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(true, Flag)),
+%%    ldclient_testdata:update(ldclient_flagbuilder:variation_for_all(true, Flag)),
 %%
 %%    Options = #{
 %%        datasource => testdata,
@@ -22,7 +22,7 @@
 %%    %% flags can be updated at any time:
 %%    {ok, Flag2} = ldclient_testdata:flag("flag-key-2"),
 %%    UpdatedFlag2 = ldclient_flagbuilder:fallthrough_variation(false,
-%%                   ldclient_flagbuilder:variation_for_user(<<"some-user-key">>, true, Flag2)),
+%%                   ldclient_flagbuilder:variation_for_context(<<"user">>, <<"some-user-key">>, true, Flag2)),
 %% '''
 %%
 %% The above example uses a simple boolean flag, but more complex configurations
@@ -54,7 +54,7 @@
 -export([flag/1, flag/2, update/1, update/2]).
 
 -type state() :: #{
-        current_builders => #{ string() => ldclient_flagbuilder:flag_builder() },
+        current_builders => #{ binary() => ldclient_flagbuilder:flag_builder() },
         current_flags => #{ binary() => ldclient_flag:flag() },
         instances => [atom()]
 }.
@@ -120,7 +120,7 @@ initial_state() ->
 %% then the builder starts with the same configuration that was last provided for this flag.
 %%
 %% Otherwise, it starts with a new default configuration in which the flag has `true'
-%% and `false' variations, is `true' for all users when targeting is turned on and
+%% and `false' variations, is `true' for all contexts when targeting is turned on and
 %% `false' otherwise, and currently has targeting turned on.
 %%
 %% You can change any of those properties, and provide more complex behavior,
@@ -132,7 +132,9 @@ initial_state() ->
 %% @return a flag configuration builder
 %% @see update/1
 %% @end
--spec flag(FlagKey :: string()) -> {ok, ldclient_flagbuilder:flag_builder()}.
+-spec flag(FlagKey :: binary() | string()) -> {ok, ldclient_flagbuilder:flag_builder()}.
+flag(FlagKey) when is_list(FlagKey) ->
+    flag(default, list_to_binary(FlagKey));
 flag(FlagKey) ->
     flag(default, FlagKey).
 
@@ -143,7 +145,7 @@ flag(FlagKey) ->
 %% then the builder starts with the same configuration that was last provided for this flag.
 %%
 %% Otherwise, it starts with a new default configuration in which the flag has `true'
-%% and `false' variations, is `true' for all users when targeting is turned on and
+%% and `false' variations, is `true' for all contexts when targeting is turned on and
 %% `false' otherwise, and currently has targeting turned on.
 %%
 %% You can change any of those properties, and provide more complex behavior,
@@ -156,7 +158,7 @@ flag(FlagKey) ->
 %% @return a flag configuration builder
 %% @see update/2
 %% @end
--spec flag(Tag :: atom() | pid(), FlagKey :: string()) -> {ok, ldclient_flagbuilder:flag_builder()}.
+-spec flag(Tag :: atom() | pid(), FlagKey :: binary()) -> {ok, ldclient_flagbuilder:flag_builder()}.
 flag(Tag, FlagKey) ->
    gen_server:call(get_ref(Tag), {flag, FlagKey}).
 
@@ -217,11 +219,10 @@ handle_call({update, FlagBuilder}, _From, State) ->
     FlagName = ldclient_flagbuilder:key(FlagBuilder),
     NewBuilders = maps:put(FlagName, FlagBuilder, CurrentBuilders),
 
-    FlagNameBin = list_to_binary(FlagName),
     #{ current_flags := CurrentFlags } = State,
-    #{ version := OldVersion } = maps:get(FlagNameBin, CurrentFlags, #{ version => 0 }),
+    #{ version := OldVersion } = maps:get(FlagName, CurrentFlags, #{ version => 0 }),
     NewFlag = ldclient_flagbuilder:build(FlagBuilder, OldVersion + 1),
-    NewFlags = maps:put(FlagNameBin, NewFlag, CurrentFlags),
+    NewFlags = maps:put(FlagName, NewFlag, CurrentFlags),
 
     NewState = State#{
                  current_flags := NewFlags,
@@ -230,7 +231,7 @@ handle_call({update, FlagBuilder}, _From, State) ->
     #{ instances := Instances } = State,
     lists:foreach(fun(Tag) ->
                     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-                    ok = FeatureStore:upsert(Tag, features, #{ FlagNameBin => NewFlag })
+                    ok = FeatureStore:upsert(Tag, features, #{ FlagName => NewFlag })
                   end, Instances),
 
     {reply, ok, NewState};

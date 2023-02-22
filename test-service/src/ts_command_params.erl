@@ -14,20 +14,20 @@
     format_evaluate_flag_response/1
 ]).
 
--type command() :: evaluate | evaluate_all | identify_event | custom_event | alias_event | flush_events.
+-type command() :: evaluate | evaluate_all | identify_event | custom_event | flush_events.
 
 -type command_params() :: #{
     command := command(),
     evaluate => evaluate_flag_params(),
     evaluate_all => evaluate_all_flags_params(),
     custom_event => custom_event_params(),
-    identify_event => identify_event_params(),
-    alias_event  => alias_event_params()
+    identify_event => identify_event_params()
 }.
 
 -type evaluate_flag_params() :: #{
     flag_key := binary(),
     user => ldclient_user:user(),
+    context => ldclient_context:context(),
     value_type := binary(),
     default_value := ldclient_flag:variation_value(),
     detail := boolean()
@@ -41,6 +41,7 @@
 
 -type evaluate_all_flags_params() :: #{
     user => ldclient_user:user(),
+    context => ldclient_context:context(),
     with_reasons := boolean(),
     client_side_only := boolean(),
     details_only_for_tracked_flags := boolean()
@@ -55,18 +56,15 @@
 -type custom_event_params() :: #{
     event_key := binary(),
     user => ldclient_user:user(),
+    context => ldclient_context:context(),
     data => ldclient_flag:variation_value(),
     omit_null_data := boolean(),
     metric_value => float()
 }.
 
 -type identify_event_params() :: #{
-    user := ldclient_user:user()
-}.
-
--type alias_event_params() :: #{
-    user := ldclient_user:user(),
-    previous_user := ldclient_user:user()
+    user => ldclient_user:user(),
+    context => ldclient_context:context()
 }.
 
 -export_type([command_params/0]).
@@ -76,7 +74,6 @@
 -export_type([evaluate_all_flags_response/0]).
 -export_type([custom_event_params/0]).
 -export_type([identify_event_params/0]).
--export_type([alias_event_params/0]).
 
 -spec parse_command(Command :: map()) -> command_params().
 parse_command(#{<<"command">> := <<"evaluate">>,
@@ -99,11 +96,6 @@ parse_command(#{<<"command">> := <<"customEvent">>,
         command => custom_event,
         custom_event => parse_custom_event(CustomEvent)
     };
-parse_command(#{<<"command">> := <<"aliasEvent">>,
-    <<"aliasEvent">> := AliasEvent} = _Command) -> #{
-        command => alias_event,
-        alias_event => parse_alias_event(AliasEvent)
-    };
 parse_command(#{<<"command">> := <<"flushEvents">>} = _Command) -> #{
     command => flush_events
 };
@@ -119,21 +111,26 @@ parse_evaluate(Evaluate) ->
         default_value => maps:get(<<"defaultValue">>, Evaluate, <<>>),
         detail => maps:get(<<"detail">>, Evaluate, false)
     },
-    maybe_add_user(parse_user(Evaluate), Parsed).
+    MaybeWithContext = maybe_add_context(Evaluate, Parsed),
+    maybe_add_user(parse_user(Evaluate), MaybeWithContext).
 
 -spec maybe_add_user(User :: ldclient_user:user() | undefined, Map :: map()) -> map().
 maybe_add_user(undefined, Map) -> Map;
 maybe_add_user(User, Map) -> Map#{user => User}.
 
+-spec maybe_add_context(Command :: map(), Map :: map()) -> map().
+maybe_add_context(#{<<"context">> := Context} = _Command, Map) when is_map(Context) ->
+    ParsedContext = ldclient_context:new_from_json(Context),
+    Map#{context => ParsedContext};
+maybe_add_context(_Command, Map) -> Map.
+
 -spec parse_user_with_key(Container ::
     identify_event_params()
     | custom_event_params()
     | evaluate_flag_params()
-    | evaluate_all_flags_params()
-    | alias_event_params(),
+    | evaluate_all_flags_params(),
     UserKey :: binary()) -> ldclient_user:user() | undefined.
 parse_user_with_key(Container, UserKey) ->
-    #{UserKey := User} = Container,
     User = maps:get(UserKey, Container, undefined),
     parse_user_map(User).
 
@@ -143,8 +140,7 @@ parse_user_map(User) ->
     UserWithKey = #{
         key => maps:get(<<"key">>, User)
     },
-    UserWithSecondary = parse_optional(<<"secondary">>, secondary, User, UserWithKey),
-    UserWithIp = parse_optional(<<"ip">>, ip, User, UserWithSecondary),
+    UserWithIp = parse_optional(<<"ip">>, ip, User, UserWithKey),
     UserWithCountry = parse_optional(<<"country">>, country, User, UserWithIp),
     UserWithEmail = parse_optional(<<"email">>, email, User, UserWithCountry),
     UserWithFirstName = parse_optional(<<"firstName">>, first_name, User, UserWithEmail),
@@ -159,11 +155,9 @@ parse_user_map(User) ->
 identify_event_params()
 | custom_event_params()
 | evaluate_flag_params()
-| evaluate_all_flags_params()
-| alias_event_params()) -> ldclient_user:user() | undefined.
+| evaluate_all_flags_params()) -> ldclient_user:user() | undefined.
 parse_user(Container) ->
     parse_user_with_key(Container, <<"user">>).
-
 
 %% Treats null as not included.
 -spec parse_optional(InKey :: binary(), OutKey :: atom(),
@@ -187,17 +181,17 @@ add_if_defined(Key, Value, Output, _) -> Output#{Key => Value}.
 
 -spec parse_evaluate_all(EvaluateAll :: map()) -> evaluate_all_flags_params().
 parse_evaluate_all(EvaluateAll) ->
+    maybe_add_context(EvaluateAll,
     maybe_add_user(parse_user(EvaluateAll), #{
         with_reasons => maps:get(<<"withReasons">>, EvaluateAll, false),
         client_side_only => maps:get(<<"clientSideOnly">>, EvaluateAll, false),
         details_only_for_tracked_flags => maps:get(<<"detailsOnlyForTrackedFlags">>, EvaluateAll, false)
-    }).
+    })).
 
 -spec parse_identify_event(IdentifyEvent :: map()) -> identify_event_params().
 parse_identify_event(IdentifyEvent) ->
-    #{
-        user => parse_user(IdentifyEvent)
-    }.
+    maybe_add_context(IdentifyEvent,
+    maybe_add_user(parse_user(IdentifyEvent), #{})).
 
 -spec parse_custom_event(CustomEvent :: map()) -> custom_event_params().
 parse_custom_event(CustomEvent) ->
@@ -206,20 +200,13 @@ parse_custom_event(CustomEvent) ->
         omit_null_value => maps:get(<<"omitNullData">>, CustomEvent, false)
     },
     CustomEventWithUser = maybe_add_user(parse_user(CustomEvent), CustomEventWithKey),
-    CustomEventWithData = parse_optional(<<"data">>, data, CustomEvent, CustomEventWithUser, true),
+    CustomEventWithContext = maybe_add_context(CustomEvent, CustomEventWithUser),
+    CustomEventWithData = parse_optional(<<"data">>, data, CustomEvent, CustomEventWithContext, true),
     CustomEventWithOmitNullData = parse_optional(<<"omitNullData">>, omit_null_data,
         CustomEvent, CustomEventWithData),
     CustomEventWithMetricValue = parse_optional(<<"metricValue">>, metric_value,
         CustomEvent, CustomEventWithOmitNullData),
     CustomEventWithMetricValue.
-
--spec parse_alias_event(AliasEvent :: map()) -> alias_event_params().
-parse_alias_event(AliasEvent) ->
-    #{
-        user => parse_user(AliasEvent),
-        previous_user => parse_user_with_key(AliasEvent, <<"previousUser">>)
-    }
-.
 
 -spec format_evaluate_flag_response(Result ::
     ldclient_eval:detail()

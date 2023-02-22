@@ -42,13 +42,13 @@
         "targets": [
           {
             "values": [
-              "user-12345"
+              "context-12345"
             ],
             "variation": 0
           },
           {
             "values": [
-              "user-33333"
+              "context-33333"
             ],
             "variation": 1
           }
@@ -114,17 +114,63 @@
           false
         ],
         "version": 5
+      },
+      "circular-reference-flag": {
+        "clientSide": false,
+        "debugEventsUntilDate": null,
+        "deleted": false,
+        "fallthrough": {
+          "variation": 0
+        },
+        "key": "circular-reference-flag",
+        "offVariation": 1,
+        "on": true,
+        "prerequisites": [{"key":"circular-reference-flag-a", "variation":  0}],
+        "rules": [],
+        "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+        "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+        "targets": [],
+        "trackEvents": true,
+        "trackEventsFallthrough": false,
+        "variations": [
+          true,
+          false
+        ],
+        "version": 5
+      },
+      "circular-reference-flag-a": {
+        "clientSide": false,
+        "debugEventsUntilDate": null,
+        "deleted": false,
+        "fallthrough": {
+          "variation": 0
+        },
+        "key": "circular-reference-flag-a",
+        "offVariation": 1,
+        "on": true,
+        "prerequisites": [{"key":"circular-reference-flag", "variation":  0}],
+        "rules": [],
+        "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+        "sel": "8b4d79c59adb4df492ebea0bf65dfd4d",
+        "targets": [],
+        "trackEvents": true,
+        "trackEventsFallthrough": false,
+        "variations": [
+          true,
+          false
+        ],
+        "version": 5
       }
     },
     "segments": {
       "test-included": {
         "deleted": false,
         "excluded": [
-          "user-12345",
-          "user-33333"
+          "context-12345",
+          "context-33333"
         ],
         "included": [
-          "user-45678"
+          "context-45678"
         ],
         "key": "test-included",
         "rules": [],

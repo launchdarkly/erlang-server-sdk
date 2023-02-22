@@ -13,8 +13,8 @@
 
 %% Tests
 -export([
-    bucket_user_by_key/1,
-    bucket_user_with_seed/1
+    bucket_context_by_key/1,
+    bucket_context_with_seed/1
 ]).
 
 %%====================================================================
@@ -23,8 +23,8 @@
 
 all() -> 
     [ 
-        bucket_user_by_key, 
-        bucket_user_with_seed
+        bucket_context_by_key, 
+        bucket_context_with_seed
     ].
 
 init_per_suite(Config) -> 
@@ -45,9 +45,12 @@ fl_eq(L, R) ->
     true = abs(L - R) < 0.0000001.
 
 make_and_bucket(Seed, Key, Salty) ->
-    Point1 = ldclient_rollout:bucket_user(Seed, Key, Salty, ldclient_user:new(<<"userKeyA">>), key),
-    Point2 = ldclient_rollout:bucket_user(Seed, Key, Salty, ldclient_user:new(<<"userKeyB">>), key),
-    Point3 = ldclient_rollout:bucket_user(Seed, Key, Salty, ldclient_user:new(<<"userKeyC">>), key),
+    Point1 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyA">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
+    Point2 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyB">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
+    Point3 = ldclient_rollout:bucket_context(Seed, Key, Salty,
+        ldclient_context:new(<<"userKeyC">>), ldclient_attribute_reference:new(<<"key">>), <<"user">>),
     {Point1, Point2, Point3}.
 
 %%====================================================================
@@ -60,7 +63,7 @@ make_and_bucket(Seed, Key, Salty) ->
 %% tests so much as consistency tests to guarantee that the implementation
 %% is identical across SDKs.
 
-bucket_user_by_key(_) ->
+bucket_context_by_key(_) ->
     Seed = null,
     Salty = <<"saltyA">>,
     Key = <<"hashKey">>,
@@ -69,7 +72,7 @@ bucket_user_by_key(_) ->
     fl_eq(0.6708485, Point2),
     fl_eq(0.10343106, Point3).
 
-bucket_user_with_seed(_) -> 
+bucket_context_with_seed(_) -> 
     Seed = 61,
     Salty = <<"saltyA">>,
     Key = <<"hashKey">>,

@@ -71,7 +71,12 @@ parse_flag_empty(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -83,6 +88,7 @@ parse_flag_empty(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents              => false,
         trackEventsFallthrough   => false,
         variations               => [],
@@ -98,7 +104,12 @@ parse_flag_key_only(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -110,6 +121,7 @@ parse_flag_key_only(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -145,6 +157,7 @@ parse_flag_bare(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => true,
         trackEventsFallthrough => true,
         variations               => [true, false],
@@ -195,6 +208,11 @@ parse_flag_full(_) ->
             #{<<"variation">> => 1, <<"values">> => [<<"user-target3">>, <<"user-target-4">>]},
             #{<<"variation">> => 2, <<"values">> => []}
         ],
+        <<"contextTargets">> => [
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 3, <<"values">> => [<<"other-target1">>, <<"other-target-2">>]},
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 4, <<"values">> => [<<"other-target3">>, <<"other-target-4">>]},
+            #{<<"contextKind">> => <<"other">>, <<"variation">> => 5, <<"values">> => []}
+        ],
         <<"trackEvents">> => true,
         <<"trackEventsFallthrough">> => true,
         <<"variations">> => [<<"A">>, <<"B">>, <<"C">>],
@@ -204,7 +222,13 @@ parse_flag_full(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => <<"foo">>,
+            %% For an experiment we discard the specified bucketBy and use <<"key">>
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [
                 #{variation => 0, weight => 0, untracked => true},
                 #{variation => 1, weight => 40000, untracked => false},
@@ -227,7 +251,12 @@ parse_flag_full(_) ->
                 variationOrRollout => 3,
                 clauses => [
                     #{
-                        attribute => <<"user-attr-foo">>,
+                        attribute => #{
+                            binary => <<"user-attr-foo">>,
+                            components => [<<"user-attr-foo">>],
+                            valid => true
+                        },
+                        context_kind => <<"user">>,
                         negate => false,
                         op => contains,
                         values => [<<"rule-foo-value1">>, <<"rule-foo-value2">>]
@@ -237,9 +266,14 @@ parse_flag_full(_) ->
         ],
         salt                     => <<"flag-full-salt">>,
         targets                  => [
-            #{variation => 0, values => [<<"user-target1">>, <<"user-target-2">>]},
-            #{variation => 1, values => [<<"user-target3">>, <<"user-target-4">>]},
-            #{variation => 2, values => []}
+            #{variation => 0, values => [<<"user-target1">>, <<"user-target-2">>], contextKind => <<"user">>},
+            #{variation => 1, values => [<<"user-target3">>, <<"user-target-4">>], contextKind => <<"user">>},
+            #{variation => 2, values => [], contextKind => <<"user">>}
+        ],
+        contextTargets           => [
+            #{variation => 3, values => [<<"other-target1">>, <<"other-target-2">>], contextKind => <<"other">>},
+            #{variation => 4, values => [<<"other-target3">>, <<"other-target-4">>], contextKind => <<"other">>},
+            #{variation => 5, values => [], contextKind => <<"other">>}
         ],
         trackEvents             => true,
         trackEventsFallthrough => true,
@@ -281,7 +315,12 @@ parse_flag_ignore_invalid(_) ->
         fallthrough              => #{
             kind => rollout,
             seed => null,
-            bucketBy => <<"foo">>,
+            bucketBy => #{
+                binary => <<"foo">>,
+                components => [<<"foo">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [
                 #{variation => 1, weight => 0, untracked => false}
             ]
@@ -293,6 +332,7 @@ parse_flag_ignore_invalid(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
@@ -309,7 +349,12 @@ parse_flag_invalid_fallthrough(_) ->
         debugEventsUntilDate  => null,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             seed => null,
             kind => rollout
@@ -321,6 +366,7 @@ parse_flag_invalid_fallthrough(_) ->
         rules                    => [],
         salt                     => <<>>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -337,7 +383,9 @@ parse_segment_empty(_) ->
         included => [],
         rules    => [],
         salt     => <<>>,
-        version  => 0
+        version  => 0,
+        excludedContexts => [],
+        includedContexts =>  []
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 
@@ -352,7 +400,9 @@ parse_segment_key_only(_) ->
         included => [],
         rules    => [],
         salt     => <<>>,
-        version  => 0
+        version  => 0,
+        excludedContexts => [],
+        includedContexts =>  []
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 
@@ -378,7 +428,23 @@ parse_segment_full(_) ->
             }
         ],
         <<"salt">> => <<"segment-full-salt">>,
-        <<"version">> => 5
+        <<"version">> => 5,
+        <<"includedContexts">> => [
+            #{
+                <<"contextKind">> => <<"org">>,
+                <<"values">> => [<<"org-1">>, <<"org-2">>]
+            },
+            #{
+                <<"contextKind">> => <<"potato">>,
+                <<"values">> => [<<"potato-1">>, <<"potato-2">>]
+            }
+        ],
+        <<"excludedContexts">> => [
+            #{
+                <<"contextKind">> => <<"user">>,
+                <<"values">> => [<<"user-1">>, <<"user-2">>]
+            }
+        ]
     },
     SegmentExpected = #{
         key      => <<"segment-full">>,
@@ -387,13 +453,23 @@ parse_segment_full(_) ->
         included => [<<"789">>],
         rules    => [
             #{
-                bucketBy => key,
+                bucketBy => #{
+                    binary => <<"key">>,
+                    components => [<<"key">>],
+                    valid => true
+                },
+                rolloutContextKind => <<"user">>,
                 weight => null,
                 segmentKey => <<"segment-full">>,
                 segmentSalt => <<"segment-full-salt">>,
                 clauses => [
                     #{
-                        attribute => <<"user-attr-foo">>,
+                        attribute => #{
+                            binary => <<"user-attr-foo">>,
+                            components => [<<"user-attr-foo">>],
+                            valid => true
+                        },
+                        context_kind => <<"user">>,
                         negate => false,
                         op => contains,
                         values => [<<"rule-foo-value1">>, <<"rule-foo-value2">>]
@@ -402,7 +478,23 @@ parse_segment_full(_) ->
             }
         ],
         salt     => <<"segment-full-salt">>,
-        version  => 5
+        version  => 5,
+        excludedContexts => [
+            #{
+                contextKind => <<"user">>,
+                values => [<<"user-1">>, <<"user-2">>]
+            }
+        ],
+        includedContexts =>  [
+            #{
+                contextKind => <<"org">>,
+                values => [<<"org-1">>, <<"org-2">>]
+            },
+            #{
+                contextKind => <<"potato">>,
+                values => [<<"potato-1">>, <<"potato-2">>]
+            }
+        ]
     },
     SegmentExpected = ldclient_segment:new(SegmentRaw).
 
@@ -426,7 +518,12 @@ parse_flag_invalid_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             kind => rollout,
             seed => null
@@ -438,6 +535,7 @@ parse_flag_invalid_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -465,7 +563,12 @@ parse_flag_rollout_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             kind => rollout,
             seed => null
@@ -477,6 +580,7 @@ parse_flag_rollout_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
@@ -504,7 +608,12 @@ parse_flag_experiment_kind(_) ->
         debugEventsUntilDate  => 1234567,
         deleted                  => false,
         fallthrough              => #{
-            bucketBy => key,
+            bucketBy => #{
+                binary => <<"key">>,
+                components => [<<"key">>],
+                valid => true
+            },
+            contextKind => <<"user">>,
             variations => [],
             kind => experiment,
             seed => null
@@ -516,6 +625,7 @@ parse_flag_experiment_kind(_) ->
         rules                    => [],
         salt                     => <<"flag-full-salt">>,
         targets                  => [],
+        contextTargets           => [],
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],

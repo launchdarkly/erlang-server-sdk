@@ -20,3 +20,4 @@ rebar.lock
 doc/*
 !doc/overview.edoc
 *.crashdump
+*.beam

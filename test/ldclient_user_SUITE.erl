@@ -103,7 +103,6 @@ new_from_map_custom_only(_) ->
 
 new_from_map_full(_) ->
     Key = 12345,
-    Secondary = "abc",
     Ip = "1.2.3.4",
     Country = <<"some-country">>,
     Email = "foo@bar.com",
@@ -118,7 +117,6 @@ new_from_map_full(_) ->
     CustomValue2 = <<"custom-bar">>,
     Map = #{
         <<"key">> => Key,
-        secondary => Secondary,
         ip => Ip,
         country => Country,
         email => Email,
@@ -133,7 +131,6 @@ new_from_map_full(_) ->
     User = ldclient_user:new_from_map(Map),
     UserExpected = #{
         key => Key,
-        secondary => Secondary,
         ip => Ip,
         country => Country,
         email => Email,
@@ -153,7 +150,6 @@ new_from_map_full(_) ->
 
 new_from_map_full_custom(_) ->
     Key = 12345,
-    Secondary = "abc",
     Ip = "1.2.3.4",
     Country = <<"some-country">>,
     Email = "foo@bar.com",
@@ -172,7 +168,6 @@ new_from_map_full_custom(_) ->
     },
     Map = #{
         <<"key">> => Key,
-        secondary => Secondary,
         ip => Ip,
         country => Country,
         email => Email,
@@ -186,7 +181,6 @@ new_from_map_full_custom(_) ->
     User = ldclient_user:new_from_map(Map),
     UserExpected = #{
         key => Key,
-        secondary => Secondary,
         ip => Ip,
         country => Country,
         email => Email,

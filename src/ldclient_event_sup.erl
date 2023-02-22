@@ -35,9 +35,9 @@ init([Tag]) ->
 
 -spec children(Tag :: atom()) -> [supervisor:child_spec()].
 children(Tag) ->
-    UserCacheName = ldclient_user_cache:get_local_reg_name(Tag),
-    UserKeysCapacity = ldclient_config:get_value(Tag, user_keys_capacity),
-    UserCacheWorker = ?CHILD(lru, lru, [{local, UserCacheName}, [{max_objs, UserKeysCapacity}]], worker),
+    UserCacheName = ldclient_context_cache:get_local_reg_name(Tag),
+    ContextKeysCapacity = ldclient_config:get_value(Tag, context_keys_capacity),
+    UserCacheWorker = ?CHILD(lru, lru, [{local, UserCacheName}, [{max_objs, ContextKeysCapacity}]], worker),
     EventStorageWorker = ?CHILD(ldclient_event_server, ldclient_event_server, [Tag], worker),
     EventProcessWorker = ?CHILD(ldclient_event_process_server, ldclient_event_process_server, [Tag], worker),
     [UserCacheWorker, EventStorageWorker, EventProcessWorker].

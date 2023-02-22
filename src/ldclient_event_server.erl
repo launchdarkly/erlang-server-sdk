@@ -20,7 +20,6 @@
     events := [ldclient_event:event()],
     summary_event := summary_event(),
     capacity := pos_integer(),
-    inline_users => boolean(),
     flush_interval := pos_integer(),
     timer_ref := reference(),
     offline := boolean(),
@@ -30,7 +29,10 @@
 -type summary_event() :: #{} | #{
     counters := counters(),
     start_date := non_neg_integer(),
-    end_date := non_neg_integer()
+    end_date := non_neg_integer(),
+    context_kinds := #{
+        flag_key := [ldclient_context:kind_value()]
+    }
 }.
 
 -type counters() :: #{
@@ -101,7 +103,6 @@ start_link(Tag) ->
 init([Tag]) ->
     FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
     Capacity = ldclient_config:get_value(Tag, events_capacity),
-    InlineUsers = ldclient_config:get_value(Tag, inline_users_in_events),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     SendEvents = ldclient_config:get_value(Tag, send_events),
@@ -111,7 +112,6 @@ init([Tag]) ->
         events => [],
         summary_event => #{},
         capacity => Capacity,
-        inline_users => InlineUsers,
         flush_interval => FlushInterval,
         timer_ref => TimerRef,
         offline => OfflineMode,
@@ -131,8 +131,8 @@ handle_call(_Request, _From, #{offline := true} = State) ->
     {reply, ok, State};
 handle_call(_Request, _From, #{send_events := false} = State) ->
     {reply, ok, State};
-handle_call({add_event, Event, Tag, Options}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity, inline_users := InlineUsers} = State) ->
-    {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Options, Events, SummaryEvent, Capacity, InlineUsers),
+handle_call({add_event, Event, Tag, Options}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) ->
+    {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Options, Events, SummaryEvent, Capacity),
     {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
 handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
     _ = erlang:cancel_timer(TimerRef),
@@ -165,27 +165,30 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%===================================================================
 
--spec add_event(atom(), ldclient_event:event(), options(), [ldclient_event:event()], summary_event(), pos_integer(), boolean()) ->
+-spec add_event(
+    Tag :: atom(),
+    Event :: ldclient_event:event(),
+    Options :: options(),
+    Events :: [ldclient_event:event()],
+    SummaryEvent :: summary_event(),
+    Capacity :: pos_integer()
+) ->
     {[ldclient_event:event()], summary_event()}.
-add_event(Tag, #{type := feature_request, user := User, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity, InlineUsers) ->
+add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity) ->
     AddFull = should_add_full_event(Event),
     AddDebug = should_add_debug_event(Event, Tag),
-    AddIndex = not (AddFull and InlineUsers),
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
-    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, AddIndex),
+    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
     EventsWithFeature = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, EventsWithIndex, Capacity),
     NewEvents = maybe_add_debug_event(AddDebug, Event, Options, EventsWithFeature, Capacity),
     {NewEvents, NewSummaryEvent};
-add_event(Tag, #{type := identify, user := User} = Event, _Options, Events, SummaryEvent, Capacity, _InlineUsers) ->
-    % Notice the user, but do not conditionally add the index event.
-    ldclient_user_cache:notice_user(Tag, User),
+add_event(Tag, #{type := identify, context := Context} = Event, _Options, Events, SummaryEvent, Capacity) ->
+    % Notice the context, but do not conditionally add the index event.
+    ldclient_context_cache:notice_context(Tag, Context),
     {add_raw_event(Event, Events, Capacity), SummaryEvent};
-add_event(Tag, #{type := custom, user := User, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity, InlineUsers) ->
-    AddIndex = not InlineUsers,
-    EventsWithIndex = maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, AddIndex),
-    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent};
-add_event(_, #{type := alias} = Event, _, Events, SummaryEvent, Capacity, _) ->
-    {add_raw_event(Event, Events, Capacity), SummaryEvent}.
+add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity) ->
+    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
+    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent}.
 
 -spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
@@ -200,6 +203,7 @@ add_raw_event(_, Events, _) ->
 add_feature_request_event(
     #{
         timestamp := Timestamp,
+        context := Context,
         data := #{
             key := Key,
             value := Value,
@@ -215,11 +219,15 @@ add_feature_request_event(
     #{
         start_date => Timestamp,
         end_date => Timestamp,
-        counters => #{SummaryEventKey => SummaryEventValue}
+        counters => #{SummaryEventKey => SummaryEventValue},
+        context_kinds => #{
+            Key => ldclient_context:get_kinds(Context)
+        }
     };
 add_feature_request_event(
     #{
         timestamp := Timestamp,
+        context := Context,
         data := #{
             key := Key,
             value := Value,
@@ -231,9 +239,11 @@ add_feature_request_event(
     #{
         start_date := CurrStartDate,
         end_date := CurrEndDate,
-        counters := SummaryEventCounters
+        counters := SummaryEventCounters,
+        context_kinds := SummaryContextKinds
     } = SummaryEvent
 ) ->
+    ContextKindsForKey = maps:get(Key, SummaryContextKinds, []),
     SummaryEventKey = create_summary_event_key(Key, Variation, Version),
     NewSummaryEvenValue = case maps:get(SummaryEventKey, SummaryEventCounters, undefined) of
         undefined ->
@@ -247,7 +257,10 @@ add_feature_request_event(
     SummaryEvent#{
         counters => NewSummaryEventCounters,
         start_date => NewStartDate,
-        end_date => NewEndDate
+        end_date => NewEndDate,
+        context_kinds => SummaryContextKinds#{
+            Key => sets:to_list(sets:from_list(ldclient_context:get_kinds(Context) ++ ContextKindsForKey))
+        }
     }.
 
 -spec should_add_full_event(ldclient_event:event()) -> boolean().
@@ -265,19 +278,18 @@ maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity)
 maybe_add_feature_request_full_fidelity(false, _Event, _Options, Events, _Capacity) ->
     Events.
 
--spec maybe_add_index_event(atom(), ldclient_user:user(), non_neg_integer(), [ldclient_event:event()], pos_integer(), boolean()) ->
+-spec maybe_add_index_event(atom(), ldclient_context:context(), non_neg_integer(), [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
-maybe_add_index_event(_, _, _, Events, _, false) -> Events;
-maybe_add_index_event(Tag, User, Timestamp, Events, Capacity, true) ->
-    case ldclient_user_cache:notice_user(Tag, User) of
+maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity) ->
+    case ldclient_context_cache:notice_context(Tag, Context) of
         true -> Events;
-        false -> add_index_event(User, Timestamp, Events, Capacity)
+        false -> add_index_event(Context, Timestamp, Events, Capacity)
     end.
 
--spec add_index_event(User :: ldclient_user:user(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer()) ->
+-spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer()) ->
     [ldclient_event:event()].
-add_index_event(User, Timestamp, Events, Capacity) ->
-    IndexEvent = ldclient_event:new_index(User, Timestamp),
+add_index_event(Context, Timestamp, Events, Capacity) ->
+    IndexEvent = ldclient_event:new_index(Context, Timestamp),
     add_raw_event(IndexEvent, Events, Capacity).
 
 -spec should_add_debug_event(ldclient_event:event(), Tag :: atom()) -> boolean().
