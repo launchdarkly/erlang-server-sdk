@@ -2,6 +2,37 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.0.0] - 2023-02-22
+The latest version of this SDK supports LaunchDarkly's new custom contexts feature. Contexts are an evolution of a previously-existing concept, "users." Contexts let you create targeting rules for feature flags based on a variety of different information, including attributes pertaining to users, organizations, devices, and more. You can even combine contexts to create "multi-contexts." 
+
+This feature is only available to members of LaunchDarkly's Early Access Program (EAP). If you're in the EAP, you can use contexts by updating your SDK to the latest version and, if applicable, updating your Relay Proxy. Outdated SDK versions do not support contexts, and will cause unpredictable flag evaluation behavior.
+
+If you are not in the EAP, only use single contexts of kind "user", or continue to use the user type if available. If you try to create contexts, the context will be sent to LaunchDarkly, but any data not related to the user object will be ignored.
+
+For detailed information about this version, please refer to the list below. For information on how to upgrade from the previous version, please read the [migration guide](https://docs.launchdarkly.com/sdk/server-side/erlang/migration-1-to-2).
+
+### Added:
+- Added a new module, `ldclient_context`, which defines the new "context" model.
+- All SDK methods that took an `ldclient_user:user()` now accept an `ldclient_context:context()` as well.
+- Added `ldclient_flagbuilder:if_match/4`, `ldclient_flagbuilder:if_not_match/4`, `ldclient_flagbuilder:and_match/4`, and `ldclient_flagbuilder:and_not_match/4` which allow creating rules targeting specific context kinds using `ldclient_testdata`.
+
+### Changed _(breaking changes from 1.x)_:
+- The secondary meta-attribute, which previously affected percentage rollouts, no longer exists. If you set an attribute with that name in `ldclient_context:context()`, it will simply be a custom attribute like any other.
+- Evaluations now treat the anonymous attribute as a simple boolean, with no distinction between a false state and an undefined state.
+- The `binary()` values in `private_attributes` in the configuration map now represent attribute references. If an attribute name had started with a `/`, then that will need to be escaped. For instance `/myAttribute` would now reference an attribute named `myAttribute` not an attribute named `/myAttribute`. The attribute reference would need to be updated to the escaped form `/~1myAttribute`.
+- `ldclient_flagbuilder:variation_for_all_users` has been replaced with `ldclient_flagbuilder:variation_for_all` and now applies to contexts.
+- `ldclient_flagbuilder:variation_for_user` has been replaced with `ldclient_flagbuilder:variation_for_context` and requires a context kind to be provided.
+- `user_keys_capacity` has been replaced with `context_keys_capacity` in the option configuration map.
+
+### Changed (behavioral changes):
+- The SDK can now evaluate segments that have rules referencing other segments.
+- Analytics event data now uses a new JSON schema due to differences between the context model and the old user model.
+
+### Removed:
+- Removed the `secondary` meta-attribute in `ldclient_user:user()`.
+- The `ldclient:alias` method no longer exists because alias events are not needed in the new context model.
+- The `inline_users_in_events` option no longer exists because it is not relevant in the new context model.
+
 ## [1.6.0] - 2023-01-30
 ### Added:
 - `application` option, for configuration of application metadata that may be used in LaunchDarkly analytics or other product features. This does not affect feature flag evaluations.

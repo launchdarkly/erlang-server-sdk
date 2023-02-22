@@ -105,7 +105,7 @@
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "1.6.0").
+-define(VERSION, "2.0.0").
 -define(EVENT_SCHEMA, "4").
 -define(DEFAULT_OFFLINE, false).
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
