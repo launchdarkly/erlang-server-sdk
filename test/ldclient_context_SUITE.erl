@@ -383,6 +383,7 @@ can_create_context_from_full_user_custom(_) ->
         CustomKey1 => CustomValue1,
         CustomKey2 => CustomValue2
     },
+    PrivateAttributes = [<<"a">>, <<"b">>, <<"/potato">>],
     User = #{
         key => Key,
         ip => Ip,
@@ -393,7 +394,8 @@ can_create_context_from_full_user_custom(_) ->
         avatar => Avatar,
         name => Name,
         anonymous => Anonymous,
-        custom => CustomMap
+        custom => CustomMap,
+        private_attribute_names => PrivateAttributes
     },
     Context = ldclient_context:new_from_user(User),
     true = ldclient_context:is_valid(Context, false),
@@ -411,7 +413,8 @@ can_create_context_from_full_user_custom(_) ->
             <<"avatar">> := Avatar,
             CustomKey1 := CustomValue1,
             CustomKey2 := CustomValue2
-        }
+        },
+        private_attributes := [<<"/a">>, <<"/b">>, <<"/~1potato">>]
     } = Context.
 
 can_allow_empty_key_for_user(_) ->

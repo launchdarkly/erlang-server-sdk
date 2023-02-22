@@ -119,7 +119,7 @@ maybe_add_user(undefined, Map) -> Map;
 maybe_add_user(User, Map) -> Map#{user => User}.
 
 -spec maybe_add_context(Command :: map(), Map :: map()) -> map().
-maybe_add_context(#{<<"context">> := Context} = _Command, Map) ->
+maybe_add_context(#{<<"context">> := Context} = _Command, Map) when is_map(Context) ->
     ParsedContext = ldclient_context:new_from_json(Context),
     Map#{context => ParsedContext};
 maybe_add_context(_Command, Map) -> Map.
@@ -158,7 +158,6 @@ identify_event_params()
 | evaluate_all_flags_params()) -> ldclient_user:user() | undefined.
 parse_user(Container) ->
     parse_user_with_key(Container, <<"user">>).
-
 
 %% Treats null as not included.
 -spec parse_optional(InKey :: binary(), OutKey :: atom(),

@@ -9,7 +9,8 @@
 %% API
 -export([
     new/1,
-    new_from_legacy/1
+    new_from_legacy/1,
+    escape_legacy/1
 ]).
 
 %% Opaque type, consumers are expected to interact with the type using the methods in this module.
@@ -65,6 +66,12 @@ new_from_legacy(<<"">> = _LegacyLiteral) -> #{valid => false};
 new_from_legacy(<<"/", _T/binary>> = LegacyLiteral) -> new(escape_legacy(LegacyLiteral));
 new_from_legacy(LegacyLiteral) -> new(LegacyLiteral).
 
+%% @doc Escape an attribute name to an attribute reference.
+%%
+%% @end
+-spec escape_legacy(Component :: binary()) -> EscapedComponent :: binary().
+escape_legacy(Component) -> escape_legacy(Component, <<"/">>).
+
 %%===================================================================
 %% Internal functions
 %%===================================================================
@@ -101,9 +108,6 @@ valid_components([error|_T]) -> false;
 valid_components([<<>>|_T]) -> false;
 valid_components([_H|T]) -> valid_components(T);
 valid_components([]) -> true.
-
--spec escape_legacy(Component :: binary()) -> EscapedComponent :: binary().
-escape_legacy(Component) -> escape_legacy(Component, <<"/">>).
 
 -spec escape_legacy(Component :: binary(), Acc :: binary()) -> Escaped :: binary().
 escape_legacy(<<"~", T/binary>> = _Component, Acc) -> escape_legacy(T, <<Acc/binary, "~0">>);

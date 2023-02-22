@@ -739,6 +739,7 @@ top_level_from_user(User, AccIn) ->
                 %% top level in a context.
                 anonymous -> ContextAcc#{anonymous => Value};
                 name -> ContextAcc#{name => Value};
+                private_attribute_names -> ContextAcc#{private_attributes => convert_private_attributes(Value)};
                 Key -> ContextAcc
             end
         end, AccIn, User).
@@ -781,3 +782,8 @@ new_part_from_json(#{<<"key">> := ContextKey} = JsonMap) ->
             _ -> set(Key, Value, Acc)
         end
               end, #{key => ContextKey}, JsonMap).
+
+-spec convert_private_attributes(Value :: [binary()]) -> [binary()].
+convert_private_attributes(Value) when is_list(Value) ->
+    lists:map(fun(Attr) -> ldclient_attribute_reference:escape_legacy(Attr) end, Value);
+convert_private_attributes(_Value) -> [].

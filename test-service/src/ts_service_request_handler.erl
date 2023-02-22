@@ -72,7 +72,8 @@ get_service_detail(Req, State) ->
       <<"server-side">>,
       <<"all-flags-with-reasons">>,
       <<"tags">>,
-      <<"server-side-polling">>
+      <<"server-side-polling">>,
+      <<"user-type">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),
