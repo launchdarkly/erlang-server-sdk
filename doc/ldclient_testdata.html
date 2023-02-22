@@ -24,7 +24,7 @@ It provides only the data that the application has put into it using
 the update/2 function.</p>
  
   <pre>     {ok, Flag} = ldclient_testdata:flag("flag-key-1"),
-     ldclient_testdata:update(ldclient_flagbuilder:variation_for_all_users(true, Flag)),
+     ldclient_testdata:update(ldclient_flagbuilder:variation_for_all(true, Flag)),
  
      Options = #{
          datasource =&gt; testdata,
@@ -36,7 +36,7 @@ the update/2 function.</p>
      %% flags can be updated at any time:
      {ok, Flag2} = ldclient_testdata:flag("flag-key-2"),
      UpdatedFlag2 = ldclient_flagbuilder:fallthrough_variation(false,
-                    ldclient_flagbuilder:variation_for_user(&lt;&lt;"some-user-key"&gt;&gt;, true, Flag2)),</pre>
+                    ldclient_flagbuilder:variation_for_context(&lt;&lt;"user"&gt;&gt;, &lt;&lt;"some-user-key"&gt;&gt;, true, Flag2)),</pre>
  
   <p>The above example uses a simple boolean flag, but more complex configurations
   are possible using the functions in <a docgen-rel="seeerl" docgen-href="ldclient_flagbuilder" href="ldclient_flagbuilder.html"><code>ldclient_flagbuilder</code></a>.</p>
@@ -70,7 +70,7 @@ for building a test flag configuration.</td></tr>
 
 <h3 class="function"><a name="flag-1">flag/1</a></h3>
 <div class="spec">
-<p><tt>flag(FlagKey::string()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
+<p><tt>flag(FlagKey::binary() | string()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
 <p><tt>FlagKey</tt>: the flag key<br>
 </p>
 <p>returns: a flag configuration builder</p>
@@ -81,7 +81,7 @@ for building a test flag configuration.</p>
 then the builder starts with the same configuration that was last provided for this flag.</p>
  
   <p>Otherwise, it starts with a new default configuration in which the flag has <code>true</code>
-  and <code>false</code> variations, is <code>true</code> for all users when targeting is turned on and
+  and <code>false</code> variations, is <code>true</code> for all contexts when targeting is turned on and
   <code>false</code> otherwise, and currently has targeting turned on.</p>
  
   <p>You can change any of those properties, and provide more complex behavior,
@@ -93,7 +93,7 @@ then the builder starts with the same configuration that was last provided for t
 
 <h3 class="function"><a name="flag-2">flag/2</a></h3>
 <div class="spec">
-<p><tt>flag(Tag::atom() | pid(), FlagKey::string()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
+<p><tt>flag(Tag::atom() | pid(), FlagKey::binary()) -&gt; {ok, <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_flagbuilder.html#type-flag_builder">ldclient_flagbuilder:flag_builder()</a>}</tt><br></p>
 <p><tt>Tag</tt>: the tag or pid of the <code>ldclient_testdata</code> instance<br>
 <tt>FlagKey</tt>: the flag key<br>
 </p>
@@ -105,7 +105,7 @@ for building a test flag configuration.</p>
 then the builder starts with the same configuration that was last provided for this flag.</p>
  
   <p>Otherwise, it starts with a new default configuration in which the flag has <code>true</code>
-  and <code>false</code> variations, is <code>true</code> for all users when targeting is turned on and
+  and <code>false</code> variations, is <code>true</code> for all contexts when targeting is turned on and
   <code>false</code> otherwise, and currently has targeting turned on.</p>
  
   <p>You can change any of those properties, and provide more complex behavior,
