@@ -264,10 +264,9 @@ flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue) ->
     end.
 
 -spec flag_for_invalid_context(ldclient_flag:flag(), ldclient_context:context(), result_value()) -> result().
-flag_for_invalid_context(Flag, Context, DefaultValue) ->
+flag_for_invalid_context(_Flag, _Context, DefaultValue) ->
     Reason = {error, user_not_specified},
-    Events = [ldclient_event:new_flag_eval(null, DefaultValue, DefaultValue, Context, Reason, Flag)],
-    {{null, DefaultValue, Reason}, Events}.
+    {{null, DefaultValue, Reason}, []}.
 
 -spec flag_for_context(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
 flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue) ->
