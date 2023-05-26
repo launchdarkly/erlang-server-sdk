@@ -228,7 +228,8 @@ process_items(put, Data, ldclient_storage_redis, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
     ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
-    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments),
+    ok = ldclient_storage_redis:set_init(Tag);
 process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),

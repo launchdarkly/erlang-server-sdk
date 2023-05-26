@@ -22,6 +22,8 @@
 -export([upsert_clean/3]).
 -export([delete/3]).
 -export([terminate/1]).
+-export([set_init/1]).
+-export([get_init/1]).
 
 %%===================================================================
 %% Behavior callbacks
@@ -80,6 +82,16 @@ upsert(Tag, Bucket, Items) ->
 upsert_clean(Tag, Bucket, Items) ->
     ServerRef = get_local_reg_name(worker, Tag),
     ldclient_storage_cache:upsert_clean(Tag, Bucket, Items, ServerRef, ldclient_storage_redis_server).
+
+set_init(Tag) ->
+    ServerRef = get_local_reg_name(worker, Tag),
+    ldclient_storage_redis_server:set_init(ServerRef).
+
+get_init(Tag) ->
+    ServerRef = get_local_reg_name(worker, Tag),
+    Initialized = ldclient_storage_redis_server:get_init(ServerRef),
+    ldclient_update_processor_state:set_storage_initialized_state(Tag, Initialized),
+    Initialized.
 
 -spec delete(Tag :: atom(), Bucket :: atom(), Key :: binary()) ->
     ok |

@@ -23,13 +23,15 @@
 -export([upsert/3]).
 -export([upsert_clean/3]).
 -export([delete/3]).
+-export([set_init/1]).
+-export([get_init/1]).
 
 %% Types
 -type state() :: #{
-    client => eredis:client(),
-    prefix => string(),
-    buckets => list(),
-    tag => atom()
+client => eredis:client(),
+prefix => string(),
+buckets => list(),
+tag => atom()
 }.
 
 %%===================================================================
@@ -47,7 +49,6 @@ init([Tag]) ->
     Password = ldclient_config:get_value(Tag, redis_password),
     Prefix = ldclient_config:get_value(Tag, redis_prefix),
     {ok, Client} = eredis:start_link(Host, Port, Database, Password),
-    true = ldclient_update_processor_state:set_storage_initialized_state(Tag, true),
     State = #{
         client => Client,
         prefix => Prefix,
@@ -114,6 +115,12 @@ upsert(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
 upsert_clean(ServerRef, Bucket, Items) when is_atom(Bucket), is_map(Items) ->
     ok = gen_server:call(ServerRef, {upsert_clean, Bucket, Items}).
 
+set_init(ServerRef) ->
+    ok = gen_server:call(ServerRef, {set_init}).
+
+get_init(ServerRef) ->
+    gen_server:call(ServerRef, {get_init}).
+
 %% @doc Delete an item from the bucket by its key
 %%
 %% @end
@@ -144,13 +151,17 @@ handle_call({upsert, Bucket, Item}, _From, #{client := Client, prefix := Prefix,
 handle_call({upsert_clean, Bucket, Item}, _From, #{client := Client, prefix := Prefix, buckets := Buckets} = State) ->
     {reply, upsert_clean_items(bucket_exists(Bucket, Buckets), Item, Bucket, Client, Prefix), State};
 handle_call({delete, Bucket, Key}, _From, #{client := Client, prefix := Prefix, buckets := Buckets} = State) ->
-    {reply, delete_key(bucket_exists(Bucket, Buckets), Key, Bucket, Client, Prefix), State}.
+    {reply, delete_key(bucket_exists(Bucket, Buckets), Key, Bucket, Client, Prefix), State};
+handle_call({set_init}, _From, #{client := Client, prefix := Prefix} = State) ->
+    {reply, set_init(Client, Prefix), State};
+handle_call({get_init}, _From, #{client := Client, prefix := Prefix} = State) ->
+    {reply, get_init(Client, Prefix), State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Msg, State) -> {noreply, State}.
 
-terminate(_Reason, #{client := Client, tag := Tag} = _State) -> 
+terminate(_Reason, #{client := Client, tag := Tag} = _State) ->
     eredis:stop(Client),
     true = ldclient_update_processor_state:set_storage_initialized_state(Tag, false),
     ok.
@@ -165,7 +176,7 @@ code_change(_OldVersion, State, _Extra) -> {ok, State}.
 %% @private
 %%
 %% @end
--spec bucket_exists(Bucket :: atom(), Buckets :: list() ) -> boolean().
+-spec bucket_exists(Bucket :: atom(), Buckets :: list()) -> boolean().
 bucket_exists(Bucket, Buckets) when is_atom(Bucket) ->
     lists:member(Bucket, Buckets).
 
@@ -180,7 +191,7 @@ create_bucket(true, Bucket, _Client, _Prefix, Buckets) ->
     {{error, already_exists, "Redis hash " ++ atom_to_list(Bucket) ++ " already exists."}, Buckets};
 create_bucket(false, Bucket, Client, Prefix, Buckets) ->
     {ok, _} = eredis:q(Client, ["HSET", bucket_name(Prefix, Bucket), null, null]),
-    {ok, [Bucket|Buckets]}.
+    {ok, [Bucket | Buckets]}.
 
 %% @doc Empty a bucket
 %% @private
@@ -210,18 +221,19 @@ all_items(false, Bucket, _Client, _Prefix) ->
 all_items(true, Bucket, Client, Prefix) ->
     {ok, Values} = eredis:q(Client, ["HGETALL", bucket_name(Prefix, Bucket)]),
     NullFilter = [<<"null">>],
-    NewValues = lists:filter(fun (Elem) -> not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
+    NewValues = lists:filter(fun(Elem) ->
+        not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
     pairs(NewValues, Bucket).
 
-pairs([A,B|L], Bucket) ->
+pairs([A, B | L], Bucket) ->
     Decoded = jsx:decode(B, [return_maps]),
-    if 
+    if
         Bucket == features ->
             Parsed = ldclient_flag:new(Decoded),
-            [{A, Parsed}|pairs(L, Bucket)];
+            [{A, Parsed} | pairs(L, Bucket)];
         Bucket == segments ->
             Parsed = ldclient_segment:new(Decoded),
-            [{A, Parsed}|pairs(L, Bucket)]
+            [{A, Parsed} | pairs(L, Bucket)]
     end;
 pairs([], _Bucket) -> [].
 
@@ -241,7 +253,7 @@ lookup_key(true, Key, Bucket, Client, Prefix) ->
         (Value == undefined) -> [];
         true ->
             Decoded = jsx:decode(Value, [return_maps]),
-            if 
+            if
                 Bucket == features ->
                     Parsed = ldclient_flag:new(Decoded),
                     [{Key, Parsed}];
@@ -263,10 +275,10 @@ upsert_items(false, _Items, Bucket, _Client, _Prefix) ->
 upsert_items(true, Items, Bucket, Client, Prefix) ->
     {ok, <<"OK">>} = eredis:q(Client, ["WATCH", bucket_name(Prefix, Bucket)]),
     ok = maps:fold(
-            fun(K, V, ok) ->
-                {ok, _} = eredis:q(Client, ["HSET", bucket_name(Prefix, Bucket), K, jsx:encode(V)]),
-                ok
-            end, ok, Items),
+        fun(K, V, ok) ->
+            {ok, _} = eredis:q(Client, ["HSET", bucket_name(Prefix, Bucket), K, jsx:encode(V)]),
+            ok
+        end, ok, Items),
     {ok, <<"OK">>} = eredis:q(Client, ["UNWATCH"]),
     ok.
 
@@ -300,3 +312,18 @@ delete_key(true, Key, Bucket, Client, Prefix) ->
 
 bucket_name(Prefix, Bucket) ->
     lists:concat([Prefix, ":", Bucket]).
+
+-spec set_init(Client :: eredis:client(), Prefix :: string()) -> ok.
+set_init(Client, Prefix) ->
+    {ok, _} = eredis:q(Client, ["SET", lists:concat([Prefix, ":$inited"]), ""]),
+    ok.
+
+-spec get_init(Client :: eredis:client(), Prefix :: string()) -> boolean().
+get_init(Client, Prefix) ->
+    {ok, Value} = eredis:q(Client, ["GET", lists:concat([Prefix, ":$inited"])]),
+    error_logger:error_msg("Inited value ~p", [Value]),
+    case Value of
+        undefined -> false;
+        _ -> true
+    end.
+
