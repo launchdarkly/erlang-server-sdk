@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.0.3] - 2023-05-30
+### Fixed:
+- Add missing `boolean()` type to the `ldclient_context:attribute_value()` definition.
+
 ## [2.0.2] - 2023-05-26
 ### Fixed:
 - Fixed an issue that would prevent using values from redis for `variation` or `all_flags_state` calls before client initialization was complete. After this change if the erlang SDK is using an initialized redis prefix, then it will be able to evaluate against that store before initialization is complete. Note that the SDK did not previously store the `$inited` key used when detecting that a store is initialized, so the store will need updated by this SDK version (or newer) at least once before it would be considered initialized.
