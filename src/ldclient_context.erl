@@ -41,7 +41,7 @@
 %% No casing conversions will be applied `<<"my_attribute">>' will only match `<<"my_attribute">>', it would not match
 %% `<<"myAttribute">>'.
 
--type attribute_value() :: binary() | integer() | float() | attribute_map() | [attribute_value()].
+-type attribute_value() :: binary() | integer() | float() | boolean() | attribute_map() | [attribute_value()].
 %% Attribute values should all be data types which are compatible with JSON and nested JSON collections.
 %% The leaf nodes of these values are what are ultimately used when evaluating flags which are dependent on attributes.
 
