@@ -193,6 +193,12 @@ check_operators(_) ->
         [<<"greaterThanOrEqual">>, 99, 99.0001, no_match],
         [<<"greaterThanOrEqual">>, 99, 99, match],
 
+        %% boolean
+        [<<"in">>, true, true, match],
+        [<<"in">>, false, false, match],
+        [<<"in">>, true, false, no_match],
+        [<<"in">>, false, true, no_match],
+
         %% string comparisons
         [<<"in">>, <<"x">>, <<"x">>, match],
         [<<"in">>, <<"x">>, <<"xyz">>, no_match],
