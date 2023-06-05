@@ -321,7 +321,6 @@ set_init(Client, Prefix) ->
 -spec get_init(Client :: eredis:client(), Prefix :: string()) -> boolean().
 get_init(Client, Prefix) ->
     {ok, Value} = eredis:q(Client, ["GET", lists:concat([Prefix, ":$inited"])]),
-    error_logger:error_msg("Inited value ~p", [Value]),
     case Value of
         undefined -> false;
         _ -> true
