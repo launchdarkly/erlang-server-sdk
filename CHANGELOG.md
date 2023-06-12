@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.0.5] - 2023-06-12
+### Changed:
+- Upgraded `yamerl` to version `0.10.0`.
+
 ## [2.0.4] - 2023-06-05
 ### Fixed:
 - Remove error log message associated with debugging redis initialization state.
