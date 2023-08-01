@@ -70,6 +70,7 @@
     redis_database => integer(),
     redis_password => string(),
     redis_prefix => string(),
+    redis_tls => [ssl:tls_option()] | undefined,
     cache_ttl => integer(), % Any negative integer is parsed as an infinite TTL, zero is parsed as testing mode
     use_ldd => boolean(),
     send_events => boolean(),
@@ -113,6 +114,7 @@
 -define(DEFAULT_REDIS_DATABASE, 0).
 -define(DEFAULT_REDIS_PASSWORD, "").
 -define(DEFAULT_REDIS_PREFIX, "launchdarkly").
+-define(DEFAULT_REDIS_TLS, undefined).
 -define(DEFAULT_CACHE_TTL, 15).
 -define(DEFAULT_USE_LDD, false).
 -define(DEFAULT_SEND_EVENTS, true).
@@ -129,6 +131,7 @@
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
+
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
 
@@ -185,6 +188,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     StreamInitialRetryDelayMs = maps:get(stream_initial_retry_delay_ms, Options, ?DEFAULT_STREAM_RETRY_DELAY),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     AppInfo = parse_application_info(maps:get(application, Options, ?APPLICATION_DEFAULT_OPTIONS)),
+    RedisTls = maps:get(redis_tls, Options, ?DEFAULT_REDIS_TLS),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -205,6 +209,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         redis_database => RedisDatabase,
         redis_password => RedisPassword,
         redis_prefix => RedisPrefix,
+        redis_tls => RedisTls,
         cache_ttl => CacheTtl,
         use_ldd => UseLdd,
         send_events => SendEvents,
