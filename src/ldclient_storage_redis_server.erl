@@ -42,13 +42,23 @@ start_link(WorkerRegName, Tag) ->
     error_logger:info_msg("Starting redis server with name ~p", [WorkerRegName]),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
+-spec set_tls_options(Options :: list(), TlsOptions :: list()) -> OutOptions :: list().
+set_tls_options(Options, []) -> Options;
+set_tls_options(Options, undefined) -> Options;
+set_tls_options(Options, TlsOptions) -> lists:append(Options, [{tls, TlsOptions}]).
+
 init([Tag]) ->
     Host = ldclient_config:get_value(Tag, redis_host),
     Port = ldclient_config:get_value(Tag, redis_port),
     Database = ldclient_config:get_value(Tag, redis_database),
     Password = ldclient_config:get_value(Tag, redis_password),
     Prefix = ldclient_config:get_value(Tag, redis_prefix),
-    {ok, Client} = eredis:start_link(Host, Port, Database, Password),
+    TlsOpts = ldclient_config:get_value(Tag, redis_tls),
+    BasicOpts = [
+        {host, Host}, {port, Port}, {database, Database}, {password, Password}
+    ],
+    EredisOpts = set_tls_options(BasicOpts, TlsOpts),
+    {ok, Client} = eredis:start_link(EredisOpts),
     State = #{
         client => Client,
         prefix => Prefix,
