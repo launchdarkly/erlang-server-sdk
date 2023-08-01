@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.1.0] - 2023-08-01
+### Added:
+- A new configuration option, `redis_tls`, for configuring TLS settings for redis. When this option is omitted Redis will not use TLS. When specified it should contain a list of `ssl:tls_option()`. These options will be forwarded to `eredis`.
+
 ## [2.0.5] - 2023-06-12
 ### Changed:
 - Upgraded `yamerl` to version `0.10.0`.
