@@ -24,7 +24,7 @@
 -export([get_version/0]).
 
 -type http_options() :: #{
-    tls_options => [ssl:tls_option()] | undefined,
+    tls_options => [ssl:tls_client_option()] | undefined,
     connect_timeout => pos_integer() | undefined,
     custom_headers => [{Key :: string(), Value:: string()}] | undefined
 }.
@@ -70,7 +70,7 @@
     redis_database => integer(),
     redis_password => string(),
     redis_prefix => string(),
-    redis_tls => [ssl:tls_client_option()] | undefined,
+    redis_tls => [ssl:tls_option()] | undefined,
     cache_ttl => integer(), % Any negative integer is parsed as an infinite TTL, zero is parsed as testing mode
     use_ldd => boolean(),
     send_events => boolean(),
