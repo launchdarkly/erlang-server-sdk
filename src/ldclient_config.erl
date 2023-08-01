@@ -24,7 +24,7 @@
 -export([get_version/0]).
 
 -type http_options() :: #{
-    tls_options => [ssl:tls_client_option()] | undefined,
+    tls_options => [ssl:tls_option()] | undefined,
     connect_timeout => pos_integer() | undefined,
     custom_headers => [{Key :: string(), Value:: string()}] | undefined
 }.
