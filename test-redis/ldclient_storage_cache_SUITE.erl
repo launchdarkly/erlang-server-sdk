@@ -42,14 +42,16 @@ init_per_suite(Config) ->
         feature_store => ldclient_storage_redis,
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
-        redis_prefix => "default"
+        redis_prefix => "default",
+        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
     },
     ldclient:start_instance("", Options),
     AnotherOptions = #{
         feature_store => ldclient_storage_redis,
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
-        redis_prefix => "another1"
+        redis_prefix => "another1",
+        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
     },
     ldclient:start_instance("", another1, AnotherOptions),
     TimeoutOptions = #{
@@ -57,7 +59,8 @@ init_per_suite(Config) ->
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
         redis_prefix => "timeout",
-        cache_ttl => 3
+        cache_ttl => 3,
+        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
     },
     ldclient:start_instance("", timeout, TimeoutOptions),
     Config.

@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@v3
       - run: make compile
       - run: make ci-tests
+        env:
+          REDIS_HOST: redis
       - run: make doc
       - run: make dialyze
       - run: make build-contract-tests

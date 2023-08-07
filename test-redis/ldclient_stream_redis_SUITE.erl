@@ -40,7 +40,8 @@ init_per_suite(Config) ->
     Options = #{
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
-        feature_store => ldclient_storage_redis
+        feature_store => ldclient_storage_redis,
+        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
     },
     ldclient:start_instance("", Options),
     Config.
