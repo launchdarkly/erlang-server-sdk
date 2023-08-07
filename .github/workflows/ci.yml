@@ -1,0 +1,36 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md' #Do not need to run CI for markdown changes.
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build-test:
+    strategy:
+      matrix:
+        image: ['erlang:21', 'erlang:22', 'erlang:23', 'erlang:24', 'erlang:25']
+    runs-on: 'ubuntu-latest'
+    container: ${{ matrix.image }} 
+    name: Build and Test - ${{ matrix.image }}
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: make compile
+      - run: make ci-tests
+      - run: make doc
+      - run: make dialyze
+      - run: make build-contract-tests
+      - run: make start-contract-test-service-bg
+      - run: make run-contract-tests

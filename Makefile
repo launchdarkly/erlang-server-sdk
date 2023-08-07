@@ -31,7 +31,7 @@ release-tests:
 	@$(REBAR3) ct --dir="test" --logdir logs/ct
 
 #This is used on CircleCI because the Redis Docker container is already started unlike the local tests command
-circle-tests:
+ci-tests:
 	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
 
 tls-tests:
