@@ -1,0 +1,12 @@
+name: Publish Documentation
+description: 'Publish the documentation to hex.pm and github pages.'
+
+runs:
+  using: composite
+  steps:
+    - uses: launchdarkly/gh-actions/actions/publish-pages
+      name: 'Publish to Github pages'
+      with:
+        docs_path: doc
+    - run: rebar3 hex docs
+      shell: bash
