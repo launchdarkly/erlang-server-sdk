@@ -12,7 +12,7 @@ on:
         required: true
 
 jobs:
-  build-publish:
+  manual-build-publish:
     runs-on: ubuntu-22.04
     # Needed to get tokens during publishing.
     permissions:
@@ -29,7 +29,7 @@ jobs:
         name: Build and Test
         uses: ./.github/actions/ci
 
-      - uses: launchdarkly/gh-actions/actions/release-secrets
+      - uses: launchdarkly/gh-actions/actions/release-secrets@a9dd74b5d3cbcded285f8e98d7c2719dd39cd250
         name: 'Get the hex publishing token'
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
