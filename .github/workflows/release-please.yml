@@ -21,10 +21,13 @@ jobs:
           command: manifest
           token: ${{secrets.GITHUB_TOKEN}}
           default-branch: rlamb/github-actions-ci
+
       - uses: erlef/setup-beam@v1
+        if: ${{ steps.release.outputs.releases_created }}
         with:
           version-type: loose
           otp-version: 25.x
+          
       - uses: actions/checkout@v3
         if: ${{ steps.release.outputs.releases_created }}
         with:
@@ -32,6 +35,7 @@ jobs:
 
       - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.0
         name: 'Get the hex publishing token'
+        if: ${{ steps.release.outputs.releases_created }}
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
           ssm_parameter_pairs: '/production/common/releasing/hex/api_key = HEX_AUTH_TOKEN'
