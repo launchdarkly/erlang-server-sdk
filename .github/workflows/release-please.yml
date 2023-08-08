@@ -19,7 +19,7 @@ jobs:
         with:
           command: manifest
           token: ${{secrets.GITHUB_TOKEN}}
-          default-branch: main
+          default-branch: rlamb/github-actions-ci
       - uses: erlef/setup-beam@v1
         with:
           version-type: loose
