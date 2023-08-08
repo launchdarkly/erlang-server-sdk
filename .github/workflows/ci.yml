@@ -14,8 +14,8 @@ jobs:
   build-test:
     strategy:
       matrix:
-        otp: ['21.x', '22.x', '23.x', '24', '25.x']
-    runs-on: 'ubuntu-latest'
+        otp: ['24.x', '25.x']
+    runs-on: 'ubuntu-22.04'
     name: Build and Test - ${{ matrix.otp }}
 
     steps:
