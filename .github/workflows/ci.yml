@@ -14,11 +14,14 @@ jobs:
   build-test:
     strategy:
       matrix:
-        image: ['erlang:21', 'erlang:22', 'erlang:23', 'erlang:24', 'erlang:25']
+        otp: ['21', '22', '23', '24', '25']
     runs-on: 'ubuntu-latest'
-    container: ${{ matrix.image }} 
-    name: Build and Test - ${{ matrix.image }}
+    name: Build and Test - ${{ matrix.otp }}
+
     steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 #If you only need the current version keep this.

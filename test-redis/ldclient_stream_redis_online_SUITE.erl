@@ -55,8 +55,7 @@ sdk_options(Prefix) ->
         stream_uri => "http://localhost:8888",
         events_uri => "http://localhost:8888",
         feature_store => ldclient_storage_redis,
-        redis_prefix => Prefix,
-        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
+        redis_prefix => Prefix
     }.
 
 %%====================================================================

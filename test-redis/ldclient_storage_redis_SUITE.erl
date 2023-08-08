@@ -42,8 +42,7 @@ init_per_suite(Config) ->
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
         redis_prefix => "default",
-        cache_ttl => 0, % this sets the caching layer to testing mode
-        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
+        cache_ttl => 0 % this sets the caching layer to testing mode
     },
     ldclient:start_instance("", Options),
     AnotherOptions = #{
@@ -51,8 +50,7 @@ init_per_suite(Config) ->
         stream => false,
         polling_update_requestor => ldclient_update_requestor_test,
         redis_prefix => "another1",
-        cache_ttl => 0, % this sets the caching layer to testing mode
-        redis_host => os:getenv("REDIS_HOST", "127.0.0.1")
+        cache_ttl => 0 % this sets the caching layer to testing mode
     },
     ldclient:start_instance("", another1, AnotherOptions),
     Config.
