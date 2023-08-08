@@ -3,7 +3,7 @@ name: Run Release Release
 on:
   push:
     branches:
-      - main
+      # - main
       - rlamb/github-actions-ci
 
 jobs:
