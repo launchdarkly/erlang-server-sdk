@@ -21,17 +21,16 @@ jobs:
           otp-version: 25.x
           rebar3-version: 3.18.0
       - uses: actions/checkout@v3
-      - id: build-and-test
-        # Build using the same steps from CI.
-        name: Build and Test
-        uses: ./.github/actions/ci
+      # - id: build-and-test
+      #   # Build using the same steps from CI.
+      #   name: Build and Test
+      #   uses: ./.github/actions/ci
 
       - uses: ./.github/actions/configure-rebar
-        if: ${{ inputs.dry_run == 'false' }}
+        if: ${{ !inputs.dry_run }}
 
       - id: publish
         name: Publish Package
         uses: ./.github/actions/publish
         with:
-          token: ${{ env.HEX_AUTH_TOKEN }}
           dry_run: ${{ inputs.dry_run }}
