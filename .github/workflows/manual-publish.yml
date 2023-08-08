@@ -13,7 +13,7 @@ on:
 
 jobs:
   build-publish:
-    runs-on: 	ubuntu-22.04
+    runs-on: ubuntu-22.04
     # Needed to get tokens during publishing.
     permissions:
       id-token: write
@@ -29,19 +29,16 @@ jobs:
         name: Build and Test
         uses: ./.github/actions/ci
 
-      # - uses: launchdarkly/gh-actions/actions/release-secrets
-      #   name: 'Get your token!'
-      #   with:
-      #     # The AWS_ROLE_ARN needs added as a var to your repo.
-      #     aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-      #     # This example uses the node release token, it will get set into the NODE_AUTH_TOKEN
-      #     # environment variable. The action readme contains more information.
-      #     ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+      - uses: launchdarkly/gh-actions/actions/release-secrets
+        name: 'Get the hex publishing token'
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+          ssm_parameter_pairs: '/production/common/releasing/hex/api_key = HEX_AUTH_TOKEN'
 
       - id: publish
         name: Publish Package
         uses: ./.github/actions/publish
         with:
-          token: "Put your release secret or github token here."
+          token: ${{ env.HEX_AUTH_TOKEN }}
           prerelease: ${{ inputs.prerelease }}
           dry_run: ${{ inputs.dry_run }}
