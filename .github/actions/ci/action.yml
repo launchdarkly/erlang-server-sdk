@@ -14,10 +14,9 @@ runs:
   steps:
     - run: make compile
       shell: bash
+    - uses: supercharge/redis-github-action@1.6.0
     - run: make ci-tests
       shell: bash
-      env:
-        REDIS_HOST: redis
     - uses: ./.github/actions/build-docs
     - run: make dialyze
       shell: bash
