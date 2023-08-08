@@ -14,5 +14,10 @@ runs:
       name: 'Publish to Github pages'
       with:
         docs_path: doc
+    - name: Configure rebar3
+      shell: bash
+      run: ./.github/scripts/configure_rebar3.sh
+      env:
+        HEX_AUTH_TOKEN: ${{ inputs.token }}
     - run: echo PUBLISHING DOCS #rebar3 hex docs
       shell: bash

@@ -23,7 +23,7 @@ runs:
 
     - name: Authorization check
       shell: bash
-      run: rebar3 hex whoami
+      run: rebar3 hex user whoami
       if: ${{ inputs.dry_run == 'false' }}
 
     - name: Publish Library
