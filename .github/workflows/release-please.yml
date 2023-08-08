@@ -35,6 +35,8 @@ jobs:
           fetch-depth: 0 #If you only need the current version keep this.
 
       - uses: ./.github/actions/configure-rebar
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
         if: ${{ steps.release.outputs.releases_created }}
 
       - uses: ./.github/actions/ci

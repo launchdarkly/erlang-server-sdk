@@ -27,6 +27,8 @@ jobs:
       #   uses: ./.github/actions/ci
 
       - uses: ./.github/actions/configure-rebar
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
         if: ${{ !inputs.dry_run }}
 
       - id: publish

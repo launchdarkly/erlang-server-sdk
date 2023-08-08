@@ -17,6 +17,8 @@ jobs:
         uses: ./.github/actions/build-docs
 
       - uses: ./.github/actions/configure-rebar
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
 
       - id: publish
         name: Publish Documentation
