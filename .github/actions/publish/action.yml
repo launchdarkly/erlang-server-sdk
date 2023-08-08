@@ -24,7 +24,7 @@ runs:
       shell: bash
       run: rebar3 hex whoami
       if: ${{ !inputs.dry_run }}
-    - name: Publish Library
+    - name: Publish Library dry_run=${{ inputs.dry_run }} prerelease=${{ inputs.prerelease }}
       shell: bash
       run: echo PUBLISHING! #rebar3 hex publish
       # Do not publish a dry run.
