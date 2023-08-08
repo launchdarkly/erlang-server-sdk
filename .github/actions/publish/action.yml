@@ -16,7 +16,7 @@ runs:
   steps:
     - name: Configure rebar3
       shell: bash
-      run: ./github/scripts/configure_rebar3.sh
+      run: ./.github/scripts/configure_rebar3.sh
       env:
         HEX_AUTH_TOKEN: ${{ inputs.token }}
       if: ${{ inputs.dry_run == 'false' }}
@@ -31,3 +31,4 @@ runs:
       run: echo PUBLISHING! #rebar3 hex publish
       # Do not publish a dry run.
       if: ${{ inputs.dry_run == 'false' }}
+
