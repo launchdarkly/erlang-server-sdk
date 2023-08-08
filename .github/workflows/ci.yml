@@ -33,12 +33,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run: make compile
-      - run: make ci-tests
-        env:
-          REDIS_HOST: redis
-      - run: make doc
-      - run: make dialyze
-      - run: make build-contract-tests
-      - run: make start-contract-test-service-bg
-      - run: make run-contract-tests
+        with:
+          fetch-depth: 0 #If you only need the current version keep this.
+
+      - uses: ./.github/actions/ci

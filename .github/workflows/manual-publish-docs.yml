@@ -1,0 +1,21 @@
+on:
+  workflow_dispatch:
+
+name: Publish Documentation
+jobs:
+  build-publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ 25 }}
+      - uses: actions/checkout@v3
+      - id: build
+        # Build using the same steps from CI.
+        # You could reduce the steps if you do not want a full build.
+        name: Build and Test
+        uses: ./.github/actions/ci
+
+      - id: publish
+        name: Publish Documentation
+        uses: ./.github/actions/publish-docs

@@ -1,0 +1,62 @@
+name: Run Release Release
+
+on:
+  push:
+    branches:
+      - main
+      - rlamb/github-actions-ci
+
+jobs:
+  release-package:
+    runs-on: ubuntu-latest
+    permissions: # These are needed if using OIDC to get release secrets.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: google-github-actions/release-please-action@v3
+        id: release
+        with:
+          command: manifest
+          token: ${{secrets.GITHUB_TOKEN}}
+          default-branch: main
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ 25 }}
+      - uses: actions/checkout@v3
+        if: ${{ steps.release.outputs.releases_created }}
+        with:
+          fetch-depth: 0 #If you only need the current version keep this.
+
+      # - uses: launchdarkly/gh-actions/actions/release-secrets
+      #   name: 'Get your token!'
+      #   with:
+      #     # The AWS_ROLE_ARN needs added as a var to your repo.
+      #     aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+      #     # This example uses the node release token, it will get set into the NODE_AUTH_TOKEN
+      #     # environment variable. The action readme contains more information.
+      #     ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+
+      - uses: ./.github/actions/ci
+        if: ${{ steps.release.outputs.releases_created }}
+
+      - uses: ./.github/actions/build-docs
+        if: ${{ steps.release.outputs.releases_created }}
+
+      - uses: ./.github/actions/publish
+        if: ${{ steps.release.outputs.releases_created }}
+        with:
+          # If publishing somewhere else, then get the token from SSM. If you need both github,
+          # and another token, then add more tokens to the composite action. Could be $NODE_AUTH_TOKEN
+          # from the release-secrets action earlier in this workflow.
+          token: ${{secrets.GITHUB_TOKEN}}
+
+      - uses: ./.github/actions/publish-docs
+        if: ${{ steps.release.outputs.releases_created }}
+        with:
+          # If publishing somewhere else, then get the token from SSM. If you need both github,
+          # and another token, then add more tokens to the composite action.
+          token: ${{secrets.GITHUB_TOKEN}}
+
+      - uses: ./.github/actions/publish
+        if: ${{ steps.release.outputs.releases_created }}

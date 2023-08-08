@@ -1,0 +1,18 @@
+#publish to github pages or to a different documentation system.
+
+name: Publish Documentation
+description: 'Publish the documentation to hex.pm and github pages.'
+inputs:
+  token:
+    description: 'Hex.pm token.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: launchdarkly/gh-actions/actions/publish-pages
+      name: 'Publish to Github pages'
+      with:
+        docs_path: doc
+    - run: echo PUBLISHING DOCS #rebar3 hex docs
+      shell: bash

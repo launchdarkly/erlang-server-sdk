@@ -1,0 +1,12 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "versioning": "default",
+      "extra-files": [
+        "src/ldclient_config.erl",
+        "src/ldclient.app.src"
+      ]
+    }
+  }
+}

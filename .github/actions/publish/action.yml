@@ -1,0 +1,21 @@
+name: Publish Package
+description: 'Publish the package to Hex.pm'
+inputs:
+  token:
+    description: 'Hex.pm token.'
+    required: true
+  prerelease:
+    description: 'Is this a prerelease. If so, then the latest tag will not be updated in npm.'
+    required: true
+  dry_run:
+    description: 'Is this a dry run. If so no package will be published.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish Library
+      shell: bash
+      run: echo PUBLISHING! #rebar3 hex publish
+      # Do not publish a dry run.
+      if: ${{ !inputs.dry_run }}

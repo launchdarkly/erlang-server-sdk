@@ -1,0 +1,46 @@
+name: Publish Package
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Is this a prerelease.' # use this to control publish tag, for instance NPM wouldn't set latest.
+        type: boolean
+        required: true
+      dry_run:
+        description: 'Is this a dry run. If so no package will be published.'
+        type: boolean
+        required: true
+
+jobs:
+  build-publish:
+    runs-on: 	ubuntu-22.04
+    # Needed to get tokens during publishing.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ 25 }}
+      - uses: actions/checkout@v3
+      - id: build-and-test
+        # Build using the same steps from CI.
+        name: Build and Test
+        uses: ./.github/actions/ci
+
+      # - uses: launchdarkly/gh-actions/actions/release-secrets
+      #   name: 'Get your token!'
+      #   with:
+      #     # The AWS_ROLE_ARN needs added as a var to your repo.
+      #     aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+      #     # This example uses the node release token, it will get set into the NODE_AUTH_TOKEN
+      #     # environment variable. The action readme contains more information.
+      #     ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+
+      - id: publish
+        name: Publish Package
+        uses: ./.github/actions/publish
+        with:
+          token: "Put your release secret or github token here."
+          prerelease: ${{ inputs.prerelease }}
+          dry_run: ${{ inputs.dry_run }}
