@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions: # These are needed if using OIDC to get release secrets.
       id-token: write
-      contents: read
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: google-github-actions/release-please-action@v3
