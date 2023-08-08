@@ -1,0 +1,16 @@
+name: Configure Rebar3
+description: 'Configure publishing token for Rebar3'
+
+runs:
+  using: composite
+  steps:
+    - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.0
+      name: 'Get the hex publishing token'
+      with:
+        aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+        ssm_parameter_pairs: '/production/common/releasing/hex/api_key = HEX_AUTH_TOKEN'
+    - name: Configure rebar3
+      shell: bash
+      run: ./.github/scripts/configure_rebar3.sh
+      env:
+        HEX_AUTH_TOKEN: ${{ env.HEX_AUTH_TOKEN }}

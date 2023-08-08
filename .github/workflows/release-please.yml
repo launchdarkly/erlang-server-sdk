@@ -34,12 +34,8 @@ jobs:
         with:
           fetch-depth: 0 #If you only need the current version keep this.
 
-      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.0
-        name: 'Get the hex publishing token'
+      - uses: ./.github/actions/configure-rebar
         if: ${{ steps.release.outputs.releases_created }}
-        with:
-          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-          ssm_parameter_pairs: '/production/common/releasing/hex/api_key = HEX_AUTH_TOKEN'
 
       - uses: ./.github/actions/ci
         if: ${{ steps.release.outputs.releases_created }}
@@ -65,7 +61,4 @@ jobs:
       - uses: ./.github/actions/publish
         if: ${{ steps.release.outputs.releases_created }}
         with:
-          token: ${{ env.HEX_AUTH_TOKEN }}
-          prerelease: false
           dry_run: false
-

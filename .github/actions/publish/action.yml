@@ -1,12 +1,6 @@
 name: Publish Package
 description: 'Publish the package to Hex.pm'
 inputs:
-  token:
-    description: 'Hex.pm token.'
-    required: true
-  prerelease:
-    description: 'Is this a prerelease. If so, then the latest tag will not be updated in npm.'
-    required: true
   dry_run:
     description: 'Is this a dry run. If so no package will be published.'
     required: true
@@ -14,15 +8,8 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Configure rebar3
-      shell: bash
-      run: ./.github/scripts/configure_rebar3.sh
-      env:
-        HEX_AUTH_TOKEN: ${{ inputs.token }}
-      if: ${{ inputs.dry_run == 'false' }}
-
     - name: Publish Library
       shell: bash
-      run: rebar3 hex publish
+      run: echo PUBLISHING #rebar3 hex publish
       # Do not publish a dry run.
       if: ${{ inputs.dry_run == 'false' }}

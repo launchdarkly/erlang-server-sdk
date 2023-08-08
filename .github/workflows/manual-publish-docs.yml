@@ -16,6 +16,8 @@ jobs:
         name: Build Documentation
         uses: ./.github/actions/build-docs
 
+      - uses: ./.github/actions/configure-rebar
+
       - id: publish
         name: Publish Documentation
         uses: ./.github/actions/publish-docs

@@ -1,9 +1,5 @@
 name: Publish Documentation
 description: 'Publish the documentation to hex.pm and github pages.'
-inputs:
-  token:
-    description: 'Hex.pm token.'
-    required: true
 
 runs:
   using: composite
@@ -12,10 +8,5 @@ runs:
       name: 'Publish to Github pages'
       with:
         docs_path: doc
-    - name: Configure rebar3
-      shell: bash
-      run: ./.github/scripts/configure_rebar3.sh
-      env:
-        HEX_AUTH_TOKEN: ${{ inputs.token }}
     - run: rebar3 hex docs
       shell: bash
