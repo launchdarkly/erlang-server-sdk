@@ -1,6 +1,6 @@
 # LaunchDarkly Server-Side SDK for Erlang/Elixir
 
-[![Circle CI](https://img.shields.io/circleci/project/launchdarkly/erlang-server-sdk.png)](https://circleci.com/gh/launchdarkly/erlang-server-sdk)
+[![Actions Status][ci-badge]][ci] 
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/launchdarkly_server_sdk/)
 ## LaunchDarkly overview
 
@@ -41,3 +41,6 @@ We encourage pull requests and other contributions from the community. Check out
     * [docs.launchdarkly.com](https://docs.launchdarkly.com/  "LaunchDarkly Documentation") for our documentation and SDK reference guides
     * [apidocs.launchdarkly.com](https://apidocs.launchdarkly.com/  "LaunchDarkly API Documentation") for our API documentation
     * [blog.launchdarkly.com](https://blog.launchdarkly.com/  "LaunchDarkly Blog Documentation") for the latest product updates
+
+[ci-badge]: https://github.com/launchdarkly/erlang-server-sdk/actions/workflows/ci.yml/badge.svg
+[ci]: https://github.com/launchdarkly/erlang-server-sdk/actions/workflows/ci.yml
