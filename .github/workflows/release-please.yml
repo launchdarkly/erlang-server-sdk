@@ -22,7 +22,8 @@ jobs:
           default-branch: main
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: ${{ 25 }}
+          version-type: loose
+          otp-version: 25.x
       - uses: actions/checkout@v3
         if: ${{ steps.release.outputs.releases_created }}
         with:

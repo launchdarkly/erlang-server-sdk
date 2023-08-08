@@ -21,7 +21,8 @@ jobs:
     steps:
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: ${{ 25 }}
+          version-type: loose
+          otp-version: 25.x
       - uses: actions/checkout@v3
       - id: build-and-test
         # Build using the same steps from CI.
