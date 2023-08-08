@@ -47,16 +47,11 @@ jobs:
       - uses: ./.github/actions/publish
         if: ${{ steps.release.outputs.releases_created }}
         with:
-          # If publishing somewhere else, then get the token from SSM. If you need both github,
-          # and another token, then add more tokens to the composite action. Could be $NODE_AUTH_TOKEN
-          # from the release-secrets action earlier in this workflow.
           token: ${{secrets.GITHUB_TOKEN}}
 
       - uses: ./.github/actions/publish-docs
         if: ${{ steps.release.outputs.releases_created }}
         with:
-          # If publishing somewhere else, then get the token from SSM. If you need both github,
-          # and another token, then add more tokens to the composite action.
           token: ${{secrets.GITHUB_TOKEN}}
 
       - uses: ./.github/actions/publish
