@@ -13,10 +13,8 @@ jobs:
           rebar3-version: 3.18.0
       - uses: actions/checkout@v3
       - id: build
-        # Build using the same steps from CI.
-        # You could reduce the steps if you do not want a full build.
-        name: Build and Test
-        uses: ./.github/actions/ci
+        name: Build Documentation
+        uses: ./.github/actions/build-docs
 
       - id: publish
         name: Publish Documentation
