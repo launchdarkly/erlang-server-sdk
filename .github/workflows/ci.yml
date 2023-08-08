@@ -23,7 +23,7 @@ jobs:
         with:
           version-type: loose
           otp-version: ${{ matrix.otp }}
-          rebar3-version: '3.14' # TODO: Matrix?
+          rebar3-version: '3.16.1' # TODO: Matrix?
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 #If you only need the current version keep this.
