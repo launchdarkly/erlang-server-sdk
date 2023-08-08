@@ -5,6 +5,10 @@ name: Publish Documentation
 jobs:
   build-publish:
     runs-on: ubuntu-22.04
+    # Needed to get tokens during publishing.
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: erlef/setup-beam@v1
         with:
