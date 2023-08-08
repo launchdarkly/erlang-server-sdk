@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.2.0](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.1...v2.2.0) (2023-08-08)
+
+
+### Features
+
+* Add support for github actions. ([de8ac4c](https://github.com/launchdarkly/erlang-server-sdk/commit/de8ac4c059bb2d02b13b5ae93a76543e29814550))
+
 ## [2.1.1] - 2023-08-02
 ### Fixed:
 - Fixed `ldclient_instance:options()` to include new `redis_tls` option. Only specs affected.
