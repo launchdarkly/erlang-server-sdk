@@ -21,10 +21,10 @@ jobs:
           otp-version: 25.x
           rebar3-version: 3.18.0
       - uses: actions/checkout@v3
-      # - id: build-and-test
-      #   # Build using the same steps from CI.
-      #   name: Build and Test
-      #   uses: ./.github/actions/ci
+      - id: build-and-test
+        # Build using the same steps from CI.
+        name: Build and Test
+        uses: ./.github/actions/ci
 
       - uses: ./.github/actions/configure-rebar
         with:
