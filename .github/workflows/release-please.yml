@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0 #If you only need the current version keep this.
 
-      - uses: launchdarkly/gh-actions/actions/release-secrets
+      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.0
         name: 'Get the hex publishing token'
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
