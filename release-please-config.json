@@ -3,6 +3,7 @@
     ".": {
       "release-type": "simple",
       "versioning": "default",
+      "bootstrap-sha": "a1f0d642229adc421be6d5eb8fc67c55adec5ff0",
       "extra-files": [
         "src/ldclient_config.erl",
         "src/ldclient.app.src"
