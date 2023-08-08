@@ -1,4 +1,4 @@
-name: Publish Package
+name: Manual Publish Package
 on:
   workflow_dispatch:
     inputs:
