@@ -21,14 +21,8 @@ runs:
         HEX_AUTH_TOKEN: ${{ inputs.token }}
       if: ${{ inputs.dry_run == 'false' }}
 
-    - name: Authorization check
-      shell: bash
-      run: rebar3 hex user whoami
-      if: ${{ inputs.dry_run == 'false' }}
-
     - name: Publish Library
       shell: bash
-      run: echo PUBLISHING! #rebar3 hex publish
+      run: rebar3 hex publish
       # Do not publish a dry run.
       if: ${{ inputs.dry_run == 'false' }}
-

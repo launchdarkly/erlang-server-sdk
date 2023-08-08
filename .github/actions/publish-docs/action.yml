@@ -1,5 +1,3 @@
-#publish to github pages or to a different documentation system.
-
 name: Publish Documentation
 description: 'Publish the documentation to hex.pm and github pages.'
 inputs:
@@ -19,5 +17,5 @@ runs:
       run: ./.github/scripts/configure_rebar3.sh
       env:
         HEX_AUTH_TOKEN: ${{ inputs.token }}
-    - run: echo PUBLISHING DOCS #rebar3 hex docs
+    - run: rebar3 hex docs
       shell: bash
