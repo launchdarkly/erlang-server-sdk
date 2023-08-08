@@ -10,6 +10,7 @@ jobs:
         with:
           version-type: loose
           otp-version: 25.x
+          rebar3-version: 3.18.0
       - uses: actions/checkout@v3
       - id: build
         # Build using the same steps from CI.
