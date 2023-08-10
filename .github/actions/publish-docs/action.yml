@@ -4,7 +4,7 @@ description: 'Publish the documentation to hex.pm and github pages.'
 runs:
   using: composite
   steps:
-    - uses: launchdarkly/gh-actions/actions/publish-pages
+    - uses: launchdarkly/gh-actions/actions/publish-pages@publish-pages-v1.0.0
       name: 'Publish to Github pages'
       with:
         docs_path: doc
