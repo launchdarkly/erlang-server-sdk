@@ -24,5 +24,5 @@
   {modules, []},
 
   {licenses, ["Apache 2.0"]},
-  {links, []}
+  {links, [{"GitHub", "https://github.com/launchdarkly/erlang-server-sdk"}]}
  ]}.
