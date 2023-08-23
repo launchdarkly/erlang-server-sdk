@@ -38,10 +38,10 @@
 -opaque flag_builder() :: #{
         key => binary(),
         on  => boolean(),
-        variations => [ldclient_flag:variations()],
+        variations => [ldclient_flag:variation_value()],
         off_variation => non_neg_integer(),
         fallthrough_variation => non_neg_integer(),
-        rules => [ldclient_rules:rule()],
+        rules => [ldclient_rule:rule()],
         context_targets => builder_targets()
 }. %% A builder for feature flag configurations to be used with {@link ldclient_testdata}.
 
