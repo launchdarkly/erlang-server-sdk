@@ -317,6 +317,10 @@ with_tls_revocation(Options) ->
             }
         } | Options].
 
+%% Disable warnings for tls_basic_certifi_options because the dialyzer
+%% cannot find certifi:cacerts.
+-dialyzer({nowarn_function, [tls_basic_certifi_options/0]}).
+
 %% @doc Provide basic TLS options using the bundled certifi store.
 %%
 %% @end
