@@ -157,7 +157,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: any, Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     Opts = #{gun_opts => GunOpts},
