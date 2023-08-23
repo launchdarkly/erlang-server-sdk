@@ -44,8 +44,6 @@ clean-redis:
 build-contract-tests:
 	@mkdir -p test-service/_checkouts
 	@rm -f $(CURDIR)/test-service/_checkouts/ldclient
-	@ln -sf $(CURDIR)/ $(CURDIR)/test-service/_checkouts/ldclient
-	@cd test-service && $(REBAR3) dialyzer
 	@cd test-service && $(REBAR3) as prod release
 
 start-contract-test-service:
