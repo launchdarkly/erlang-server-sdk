@@ -18,6 +18,7 @@ jobs:
         - {os: 'ubuntu-20.04', otp: '21.x', rebar: '3.15.2'}
         - {os: 'ubuntu-22.04', otp: '24.x', rebar: '3.18.0'}
         - {os: 'ubuntu-22.04', otp: '25.x', rebar: '3.18.0'}
+        - {os: 'ubuntu-22.04', otp: '26.x', rebar: '3.22.0'}
             
     runs-on: ${{ matrix.versions.os }}
     name: Build and Test - ${{ matrix.versions.otp }}
