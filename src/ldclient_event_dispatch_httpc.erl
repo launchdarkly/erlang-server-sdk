@@ -77,7 +77,7 @@ format_response(Version, StatusCode, ReasonPhrase) ->
     io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase]).
 
 %% Get the server time, and if there is not time, then return 0.
--spec get_server_time(Headers :: httpc:headers()) -> integer().
+-spec get_server_time(Headers :: [{Field :: [byte()], Value :: binary() | iolist()}]) -> integer().
 get_server_time([{"date", Date}|_T]) when is_list(Date) ->
     %% convert_request_date expects a string that is a list of characters.
     %% Not a binary string. The guard can make sure it is a list, but not

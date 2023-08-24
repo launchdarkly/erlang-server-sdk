@@ -41,11 +41,17 @@ tls-tests:
 clean-redis:
 	docker rm --force ld-test-redis
 
+colon := :
 build-contract-tests:
 	@mkdir -p test-service/_checkouts
 	@rm -f $(CURDIR)/test-service/_checkouts/ldclient
 	@ln -sf $(CURDIR)/ $(CURDIR)/test-service/_checkouts/ldclient
-	@cd test-service && $(REBAR3) dialyzer
+	@if [ "$(OTP_VER)" = "26.x" ]; then\
+		echo Dialyze for OTP 26;\
+		cd test-service && $(REBAR3) as otp26 dialyzer;\
+	else\
+		cd test-service && $(REBAR3) dialyzer;\
+	fi
 	@cd test-service && $(REBAR3) as prod release
 
 start-contract-test-service:
