@@ -9,6 +9,9 @@ All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in 
 
 * Changes for OTP 26. ([#93](https://github.com/launchdarkly/erlang-server-sdk/issues/93)) ([5f40282](https://github.com/launchdarkly/erlang-server-sdk/commit/5f40282f56a825138af9ca869e9a2c99bdeecd08))
 
+### Changed
+* Update to `eredis` version `1.7.1`.
+
 ## [2.1.1] - 2023-08-02
 ### Fixed:
 - Fixed `ldclient_instance:options()` to include new `redis_tls` option. Only specs affected.
