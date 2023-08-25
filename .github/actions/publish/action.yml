@@ -10,6 +10,6 @@ runs:
   steps:
     - name: Publish Library
       shell: bash
-      run: rebar3 hex publish
+      run: rebar3 hex publish --yes
       # Do not publish a dry run.
       if: ${{ inputs.dry_run == 'false' }}

@@ -44,12 +44,10 @@ jobs:
       - uses: ./.github/actions/build-docs
         if: ${{ steps.release.outputs.releases_created }}
 
-      - uses: ./.github/actions/publish-docs
-        if: ${{ steps.release.outputs.releases_created }}
-        with:
-          token: ${{secrets.GITHUB_TOKEN}}
-
       - uses: ./.github/actions/publish
         if: ${{ steps.release.outputs.releases_created }}
         with:
           dry_run: false
+
+      - uses: ./.github/actions/publish-docs
+        if: ${{ steps.release.outputs.releases_created }}
