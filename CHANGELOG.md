@@ -2,6 +2,31 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.2.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v2.1.2...v2.2.0) (2023-08-25)
+
+
+### Features
+
+* **eld_clause.erl:** added error handling when passing incorrect semver to parse ([58f143b](https://github.com/launchdarkly/erlang-server-sdk/commit/58f143bb227a7c9a72d23b02273a047f6434ff7e))
+* **eld_clause.erl:** added semVer support ([3fd5db3](https://github.com/launchdarkly/erlang-server-sdk/commit/3fd5db30acd26650ac09fc8d4c849f5be7334a10))
+* **eld_clause.erl:** semver comparison seems to be working but the test data is incorrect somehow ([d0adc0d](https://github.com/launchdarkly/erlang-server-sdk/commit/d0adc0d15854ce93b5269218dcaa6c9e8be49202))
+* **eld.app.src:** added eld.app.src, added dialyzer command to README ([1b8cb0a](https://github.com/launchdarkly/erlang-server-sdk/commit/1b8cb0a66026e14bfbd61e8bd4d6671e1964626b))
+* **rebar.config:** added rebar3 config, shell, compile, and ct all work ([31925e8](https://github.com/launchdarkly/erlang-server-sdk/commit/31925e8888c6e7a8b13c4b679ec2ec97d166fc6d))
+* **src/, eld_stream_SUITE.erl:** sse delete works, tests passing ([0506b2a](https://github.com/launchdarkly/erlang-server-sdk/commit/0506b2a237cbee74c0d1161a5b1a3965b836596c))
+* **src/, test/eld_stream_SUITE.erl:** more work on sse delete, added tests and almost complete implementation, test fails ([f5742e1](https://github.com/launchdarkly/erlang-server-sdk/commit/f5742e10f4b0416b6d19b158ec5d1c87bf8698f9))
+* **src/:** added support for sse delete, initial implementation, untested ([af41ba6](https://github.com/launchdarkly/erlang-server-sdk/commit/af41ba6562cba39646595b7f1ae2488be453c3eb))
+* **src/:** remove previous delete implementation and use put instead ([bd2367b](https://github.com/launchdarkly/erlang-server-sdk/commit/bd2367b394b9dee69f459d561033eac90f696f6c))
+
+
+### Bug Fixes
+
+* **.gitignore, rebar.config:** small changes based on PR comments ([b02cea4](https://github.com/launchdarkly/erlang-server-sdk/commit/b02cea4568a86c7adab3902ca64061fa88e820d8))
+* Changes for OTP 26. ([#93](https://github.com/launchdarkly/erlang-server-sdk/issues/93)) ([5f40282](https://github.com/launchdarkly/erlang-server-sdk/commit/5f40282f56a825138af9ca869e9a2c99bdeecd08))
+* **eld_clause.erl:** suppress dialyzer warnings ([02b64b8](https://github.com/launchdarkly/erlang-server-sdk/commit/02b64b8faea72b2849c7170be28d8519729b5fa8))
+* **eld_eval_SUITE.erl:** semver tests pass! used bit syntax for semver strings ([49869ca](https://github.com/launchdarkly/erlang-server-sdk/commit/49869cadc9bb07f628cd24d4f3f1cd2c6ddfa020))
+* **eld.app.src:** added additional applications that need to be started ([c52293e](https://github.com/launchdarkly/erlang-server-sdk/commit/c52293ed7d74a2ab7244caaf9bf3de202a831062))
+* **eld.app.src:** fixed typo and added local dependencies ([06c9377](https://github.com/launchdarkly/erlang-server-sdk/commit/06c93770eea95c4d5bb53662b2696b990d81600a))
+
 ## [2.1.2](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.1...v2.1.2) (2023-08-24)
 
 
