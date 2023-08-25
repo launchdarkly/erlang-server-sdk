@@ -51,5 +51,3 @@ jobs:
 
       - uses: ./.github/actions/publish-docs
         if: ${{ steps.release.outputs.releases_created }}
-        with:
-          token: ${{secrets.GITHUB_TOKEN}}
