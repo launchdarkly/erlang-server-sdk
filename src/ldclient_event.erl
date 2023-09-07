@@ -74,7 +74,7 @@
     metric_value => number()
 }.
 
--export_type([event/0]).
+-export_type([event/0, event_data/0]).
 
 %%===================================================================
 %% API

@@ -26,9 +26,15 @@
 -export([set_init/1]).
 -export([get_init/1]).
 
+-type client_pid() :: pid() |
+                  atom() |
+                  {atom(), atom()} |
+                  {global, term()} |
+                  {via, atom(), term()}.
+
 %% Types
 -type state() :: #{
-client => eredis:client(),
+client => client_pid(),
 prefix => string(),
 buckets => list(),
 tag => atom()
@@ -42,13 +48,23 @@ start_link(WorkerRegName, Tag) ->
     error_logger:info_msg("Starting redis server with name ~p", [WorkerRegName]),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
+-spec set_tls_options(Options :: list(), TlsOptions :: list()) -> OutOptions :: list().
+set_tls_options(Options, []) -> Options;
+set_tls_options(Options, undefined) -> Options;
+set_tls_options(Options, TlsOptions) -> lists:append(Options, [{tls, TlsOptions}]).
+
 init([Tag]) ->
     Host = ldclient_config:get_value(Tag, redis_host),
     Port = ldclient_config:get_value(Tag, redis_port),
     Database = ldclient_config:get_value(Tag, redis_database),
     Password = ldclient_config:get_value(Tag, redis_password),
     Prefix = ldclient_config:get_value(Tag, redis_prefix),
-    {ok, Client} = eredis:start_link(Host, Port, Database, Password),
+    TlsOpts = ldclient_config:get_value(Tag, redis_tls),
+    BasicOpts = [
+        {host, Host}, {port, Port}, {database, Database}, {password, Password}
+    ],
+    EredisOpts = set_tls_options(BasicOpts, TlsOpts),
+    {ok, Client} = eredis:start_link(EredisOpts),
     State = #{
         client => Client,
         prefix => Prefix,
@@ -185,7 +201,7 @@ bucket_exists(Bucket, Buckets) when is_atom(Bucket) ->
 %%
 %% If bucket with the same name already exists an error will be returned.
 %% @end
--spec create_bucket(BucketExists :: boolean(), Bucket :: atom(), Client :: eredis:client(), Prefix :: string(), Buckets :: list()) ->
+-spec create_bucket(BucketExists :: boolean(), Bucket :: atom(), Client :: client_pid(), Prefix :: string(), Buckets :: list()) ->
     {ok | {error, already_exists, string()}, NewBuckets :: list()}.
 create_bucket(true, Bucket, _Client, _Prefix, Buckets) ->
     {{error, already_exists, "Redis hash " ++ atom_to_list(Bucket) ++ " already exists."}, Buckets};
@@ -198,7 +214,7 @@ create_bucket(false, Bucket, Client, Prefix, Buckets) ->
 %%
 %% If no such bucket exists, error will be returned.
 %% @end
--spec empty_bucket(BucketExists :: boolean(), Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec empty_bucket(BucketExists :: boolean(), Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     ok |
     {error, bucket_not_found, string()}.
 empty_bucket(false, Bucket, _Client, _Prefix) ->
@@ -213,7 +229,7 @@ empty_bucket(true, Bucket, Client, Prefix) ->
 %%
 %% Returns all items stored in the bucket.
 %% @end
--spec all_items(BucketExists :: boolean(), Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec all_items(BucketExists :: boolean(), Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
 all_items(false, Bucket, _Client, _Prefix) ->
@@ -242,7 +258,7 @@ pairs([], _Bucket) -> [].
 %%
 %% Search for an item by its key.
 %% @end
--spec lookup_key(BucketExists :: boolean(), Key :: binary(), Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec lookup_key(BucketExists :: boolean(), Key :: binary(), Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     [tuple()] |
     {error, bucket_not_found, string()}.
 lookup_key(false, _Key, Bucket, _Client, _Prefix) ->
@@ -267,7 +283,7 @@ lookup_key(true, Key, Bucket, Client, Prefix) ->
 %% @private
 %%
 %% @end
--spec upsert_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec upsert_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     ok |
     {error, bucket_not_found, string()}.
 upsert_items(false, _Items, Bucket, _Client, _Prefix) ->
@@ -286,7 +302,7 @@ upsert_items(true, Items, Bucket, Client, Prefix) ->
 %% @private
 %%
 %% @end
--spec upsert_clean_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec upsert_clean_items(BucketExists :: boolean(), Items :: #{Key :: binary() => Value :: any()}, Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     ok |
     {error, bucket_not_found, string()}.
 upsert_clean_items(false, _Items, Bucket, _Client, _Prefix) ->
@@ -301,7 +317,7 @@ upsert_clean_items(true, Items, Bucket, Client, Prefix) ->
 %%
 %% Delete an item by its key.
 %% @end
--spec delete_key(BucketExists :: boolean(), Key :: binary(), Bucket :: atom(), Client :: eredis:client(), Prefix :: string()) ->
+-spec delete_key(BucketExists :: boolean(), Key :: binary(), Bucket :: atom(), Client :: client_pid(), Prefix :: string()) ->
     ok |
     {error, bucket_not_found, string()}.
 delete_key(false, _Key, Bucket, _Client, _Prefix) ->
@@ -313,12 +329,12 @@ delete_key(true, Key, Bucket, Client, Prefix) ->
 bucket_name(Prefix, Bucket) ->
     lists:concat([Prefix, ":", Bucket]).
 
--spec set_init(Client :: eredis:client(), Prefix :: string()) -> ok.
+-spec set_init(Client :: client_pid(), Prefix :: string()) -> ok.
 set_init(Client, Prefix) ->
     {ok, _} = eredis:q(Client, ["SET", lists:concat([Prefix, ":$inited"]), ""]),
     ok.
 
--spec get_init(Client :: eredis:client(), Prefix :: string()) -> boolean().
+-spec get_init(Client :: client_pid(), Prefix :: string()) -> boolean().
 get_init(Client, Prefix) ->
     {ok, Value} = eredis:q(Client, ["GET", lists:concat([Prefix, ":$inited"])]),
     case Value of

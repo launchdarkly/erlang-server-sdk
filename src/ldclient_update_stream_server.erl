@@ -20,7 +20,8 @@
     feature_store := atom(),
     storage_tag := atom(),
     stream_uri := string(),
-    gun_options := gun:opts(),
+    %% Try to use a proper type with Gun 2.0
+    gun_options := any(),
     headers := map()
 }.
 
@@ -156,7 +157,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: gun:opts(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     Opts = #{gun_opts => GunOpts},

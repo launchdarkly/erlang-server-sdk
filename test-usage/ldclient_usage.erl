@@ -34,6 +34,9 @@ init_with_all_options() ->
         redis_database => 0,
         redis_password => "password",
         redis_prefix => "prefix",
+        redis_tls => [
+            {verify, verify_peer}
+        ],
         use_ldd => false,
         cache_ttl => 1000,
         send_events => false,
