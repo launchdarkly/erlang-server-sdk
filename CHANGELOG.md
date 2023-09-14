@@ -4,6 +4,9 @@ All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in 
 
 ## [3.0.0](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.2...v3.0.0) (2023-09-14)
 
+**Version 3.0 requires Gun 2.x**. There are no changes to the Erlang SDK API or functionality. However, version 3.0 now requires [Gun 2.x](https://hex.pm/packages/gun).
+
+If your application depends directly on Gun, or if you have other dependencies that use Gun, then you must ensure that they work with Gun 2.x.
 
 ### ⚠ BREAKING CHANGES
 
