@@ -2,6 +2,17 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.0.0](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.2...v3.0.0) (2023-09-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* Upgrade to support Gun 2.x ([#99](https://github.com/launchdarkly/erlang-server-sdk/issues/99))
+
+### Features
+
+* Upgrade to support Gun 2.x ([#99](https://github.com/launchdarkly/erlang-server-sdk/issues/99)) ([f15bf4d](https://github.com/launchdarkly/erlang-server-sdk/commit/f15bf4d8011c3d83e127b6aefb6e55c67c359649))
+
 ## [2.1.2](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.1...v2.1.2) (2023-08-24)
 
 
