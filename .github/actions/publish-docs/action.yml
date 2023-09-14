@@ -1,6 +1,11 @@
 name: Publish Documentation
 description: 'Publish the documentation to hex.pm and github pages.'
 
+inputs:
+  github_token:
+    description: 'The github token to use for committing'
+    required: true
+
 runs:
   using: composite
   steps:
@@ -8,6 +13,6 @@ runs:
       name: 'Publish to Github pages'
       with:
         docs_path: doc
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ inputs.github_token }}
     - run: rebar3 hex docs
       shell: bash

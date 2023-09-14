@@ -27,3 +27,5 @@ jobs:
       - id: publish
         name: Publish Documentation
         uses: ./.github/actions/publish-docs
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
