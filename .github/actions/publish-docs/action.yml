@@ -8,5 +8,6 @@ runs:
       name: 'Publish to Github pages'
       with:
         docs_path: doc
+        github_token: ${{ secrets.GITHUB_TOKEN }}
     - run: rebar3 hex docs
       shell: bash
