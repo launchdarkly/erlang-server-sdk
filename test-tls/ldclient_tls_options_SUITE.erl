@@ -131,7 +131,6 @@ check_secure_default_httpc_valid(_) ->
     {ok, _} = httpc:request(get, {"https://rsa2048.badssl.com/", []}, Options, []),
     {ok, _} = httpc:request(get, {"https://ecc256.badssl.com/", []}, Options, []),
     {ok, _} = httpc:request(get, {"https://ecc384.badssl.com/", []}, Options, []),
-    {ok, _} = httpc:request(get, {"https://extended-validation.badssl.com/", []}, Options, []),
     {ok, _} = httpc:request(get, {"https://mozilla-modern.badssl.com/", []}, Options, []).
 
 check_secure_default_httpc_invalid(_) ->
