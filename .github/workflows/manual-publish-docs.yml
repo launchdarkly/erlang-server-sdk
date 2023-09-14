@@ -8,7 +8,7 @@ jobs:
     # Needed to get tokens during publishing.
     permissions:
       id-token: write
-      contents: read
+      contents: write # Need to publish github pages.
     steps:
       - uses: erlef/setup-beam@v1
         with:
@@ -27,3 +27,5 @@ jobs:
       - id: publish
         name: Publish Documentation
         uses: ./.github/actions/publish-docs
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
