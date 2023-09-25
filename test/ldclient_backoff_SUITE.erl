@@ -17,7 +17,11 @@
     jitters_backoff_value/1,
     resets_after_60_second_connection/1,
     does_not_reset_after_less_than_60_connection/1,
-    creates_timer_when_fired/1
+    creates_timer_when_fired/1,
+    handles_max_exponent_correctly/1,
+    handles_initial_greater_than_max/1,
+    handles_initial_equal_to_max/1,
+    handles_bad_initial_retry/1
 ]).
 
 %%====================================================================
@@ -32,7 +36,11 @@ all() ->
         jitters_backoff_value,
         resets_after_60_second_connection,
         does_not_reset_after_less_than_60_connection,
-        creates_timer_when_fired
+        creates_timer_when_fired,
+        handles_max_exponent_correctly,
+        handles_initial_greater_than_max,
+        handles_initial_equal_to_max,
+        handles_bad_initial_retry
     ].
 
 init_per_suite(Config) ->
@@ -79,12 +87,20 @@ delay_starts_at_initial(_) ->
 
 delay_doubles_consecutive_failures(_) ->
     Backoff = backoff_client(),
+    %% This is the full cycle for the defaults of initial 1000 and max 30000.
     FirstUpdate = ldclient_backoff:fail(Backoff),
     #{current := 1000} = FirstUpdate,
     SecondUpdate = ldclient_backoff:fail(FirstUpdate),
     #{current := 2000} = SecondUpdate,
     ThirdUpdate = ldclient_backoff:fail(SecondUpdate),
-    #{current := 4000} = ThirdUpdate.
+    #{current := 4000} = ThirdUpdate,
+    FourthUpdate = ldclient_backoff:fail(ThirdUpdate),
+    #{current := 8000} = FourthUpdate,
+    FifthUpdate = ldclient_backoff:fail(FourthUpdate),
+    #{current := 16000} = FifthUpdate,
+    SixthUpdate = ldclient_backoff:fail(FifthUpdate),
+    #{current := 30000} = SixthUpdate.
+    
 
 backoff_respects_max(_) ->
     Backoff =
@@ -130,3 +146,37 @@ creates_timer_when_fired(_) ->
     Backoff = ldclient_backoff:fail(backoff_client()),
     ldclient_backoff:fire(Backoff),
     true = meck:validate(ldclient_time).
+
+handles_max_exponent_correctly(_) ->
+    Backoff = backoff_client(),
+    %% 2^4 should be the step before we hit the max
+    16000 = ldclient_backoff:delay(5, Backoff),
+    %% 2^5 and higher should just use the max.
+    30000 = ldclient_backoff:delay(6, Backoff),
+    %% trunc(1000 * :math.pow(2, 1015)) would have an arithmetic error
+    30000 = ldclient_backoff:delay(1016, Backoff).
+
+handles_initial_equal_to_max(_) ->
+    Backoff = backoff_client(30000),
+    30000 = ldclient_backoff:delay(1, Backoff),
+    30000 = ldclient_backoff:delay(2, Backoff).
+
+handles_initial_greater_than_max(_) ->
+    Backoff = backoff_client(60000),
+    30000 = ldclient_backoff:delay(1, Backoff),
+    30000 = ldclient_backoff:delay(2, Backoff).
+
+handles_bad_initial_retry(_) -> 
+    Backoff = backoff_client(0),
+    1 = ldclient_backoff:delay(1, Backoff),
+    2 = ldclient_backoff:delay(2, Backoff),
+    4 = ldclient_backoff:delay(3, Backoff),
+    16384 = ldclient_backoff:delay(15, Backoff),
+    30000 = ldclient_backoff:delay(16, Backoff),
+    %% Second backoff we do not use backoff_client as meck is already setup.
+    Backoff2 = ldclient_backoff:init(-100, 30000, 0, listen),
+    1 = ldclient_backoff:delay(1, Backoff2),
+    2 = ldclient_backoff:delay(2, Backoff2),
+    4 = ldclient_backoff:delay(3, Backoff2),
+    16384 = ldclient_backoff:delay(15, Backoff2),
+    30000 = ldclient_backoff:delay(16, Backoff2).
