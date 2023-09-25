@@ -19,7 +19,7 @@
     active_since => integer() | undefined,
     destination => pid(),
     value => term(),
-    max_exp => non_neg_integer()
+    max_exp => float()
 }.
 
 -define(JITTER_RATIO, 0.5).
