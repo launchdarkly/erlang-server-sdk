@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.0.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.0...v3.0.1) (2023-09-26)
+
+
+### Bug Fixes
+
+* Fix arithmetic error in stream re-connection logic. ([#104](https://github.com/launchdarkly/erlang-server-sdk/issues/104)) ([416af68](https://github.com/launchdarkly/erlang-server-sdk/commit/416af68f61975cbfbab1b5e38982c4b489043a8e))
+
 ## [3.0.0](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.2...v3.0.0) (2023-09-14)
 
 **Version 3.0 requires Gun 2.x**. There are no changes to the Erlang SDK API or functionality. However, version 3.0 now requires [Gun 2.x](https://hex.pm/packages/gun).
