@@ -18,6 +18,7 @@
     check_file_simple_flags_yaml/1,
     check_file_all_properties_yaml/1,
     check_multiple_data_files/1,
+    check_binary_file_path/1,
     check_file_watcher/1,
     check_with_missing_file/1,
     check_with_only_missing_file/1,
@@ -35,6 +36,7 @@ all() ->
         check_file_simple_flags_yaml,
         check_file_all_properties_yaml,
         check_multiple_data_files,
+        check_binary_file_path,
         check_file_watcher,
         check_with_missing_file,
         check_with_only_missing_file,
@@ -90,6 +92,14 @@ init_per_suite(Config) ->
         feature_store => ldclient_storage_map
     },
     ldclient:start_instance("", simple_flags_yaml, OptionsSimpleFlagsYaml),
+
+    OptionsBinaryPathYaml = #{
+        datasource => file,
+        send_events => false,
+        file_paths => [list_to_binary(DataFileSimpleFlagsYaml)],
+        feature_store => ldclient_storage_map
+    },
+    ldclient:start_instance("", binary_path_yaml, OptionsBinaryPathYaml),
 
     DataFileAllPropertiesYaml = code:priv_dir(ldclient) ++ "/flags-all-properties.yaml",
     OptionsAllPropertiesYaml = #{
@@ -207,6 +217,11 @@ check_multiple_data_files(_) ->
     {{0, <<"value-1">>, fallthrough}, _} = ldclient_eval:flag_key_for_context(all_properties_yaml, <<"my-string-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo"),
     {{0, true, fallthrough}, _} = ldclient_eval:flag_key_for_context(all_properties_yaml, <<"my-boolean-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo"),
     {{0, 3, fallthrough}, _} = ldclient_eval:flag_key_for_context(all_properties_yaml, <<"my-integer-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo").
+
+check_binary_file_path(_) ->
+    {{0, <<"value-1">>, fallthrough}, _} = ldclient_eval:flag_key_for_context(binary_path_yaml, <<"my-string-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo"),
+    {{0, true, fallthrough}, _} = ldclient_eval:flag_key_for_context(binary_path_yaml, <<"my-boolean-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo"),
+    {{0, 3, fallthrough}, _} = ldclient_eval:flag_key_for_context(binary_path_yaml, <<"my-integer-flag-key">>, #{key => <<"user123">>, kind => <<"user">>}, "foo").
 
 check_file_watcher(_) ->
     {{0, true, fallthrough}, _} = ldclient_eval:flag_key_for_context(watch_files, <<"test-flag">>, #{key => <<"user123">>, kind => <<"user">>}, "foo"),
