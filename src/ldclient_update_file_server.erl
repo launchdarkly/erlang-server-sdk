@@ -229,7 +229,7 @@ load_files(Files, State) ->
     {ok | error, State :: state()}.
 load_files([FileToLoad | RestOfFiles], State, LoadedFlags, LoadedSegments, FlagCount, ok) ->
     {NewStatus, NewState, CombinedFlags, CombinedSegments, UpdatedCount} =
-        load_regular_file(FileToLoad, filelib:is_regular(FileToLoad), State, LoadedFlags, LoadedSegments, FlagCount),
+        load_regular_file(handle_file_path_type(FileToLoad), filelib:is_regular(handle_file_path_type(FileToLoad)), State, LoadedFlags, LoadedSegments, FlagCount),
     load_files(RestOfFiles, NewState, CombinedFlags, CombinedSegments, UpdatedCount, NewStatus);
 load_files([], #{file_allow_duplicate_keys := AllowDuplicateKeys, storage_tag := Tag} = State, LoadedFlags, LoadedSegments, FlagCount, ok) ->
     Valid = (FlagCount == length(maps:keys(LoadedFlags))) or AllowDuplicateKeys,
@@ -238,3 +238,9 @@ load_files([], #{file_allow_duplicate_keys := AllowDuplicateKeys, storage_tag :=
 load_files(_Files, State, _LoadedFlags, _LoadedSegments, _FlagCount, error) ->
     %% If there is an error, then do not process any more files.
     {error, State}.
+
+-spec handle_file_path_type(FilePath :: string()) -> string().
+handle_file_path_type(FilePath) when is_binary(FilePath) ->
+    binary_to_list(FilePath);
+handle_file_path_type(FilePath) ->
+    FilePath.
