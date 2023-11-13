@@ -120,11 +120,7 @@ is_offline(Tag) ->
 initialized(Tag) ->
     IsOffline = is_offline(Tag),
     UpdateProcessorInitialized = ldclient_instance:update_processor_initialized(Tag),
-    case ldclient_config:get_value(Tag, feature_store) of
-        ldclient_storage_redis -> FeatureStoreInitialized = ldclient_instance:feature_store_initialized(Tag),
-                                  IsOffline or UpdateProcessorInitialized and FeatureStoreInitialized;
-        _ -> IsOffline or UpdateProcessorInitialized
-    end.
+    IsOffline or UpdateProcessorInitialized.
 
 %% @doc Evaluate given flag key for given context
 %%

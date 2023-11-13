@@ -18,7 +18,8 @@
     attempt => non_neg_integer(),
     active_since => integer() | undefined,
     destination => pid(),
-    value => term()
+    value => term(),
+    max_exp => float()
 }.
 
 -define(JITTER_RATIO, 0.5).
@@ -35,14 +36,21 @@
 
 -spec init(Initial :: non_neg_integer(), Max :: non_neg_integer(), Destination :: pid(), Value :: term()) -> backoff().
 init(Initial, Max, Destination, Value) ->
+    SafeInitial = lists:max([Initial, 1]),
     #{
-        initial => Initial,
-        current => Initial,
+        initial => SafeInitial, %% Do not allow initial delay to be 0 or negative.
+        current => SafeInitial,
         max => Max,
         attempt => 0,
         active_since => undefined,
         destination => Destination,
-        value => Value
+        value => Value,
+        %% The exponent at which the backoff delay will exceed the maximum.
+        %% Beyond this limit the backoff can be set to the max.
+        max_exp => math:ceil(math:log2(Max/SafeInitial))
+        %% For reasonable values this should ensure we never overflow.
+        %% Note that while integers can be arbitrarily large the math library uses C functions
+        %% that are implemented with floats.
     }.
 
 %% @doc Get an updated backoff with updated delay. Does not start a timer automatically.
@@ -90,8 +98,11 @@ update_backoff(#{attempt := Attempt} = Backoff, _ActiveDuration) ->
     Backoff#{current => delay(NewAttempt, Backoff), attempt => NewAttempt, active_since => undefined}.
 
 -spec delay(Attempt :: non_neg_integer(), Backoff :: backoff()) -> non_neg_integer().
-delay(Attempt, #{initial := Initial, max := Max} = _Backoff) ->
-    jitter(min(backoff(Initial, Attempt), Max)).
+delay(Attempt, #{initial := Initial, max := Max, max_exp := MaxExp} = _Backoff)
+  when Attempt - 1 < MaxExp ->
+    jitter(min(backoff(Initial, Attempt), Max));
+delay(_Attempt, #{max := Max} = _Backoff) ->
+    jitter(Max).
 
 -spec backoff(Initial :: non_neg_integer(), Attempt :: non_neg_integer()) -> non_neg_integer().
 backoff(Initial, Attempt) ->

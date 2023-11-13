@@ -150,7 +150,8 @@ process_response_body(ResponseBody, ldclient_storage_redis, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received poll event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
     ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
-    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments),
+    ok = ldclient_storage_redis:set_init(Tag);
 process_response_body(ResponseBody, FeatureStore, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),

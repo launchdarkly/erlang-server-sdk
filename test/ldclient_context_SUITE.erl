@@ -39,7 +39,8 @@
     can_create_context_from_json/1,
     returns_null_for_get_from_missing_context/1,
     returns_null_for_get_from_missing_attribute_in_present_context/1,
-    can_get_key_from_contexts/1
+    can_get_key_from_contexts/1,
+    can_set_all_attribute_types/1
 ]).
 
 %%====================================================================
@@ -76,7 +77,8 @@ all() ->
         can_create_context_from_json,
         returns_null_for_get_from_missing_context,
         returns_null_for_get_from_missing_attribute_in_present_context,
-        can_get_key_from_contexts
+        can_get_key_from_contexts,
+        can_set_all_attribute_types
     ].
 
 init_per_suite(Config) ->
@@ -491,3 +493,37 @@ can_get_key_from_contexts(_) ->
             ldclient_context:new(<<"user-key">>),
             ldclient_context:new(<<"org-key">>, <<"org">>)
         ])).
+
+can_set_all_attribute_types(_) ->
+    #{
+        kind := <<"org">>,
+        key := <<"org-key">>,
+        attributes := #{
+            <<"binary">> := <<"myString">>,
+            <<"boolean">> := false,
+            <<"integer">> := 14,
+            <<"float">> := 3.14,
+            <<"array">> := [true, 14, 3.14, <<"myString">>, #{<<"a">> := <<"b">>}, [<<"arr">>]],
+            <<"object">> := #{
+                <<"array">> := [<<"arr">>],
+                <<"binary">> := <<"myString">>,
+                <<"boolean">> := <<"myString">>,
+                <<"float">> := <<"myString">>,
+                <<"integer">> := <<"myString">>,
+                <<"object">> := #{<<"a">> := <<"b">>}
+            }
+        }
+    } = ldclient_context:set(<<"binary">>, <<"myString">>,
+    ldclient_context:set(<<"integer">>, 14,
+    ldclient_context:set(<<"float">>, 3.14,
+    ldclient_context:set(<<"boolean">>, false,
+    ldclient_context:set(<<"array">>, [true, 14, 3.14, <<"myString">>, #{<<"a">> => <<"b">>}, [<<"arr">>]],
+    ldclient_context:set(<<"object">>, #{
+        <<"binary">> => <<"myString">>,
+        <<"integer">> => <<"myString">>,
+        <<"float">> => <<"myString">>,
+        <<"boolean">> => <<"myString">>,
+        <<"array">> => [<<"arr">>],
+        <<"object">> => #{<<"a">> => <<"b">>}
+    },
+    ldclient_context:new(<<"org-key">>, <<"org">>))))))).

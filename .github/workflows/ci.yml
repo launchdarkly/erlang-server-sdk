@@ -1,0 +1,38 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md' #Do not need to run CI for markdown changes.
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build-test:
+    strategy:
+      matrix:
+        versions: 
+        - {os: 'ubuntu-20.04', otp: '21.x', rebar: '3.15.2'}
+        - {os: 'ubuntu-22.04', otp: '24.x', rebar: '3.18.0'}
+        - {os: 'ubuntu-22.04', otp: '25.x', rebar: '3.18.0'}
+        - {os: 'ubuntu-22.04', otp: '26.x', rebar: '3.22.0'}
+            
+    runs-on: ${{ matrix.versions.os }}
+    name: Build and Test - ${{ matrix.versions.otp }}
+
+    steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          version-type: loose
+          otp-version: ${{ matrix.versions.otp }}
+          rebar3-version: ${{ matrix.versions.rebar }}
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/ci
+        env:
+          OTP_VER: ${{ matrix.versions.otp }}

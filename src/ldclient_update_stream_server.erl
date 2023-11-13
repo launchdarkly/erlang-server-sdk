@@ -20,7 +20,8 @@
     feature_store := atom(),
     storage_tag := atom(),
     stream_uri := string(),
-    gun_options := gun:opts(),
+    %% Try to use a proper type with Gun 2.0
+    gun_options := any(),
     headers := map()
 }.
 
@@ -156,7 +157,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: gun:opts(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     Opts = #{gun_opts => GunOpts},
@@ -228,7 +229,8 @@ process_items(put, Data, ldclient_storage_redis, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
     ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
-    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments);
+    ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments),
+    ok = ldclient_storage_redis:set_init(Tag);
 process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
     error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),

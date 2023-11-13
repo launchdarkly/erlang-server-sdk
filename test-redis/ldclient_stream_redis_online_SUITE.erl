@@ -49,12 +49,13 @@ end_per_testcase(_, _Config) ->
 %% Helpers
 %%====================================================================
 
-sdk_options() ->
+sdk_options(Prefix) ->
     #{
         base_uri => "http://localhost:8888",
         stream_uri => "http://localhost:8888",
         events_uri => "http://localhost:8888",
-        feature_store => ldclient_storage_redis
+        feature_store => ldclient_storage_redis,
+        redis_prefix => Prefix
     }.
 
 %%====================================================================
@@ -62,7 +63,7 @@ sdk_options() ->
 %%====================================================================
 
 stream_sse_empty(_) ->
-    ok = ldclient:start_instance("sdk-empty", sdk_options()),
+    ok = ldclient:start_instance("sdk-empty", sdk_options("prefixA")),
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     [] = ldclient_storage_redis:all(default, features),
@@ -71,7 +72,7 @@ stream_sse_empty(_) ->
     ok.
 
 stream_sse_simple_flag(_) ->
-    ok = ldclient:start_instance("sdk-simple-flag", sdk_options()),
+    ok = ldclient:start_instance("sdk-simple-flag", sdk_options("prefixB")),
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
@@ -82,7 +83,7 @@ stream_sse_simple_flag(_) ->
     ok.
 
 stream_sse_put_no_path(_) ->
-    ok = ldclient:start_instance("sdk-put-no-path", sdk_options()),
+    ok = ldclient:start_instance("sdk-put-no-path", sdk_options("prefixC")),
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
@@ -93,9 +94,13 @@ stream_sse_put_no_path(_) ->
     ok.
 
 stream_sse_timeout(_) ->
-    ok = ldclient:start_instance("sdk-timeout", sdk_options()),
-    % Evaluation before SDK is initialized should return client_not_ready with default value
-    {null, foo, {error, client_not_ready}} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+    ok = ldclient:start_instance("sdk-timeout", sdk_options("prefixD")),
+
+    % Evaluation before redis has been initialized.
+    {null,foo,{error,client_not_ready}} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+    #{flag_values := #{}} = ldclient:all_flags_state(#{key => <<"123">>}),
+    #{<<"$flagsState">> := #{},<<"$valid">> := false} = ldclient:all_flags_state(#{key => <<"123">>}, #{}, default),
+
     % Wait for SDK to initialize and process initial payload from server
     timer:sleep(6500),
     {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
@@ -104,5 +109,23 @@ stream_sse_timeout(_) ->
     [] = ldclient_storage_redis:all(default, segments),
     % Evaluation after SDK is initialized should return an expected flag variation value
     {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+
+    % Start a second instance that uses the already initialized redis DB (PrefixD$inited is present).
+    ok = ldclient:start_instance("sdk-timeout", with_init_redis, sdk_options("prefixD")),
+    % Evaluation before SDK is initialized, but after the redis store has been initialized, should return
+    % the cached values.
+    {0,true,fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo, with_init_redis),
+    #{flag_values := #{<<"abc">> := true}} = ldclient:all_flags_state(#{key => <<"123">>}, with_init_redis),
+    #{<<"$flagsState">> :=
+    #{<<"abc">> :=
+    #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
+        <<"trackEvents">> := true,<<"variation">> := 0,
+        <<"version">> := 5}},
+        <<"$valid">> := true,<<"abc">> := true} = ldclient:all_flags_state(#{key => <<"123">>}, #{with_reasons => true}, with_init_redis),
+
+    % Client should not be initialized yet.
+    false = ldclient:initialized(with_init_redis),
+
     ok = ldclient:stop_instance(),
+    ok = ldclient:stop_instance(with_init_redis),
     ok.

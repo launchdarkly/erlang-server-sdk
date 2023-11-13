@@ -31,6 +31,7 @@
     redis_database => integer(),
     redis_password => string(),
     redis_prefix => string(),
+    redis_tls => [ssl:tls_option()] | undefined,
     use_ldd => boolean(),
     cache_ttl => integer(),
     send_events => boolean(),
