@@ -36,7 +36,7 @@
     cache_ttl => integer(),
     send_events => boolean(),
     file_datasource => boolean(),
-    file_paths => [string()],
+    file_paths => [string() | binary()],
     file_auto_update => boolean(),
     file_poll_interval => pos_integer(),
     file_allow_duplicate_keys => boolean(),
