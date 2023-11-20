@@ -342,7 +342,13 @@ add_flag_eval_events_flush_with_track(_) ->
             <<"variation">> := 5,
             <<"version">> := 5,
             <<"creationDate">> := _,
-            <<"contextKeys">> := #{<<"user">> := <<"12345-track">>}
+            <<"context">> :=
+                #{
+                    <<"firstName">> := <<"Tester">>,
+                    <<"key">> := <<"12345-track">>,
+                    <<"kind">> := <<"user">>,
+                    <<"lastName">> := <<"Testerson">>
+                }
         }
     ] = ActualEvents.
 
@@ -397,7 +403,13 @@ add_flag_eval_events_flush_with_track_no_reasons(_) ->
             <<"variation">> := 5,
             <<"version">> := 5,
             <<"creationDate">> := _,
-            <<"contextKeys">> := #{<<"user">> := <<"12345-track-no-reasons">>}
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-no-reasons">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            }
         }
     ] = ActualEvents.
 
@@ -453,7 +465,13 @@ add_flag_eval_events_flush_with_track_experimentation_rule(_) ->
             <<"variation">> := 5,
             <<"version">> := 5,
             <<"creationDate">> := _,
-            <<"contextKeys">> := #{<<"user">> := <<"12345-track-experimentation-rule">>}
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-experimentation-rule">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            }
         }
     ] = ActualEvents.
 
@@ -509,7 +527,13 @@ add_flag_eval_events_flush_with_track_experimentation_fallthrough(_) ->
             <<"variation">> := 5,
             <<"version">> := 5,
             <<"creationDate">> := _,
-            <<"contextKeys">> := #{<<"user">> := <<"12345-track-experimentation-fallthrough">>}
+            <<"context">> :=
+            #{
+                <<"firstName">> := <<"Tester">>,
+                <<"key">> := <<"12345-track-experimentation-fallthrough">>,
+                <<"kind">> := <<"user">>,
+                <<"lastName">> := <<"Testerson">>
+            }
         }
     ] = ActualEvents.
 
@@ -917,7 +941,7 @@ add_flag_eval_events_flush_in_experiment_fallthrough(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"FALLTHROUGH">>, <<"inExperiment">> := true},
-            <<"contextKeys">> := #{<<"user">> := <<"experiment-fallthrough">>},
+            <<"context">> := #{<<"key">> := <<"experiment-fallthrough">>, <<"kind">> := <<"user">>},
             <<"value">> := <<"a">>,
             <<"variation">> := 0,
             <<"version">> := 5,
@@ -967,7 +991,7 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
             <<"key">> := <<"abc">>,
             <<"default">> := <<"default-value">>,
             <<"reason">> := #{<<"kind">> := <<"RULE_MATCH">>, <<"ruleIndex">> := 0, <<"ruleId">> := <<"id">>, <<"inExperiment">> := true},
-            <<"contextKeys">> := #{<<"user">> := <<"experiment-rule">>},
+            <<"context">> := #{<<"key">> := <<"experiment-rule">>, <<"kind">> := <<"user">>},
             <<"value">> := <<"a">>,
             <<"variation">> := 0,
             <<"version">> := 5,
