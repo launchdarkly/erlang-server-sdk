@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.0.4](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.3...v3.0.4) (2023-12-04)
+
+
+### Bug Fixes
+
+* handle `already_started` when starting instance ([#111](https://github.com/launchdarkly/erlang-server-sdk/issues/111)) ([5e181d4](https://github.com/launchdarkly/erlang-server-sdk/commit/5e181d44c371dc1021255090bceab8151d7dfb76))
+
 ## [3.0.3](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.2...v3.0.3) (2023-11-17)
 
 
