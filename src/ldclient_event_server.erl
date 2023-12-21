@@ -137,7 +137,7 @@ handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEve
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
 
-handle_cast({add_event, Event, Tag, Options}, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) ->
+handle_cast({add_event, Event, Tag, Options}, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) when length(Events) < Capacity ->
     {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Options, Events, SummaryEvent, Capacity),
     {noreply, State#{events := NewEvents, summary_event := NewSummaryEvent}};
 handle_cast(_Request, State) ->
