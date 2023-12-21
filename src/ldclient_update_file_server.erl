@@ -15,7 +15,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -type state() :: #{
-    file_paths := [string()],
+    file_paths := [string() | binary()],
     file_auto_update := boolean(),
     file_poll_interval := pos_integer(),
     file_allow_duplicate_keys := boolean(),
@@ -155,7 +155,7 @@ upsert_valid_flag_data(true, Tag, ParsedFlags, ParsedSegments) ->
 upsert_valid_flag_data(false, _Tag, _ParsedFlags, _ParsedSegments) ->
     error.
 
--spec read_file(FilePath :: string(), Extension :: string()) -> {ok | error, map()}.
+-spec read_file(FilePath :: string() | binary(), Extension :: string()) -> {ok | error, map()}.
 read_file(FilePath, ".yaml") ->
     Result = yamerl_constr:file(FilePath, [{detailed_constr, true}]),
     [Head | _] = ldclient_yaml_mapper:to_map_docs(Result, []),
@@ -167,7 +167,7 @@ read_file(FilePath, _Extension) ->
     error_logger:warning_msg("File had unrecognized file extension. Valid extensions are .yaml and .json. File: ~p", [FilePath]),
     {error, #{}}.
 
--spec try_read_file(FilePath :: string(), Extension :: string()) -> {ok | error, map()}.
+-spec try_read_file(FilePath :: string() | binary(), Extension :: string()) -> {ok | error, map()}.
 try_read_file(FilePath, Extension) ->
     try
         read_file(FilePath, Extension)
@@ -176,7 +176,7 @@ try_read_file(FilePath, Extension) ->
         {error, #{}}
     end.
 
--spec load_file(FilePath :: string(), Extension :: string(), State :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()) ->
+-spec load_file(FilePath :: string() | binary(), Extension :: string(), State :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()) ->
     {ok | error, NewState :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()}.
 load_file(FilePath, Extension, #{file_info := CurFileInfo} = State, LoadedFlags, LoadedSegments, FlagCount) ->
     ModifiedTime = filelib:last_modified(FilePath),
@@ -196,7 +196,7 @@ process_decoded_file(ok, Decoded, State, LoadedFlags, LoadedSegments, FlagCount)
 process_decoded_file(error, _Decoded, State, LoadedFlags, LoadedSegments, FlagCount) ->
     {error, State, LoadedFlags, LoadedSegments, FlagCount}.
 
--spec check_modified(FilesToCheck :: [string()], Modified :: boolean(), State :: state()) ->
+-spec check_modified(FilesToCheck :: [string() | binary()], Modified :: boolean(), State :: state()) ->
     {Modified :: boolean(), State :: state()}.
 check_modified([], Modified, State) ->
     {Modified, State};
@@ -207,29 +207,29 @@ check_modified([FileToCheck | RestOfFiles], Modified, State) ->
     NewModified = Modified or (ExistingModifiedTime =/= ModifiedTime),
     check_modified(RestOfFiles, NewModified, State).
 
--spec load_files_if_modified(Files :: [string()], State :: state()) -> {ok | error, State :: state()}.
+-spec load_files_if_modified(Files :: [string() | binary()], State :: state()) -> {ok | error, State :: state()}.
 load_files_if_modified(Files, State) ->
     case check_modified(Files, false, State) of
         {true, UpdatedState} -> load_files(Files, UpdatedState);
         {false, UpdatedState} -> {ok, UpdatedState}
     end.
 
--spec load_regular_file(FilePath :: string(), IsRegularFile :: boolean(), State :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()) ->
+-spec load_regular_file(FilePath :: string() | binary(), IsRegularFile :: boolean(), State :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()) ->
     {ok | error, NewState :: state(), LoadedFlags :: map(), LoadedSegments :: map(), FlagCount :: non_neg_integer()}.
 load_regular_file(FileToLoad, true, State, LoadedFlags, LoadedSegments, FlagCount) ->
     load_file(FileToLoad, filename:extension(FileToLoad), State, LoadedFlags, LoadedSegments, FlagCount);
 load_regular_file(_FileToLoad, false, State, LoadedFlags, LoadedSegments, FlagCount) ->
     {error, State, LoadedFlags, LoadedSegments, FlagCount}.
 
--spec load_files(Files :: [string()], State :: state()) -> {ok | error, State :: state()}.
+-spec load_files(Files :: [string() | binary()], State :: state()) -> {ok | error, State :: state()}.
 load_files(Files, State) ->
     load_files(Files, State, #{}, #{}, 0, ok).
 
--spec load_files(Files :: [string()], State :: state(), CombinedFlags :: map(), CombinedSegments :: map(), FlagCount :: non_neg_integer(), Status :: ok | error) ->
+-spec load_files(Files :: [string() | binary()], State :: state(), CombinedFlags :: map(), CombinedSegments :: map(), FlagCount :: non_neg_integer(), Status :: ok | error) ->
     {ok | error, State :: state()}.
 load_files([FileToLoad | RestOfFiles], State, LoadedFlags, LoadedSegments, FlagCount, ok) ->
     {NewStatus, NewState, CombinedFlags, CombinedSegments, UpdatedCount} =
-        load_regular_file(FileToLoad, filelib:is_regular(FileToLoad), State, LoadedFlags, LoadedSegments, FlagCount),
+        load_regular_file(handle_file_path_type(FileToLoad), filelib:is_regular(handle_file_path_type(FileToLoad)), State, LoadedFlags, LoadedSegments, FlagCount),
     load_files(RestOfFiles, NewState, CombinedFlags, CombinedSegments, UpdatedCount, NewStatus);
 load_files([], #{file_allow_duplicate_keys := AllowDuplicateKeys, storage_tag := Tag} = State, LoadedFlags, LoadedSegments, FlagCount, ok) ->
     Valid = (FlagCount == length(maps:keys(LoadedFlags))) or AllowDuplicateKeys,
@@ -238,3 +238,9 @@ load_files([], #{file_allow_duplicate_keys := AllowDuplicateKeys, storage_tag :=
 load_files(_Files, State, _LoadedFlags, _LoadedSegments, _FlagCount, error) ->
     %% If there is an error, then do not process any more files.
     {error, State}.
+
+-spec handle_file_path_type(FilePath :: string() | binary()) -> string().
+handle_file_path_type(FilePath) when is_binary(FilePath) ->
+    binary_to_list(FilePath);
+handle_file_path_type(FilePath) ->
+    FilePath.

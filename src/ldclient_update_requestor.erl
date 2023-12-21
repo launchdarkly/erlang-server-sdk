@@ -11,7 +11,7 @@
 -type response() :: {ok, binary() | not_modified}
                   | {error, errors()}.
 
--type errors() :: {bad_status, httpc:status_code(), string()}
+-type errors() :: {bad_status, non_neg_integer(), string()}
                 | network_error.
 
 -export_type([response/0, errors/0]).

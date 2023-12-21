@@ -116,7 +116,7 @@ gun_parse_http_options_with_tls_options(_) ->
         protocols := [http],
         retry := 0,
         connect_timeout := 2000,
-        transport_opts := [{verify, verify_peer}]
+        tls_opts := [{verify, verify_peer}]
     } = ldclient_http_options:gun_parse_http_options(maps:get(http_options, Settings, undefined)).
 
 gun_append_custom_headers(_) ->

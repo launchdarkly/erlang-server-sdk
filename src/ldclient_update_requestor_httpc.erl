@@ -69,6 +69,10 @@ all(Uri, State) ->
 %% Internal functions
 %%===================================================================
 
--spec bad_status_error(StatusLine :: httpc:status_line()) -> ldclient_update_requestor:errors().
+-spec bad_status_error(StatusLine :: {
+    uri_string:uri_string(),
+    non_neg_integer(),
+    string()
+}) -> ldclient_update_requestor:errors().
 bad_status_error({Version, StatusCode, ReasonPhrase}) ->
     {bad_status, StatusCode, io_lib:format("~s ~b ~s", [Version, StatusCode, ReasonPhrase])}.

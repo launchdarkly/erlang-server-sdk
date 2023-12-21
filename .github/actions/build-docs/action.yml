@@ -1,0 +1,10 @@
+# Use a step like this to build documentation.
+name: Build Documentation
+description: 'Build Documentation.'
+
+runs:
+  using: composite
+  steps:
+    - name: Build Documentation
+      shell: bash
+      run: make doc

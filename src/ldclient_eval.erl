@@ -24,7 +24,7 @@
 -type result_value() :: null | ldclient_flag:variation_value().
 -type variation_index() :: null | non_neg_integer().
 -type reason() ::
-    target_match
+target_match
     | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary()}
     | {rule_match, RuleIndex :: non_neg_integer(), in_experiment}
     | {rule_match, RuleIndex :: non_neg_integer(), RuleUUID :: binary(), InExperiment :: true}
@@ -67,7 +67,7 @@
 flag_key_for_context(Tag, FlagKey, Context, DefaultValue) ->
     try
         flag_key_for_context(Tag, FlagKey, Context, DefaultValue, get_state(Tag), get_initialization_state(Tag))
-    catch _:_->
+    catch _:_ ->
         Reason = {error, exception},
         Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
         {{null, DefaultValue, Reason}, Events}
@@ -85,6 +85,11 @@ flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, offline, _) ->
     {{null, DefaultValue, {error, client_not_ready}}, []};
 flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, _, not_initialized) ->
     {{null, DefaultValue, {error, client_not_ready}}, []};
+flag_key_for_context(Tag, FlagKey, Context, DefaultValue, online, store_initialized) ->
+    error_logger:warning_msg("Variation called before LaunchDarkly client initialization completed - using last known values from feature store."),
+    FeatureStore = ldclient_config:get_value(Tag, feature_store),
+    FlagRecs = FeatureStore:get(Tag, features, FlagKey),
+    flag_recs_for_context(FlagKey, FlagRecs, Context, FeatureStore, Tag, DefaultValue);
 flag_key_for_context(Tag, FlagKey, Context, DefaultValue, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     FlagRecs = FeatureStore:get(Tag, features, FlagKey),
@@ -119,18 +124,24 @@ all_flags_state(_Context, _Options, _Tag, offline, _) ->
     #{<<"$valid">> => false, <<"$flagsState">> => #{}};
 all_flags_state(_Context, _Options, _Tag, _, not_initialized) ->
     #{<<"$valid">> => false, <<"$flagsState">> => #{}};
+all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, store_initialized) ->
+    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, initialized);
 all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, _, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     AllFlags = [Flag || Flag = {_, FlagValue} <- FeatureStore:all(Tag, features), is_not_deleted(FlagValue)],
     EvalFun = fun({FlagKey, #{version := Version} = Flag}, #{<<"$flagsState">> := FlagsState} = Acc) ->
-        {{VariationIndex, V, Reason}, _Events} = flag_key_for_context(Tag, FlagKey, Context, null),
+        % Here the state is either initialized, or store_initialized, and we are online. Call directly to that version
+        % of flag_key_for_context. This will prevent additional warnings for the client initialization not being
+        % complete in the store_initialized state.
+        {{VariationIndex, V, Reason}, _Events} = flag_key_for_context(Tag, FlagKey, Context, null, online, initialized),
         FlagState = maybe_add_track_events(Flag,
             maybe_add_debug_events_until_date(Flag, #{
-            <<"version">> => Version})),
+                <<"version">> => Version})),
         UpdatedFlagState = case is_integer(VariationIndex) of
             true -> FlagState#{
-                    <<"variation">> => VariationIndex
-                };
+                <<"variation">> => VariationIndex
+            };
             false -> FlagState
         end,
         FlagStateWithReason = maybe_add_reason(Flag, Reason, WithReason, UpdatedFlagState),
@@ -205,13 +216,19 @@ all_flags_eval(_Context, _Tag, offline, _) ->
     #{flag_values => #{}};
 all_flags_eval(_Context, _Tag, _, not_initialized) ->
     #{flag_values => #{}};
+all_flags_eval(Context, Tag, Offline, store_initialized) ->
+    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    all_flags_eval(Context, Tag, Offline, initialized);
 all_flags_eval(Context, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     AllFlags = [FlagKey || {FlagKey, Flag} <- FeatureStore:all(Tag, features), is_not_deleted(Flag)],
     EvalFun = fun(FlagKey, Acc) ->
-        {{_, V, _}, _Events} = flag_key_for_context(Tag, FlagKey, Context, null),
+        % Here the state is either initialized, or store_initialized, and we are online. Call directly to that version
+        % of flag_key_for_context. This will prevent additional warnings for the client initialization not being
+        % complete in the store_initialized state.
+        {{_, V, _}, _Events} = flag_key_for_context(Tag, FlagKey, Context, null, online, initialized),
         Acc#{FlagKey => V}
-    end,
+              end,
     #{flag_values => lists:foldl(EvalFun, #{}, AllFlags)}.
 
 %%===================================================================
@@ -225,12 +242,33 @@ get_state(Tag) -> get_state(Tag, ldclient:is_offline(Tag)).
 get_state(_Tag, true) -> offline;
 get_state(_Tag, false) -> online.
 
--spec get_initialization_state(Tag :: atom()) -> atom().
+%% An SDK is initialized when it has received a flag payload from launchdarkly. An SDK using a persistent store may
+%% not be initialized, but it may have an initialized persistent store. In the case the store is initialized,
+%% then flags should be evaluated from the store.
+-spec get_initialization_state(Tag :: atom()) -> initialized | not_initialized | store_initialized.
 get_initialization_state(Tag) -> get_initialization_state(Tag, ldclient:initialized(Tag)).
 
--spec get_initialization_state(Tag :: atom(), Initialized :: boolean()) -> atom().
 get_initialization_state(_Tag, true) -> initialized;
-get_initialization_state(_Tag, false) -> not_initialized.
+get_initialization_state(Tag, false) ->
+    % If not initialized, and redis is in use, then ask the redis store if it is initialized.
+    % After the redis store has been established to be initialized it will set the storage state.
+
+    % This logic is currently only applied to redis, because other stores do not currently
+    % have a meaningful initialized state.
+    case ldclient_config:get_value(Tag, feature_store) of
+         ldclient_storage_redis ->
+             % First check the state, checking redis is slower, so should only be done if the
+             % state has not been set.
+             case ldclient_instance:feature_store_initialized(Tag) of
+                 true -> store_initialized;
+                 false -> case ldclient_storage_redis:get_init(Tag) of
+                              true -> store_initialized;
+                              false -> not_initialized
+                          end
+             end;
+        % For non-redis stores treat them as not initialized.
+         _ -> not_initialized
+    end.
 
 -spec flag_recs_for_context(
     FlagKey :: ldclient_flag:key(),
@@ -246,13 +284,13 @@ flag_recs_for_context(FlagKey, [], Context, _FeatureStore, _Tag, DefaultValue) -
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
-flag_recs_for_context(FlagKey, [{FlagKey, #{deleted := true}}|_], Context, _FeatureStore, _Tag, DefaultValue) ->
+flag_recs_for_context(FlagKey, [{FlagKey, #{deleted := true}} | _], Context, _FeatureStore, _Tag, DefaultValue) ->
     % Flag found, but it's deleted
     error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
-flag_recs_for_context(FlagKey, [{FlagKey, Flag}|_], Context, FeatureStore, Tag, DefaultValue) ->
+flag_recs_for_context(FlagKey, [{FlagKey, Flag} | _], Context, FeatureStore, Tag, DefaultValue) ->
     % Flag found
     flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue).
 
@@ -264,23 +302,22 @@ flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue) ->
     end.
 
 -spec flag_for_invalid_context(ldclient_flag:flag(), ldclient_context:context(), result_value()) -> result().
-flag_for_invalid_context(Flag, Context, DefaultValue) ->
+flag_for_invalid_context(_Flag, _Context, DefaultValue) ->
     Reason = {error, user_not_specified},
-    Events = [ldclient_event:new_flag_eval(null, DefaultValue, DefaultValue, Context, Reason, Flag)],
-    {{null, DefaultValue, Reason}, Events}.
+    {{null, DefaultValue, Reason}, []}.
 
 -spec flag_for_context(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
 flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue) ->
     {{Variation, VariationValue, Reason}, Events} = flag_for_context_valid(Flag, Context, FeatureStore, Tag, DefaultValue),
     FlagEvalEvent = ldclient_event:new_flag_eval(Variation, VariationValue, DefaultValue, Context, Reason, Flag),
-    {{Variation, VariationValue, Reason}, [FlagEvalEvent|Events]}.
+    {{Variation, VariationValue, Reason}, [FlagEvalEvent | Events]}.
 
 -spec flag_for_context_valid(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
 flag_for_context_valid(#{on := false, offVariation := OffVariation} = Flag, _Context, _FeatureStore, _Tag, DefaultValue)
     when is_integer(OffVariation), OffVariation >= 0 ->
     result_for_variation_index(OffVariation, off, Flag, [], DefaultValue);
 flag_for_context_valid(#{on := false, offVariation := OffVariation} = _Flag, _Context, _FeatureStore, _Tag, DefaultValue)
-    % offVariation is negative. The flag is malformed.
+% offVariation is negative. The flag is malformed.
     when is_integer(OffVariation), OffVariation =< 0 ->
     Reason = {error, malformed_flag},
     {{null, DefaultValue, Reason}, []};
@@ -317,7 +354,7 @@ check_prerequisites(
 ) ->
     flag_for_context_prerequisites(success, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
 check_prerequisites(
-    [#{key := PrerequisiteKey, variation := Variation}|Rest],
+    [#{key := PrerequisiteKey, variation := Variation} | Rest],
     #{key := FlagKey} = Flag,
     Context,
     FeatureStore,
@@ -350,14 +387,14 @@ check_prerequisites(
     DefaultValue :: result_value(),
     Events :: [ldclient_event:event()],
     VisitedFlags :: [binary()]
-    ) -> result().
+) -> result().
 check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag,
     Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
     % Short circuit if prerequisite flag is not found
     error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
     flag_for_context_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, Context,
         FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag}|_], PrerequisiteKey, Variation, Prerequisites, Flag,
+check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag} | _], PrerequisiteKey, Variation, Prerequisites, Flag,
     Context, FeatureStore, Tag, DefaultValue, Events, VisitedFlags) ->
     check_prerequisite_flag(PrerequisiteFlag, Variation, Prerequisites, Flag, Context,
         FeatureStore, Tag, DefaultValue, Events, VisitedFlags).
@@ -391,14 +428,14 @@ check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag,
             Tag, DefaultValue, Events, VisitedFlags),
     NewEvents = [
         ldclient_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey,
-            Context, ResultReason, PrerequisiteFlag)|ResultEvents
+            Context, ResultReason, PrerequisiteFlag) | ResultEvents
     ],
     case ResultReason of
         %% If there was a malformed dependent flag, when we want to short circuit, not treat it as a prerequisite
         %% failure.
         {error, malformed_flag} -> {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents};
         _ -> check_prerequisite_flag_result(PrerequisiteFlag, Variation =:= ResultVariation, Prerequisites,
-                Flag, Context, FeatureStore, Tag, DefaultValue, NewEvents, VisitedFlags)
+            Flag, Context, FeatureStore, Tag, DefaultValue, NewEvents, VisitedFlags)
     end.
 
 -spec check_prerequisite_flag_result(
@@ -424,7 +461,7 @@ check_prerequisite_flag_result(_PrerequisiteFlag, true, Prerequisites, Flag,
     check_prerequisites(Prerequisites, Flag, Context, FeatureStore, Tag, DefaultValue, Events, tl(VisitedFlags)).
 
 -spec flag_for_context_prerequisites(
-    Reason :: {fail | malformed_flag, Reason:: reason()} | success,
+    Reason :: {fail | malformed_flag, Reason :: reason()} | success,
     Flag :: ldclient_flag:flag(),
     Context :: ldclient_context:context(),
     FeatureStore :: atom(),
@@ -455,7 +492,7 @@ flag_for_context_targets(no_match, #{rules := Rules} = Flag, Context, FeatureSto
 
 check_rules([], Flag, Context, _FeatureStore, _Tag, DefaultValue, Events, _) ->
     flag_for_context_rules(no_match, Flag, Context, DefaultValue, Events);
-check_rules([Rule|Rest], Flag, Context, FeatureStore, Tag, DefaultValue, Events, Index) ->
+check_rules([Rule | Rest], Flag, Context, FeatureStore, Tag, DefaultValue, Events, Index) ->
     Result = ldclient_rule:match_context(Rule, Context, FeatureStore, Tag),
     check_rule_result({Result, Rule, Index}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
 

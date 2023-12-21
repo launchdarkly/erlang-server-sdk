@@ -1,0 +1,38 @@
+name: Manual Publish Package
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Is this a dry run. If so no package will be published.'
+        type: boolean
+        required: true
+
+jobs:
+  manual-build-publish:
+    runs-on: ubuntu-22.04
+    # Needed to get tokens during publishing.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          version-type: loose
+          otp-version: 25.x
+          rebar3-version: 3.18.0
+      - uses: actions/checkout@v3
+      - id: build-and-test
+        # Build using the same steps from CI.
+        name: Build and Test
+        uses: ./.github/actions/ci
+
+      - uses: ./.github/actions/configure-rebar
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+        if: ${{ !inputs.dry_run }}
+
+      - id: publish
+        name: Publish Package
+        uses: ./.github/actions/publish
+        with:
+          dry_run: ${{ inputs.dry_run }}

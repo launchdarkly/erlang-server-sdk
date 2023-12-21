@@ -2,12 +2,88 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.0.4](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.3...v3.0.4) (2023-12-04)
+
+
+### Bug Fixes
+
+* handle `already_started` when starting instance ([#111](https://github.com/launchdarkly/erlang-server-sdk/issues/111)) ([5e181d4](https://github.com/launchdarkly/erlang-server-sdk/commit/5e181d44c371dc1021255090bceab8151d7dfb76))
+
+## [3.0.3](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.2...v3.0.3) (2023-11-17)
+
+
+### Bug Fixes
+
+* Allow Elixir projects to read flags from a local file ([#106](https://github.com/launchdarkly/erlang-server-sdk/issues/106)) ([c290599](https://github.com/launchdarkly/erlang-server-sdk/commit/c290599223c9115115b36628bc16bc529bb87afd))
+
+## [3.0.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.1...v3.0.2) (2023-11-16)
+
+
+### Bug Fixes
+
+* Update certifi dependency to 2.12.0 ([b0c5e56](https://github.com/launchdarkly/erlang-server-sdk/commit/b0c5e56066fc432705a822adbecef723ce77a86c))
+
+## [3.0.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.0...v3.0.1) (2023-09-26)
+
+
+### Bug Fixes
+
+* Fix arithmetic error in stream re-connection logic. ([#104](https://github.com/launchdarkly/erlang-server-sdk/issues/104)) ([416af68](https://github.com/launchdarkly/erlang-server-sdk/commit/416af68f61975cbfbab1b5e38982c4b489043a8e))
+
+## [3.0.0](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.2...v3.0.0) (2023-09-14)
+
+**Version 3.0 requires Gun 2.x**. There are no changes to the Erlang SDK API or functionality. However, version 3.0 now requires [Gun 2.x](https://hex.pm/packages/gun).
+
+If your application depends directly on Gun, or if you have other dependencies that use Gun, then you must ensure that they work with Gun 2.x.
+
+### ⚠ BREAKING CHANGES
+
+* Upgrade to support Gun 2.x ([#99](https://github.com/launchdarkly/erlang-server-sdk/issues/99))
+
+### Features
+
+* Upgrade to support Gun 2.x ([#99](https://github.com/launchdarkly/erlang-server-sdk/issues/99)) ([f15bf4d](https://github.com/launchdarkly/erlang-server-sdk/commit/f15bf4d8011c3d83e127b6aefb6e55c67c359649))
+
+## [2.1.2](https://github.com/launchdarkly/erlang-server-sdk/compare/2.1.1...v2.1.2) (2023-08-24)
+
+
+### Bug Fixes
+
+* Changes for OTP 26. ([#93](https://github.com/launchdarkly/erlang-server-sdk/issues/93)) ([5f40282](https://github.com/launchdarkly/erlang-server-sdk/commit/5f40282f56a825138af9ca869e9a2c99bdeecd08))
+
+### Changed
+* Update to `eredis` version `1.7.1`.
+
+## [2.1.1] - 2023-08-02
+### Fixed:
+- Fixed `ldclient_instance:options()` to include new `redis_tls` option. Only specs affected.
+
+## [2.1.0] - 2023-08-01
+### Added:
+- A new configuration option, `redis_tls`, for configuring TLS settings for redis. When this option is omitted Redis will not use TLS. When specified it should contain a list of `ssl:tls_option()`. These options will be forwarded to `eredis`.
+
+## [2.0.5] - 2023-06-12
+### Changed:
+- Upgraded `yamerl` to version `0.10.0`.
+
+## [2.0.4] - 2023-06-05
+### Fixed:
+- Remove error log message associated with debugging redis initialization state.
+
+## [2.0.3] - 2023-05-30
+### Fixed:
+- Add missing `boolean()` type to the `ldclient_context:attribute_value()` definition.
+
+## [2.0.2] - 2023-05-26
+### Fixed:
+- Fixed an issue that would prevent using values from redis for `variation` or `all_flags_state` calls before client initialization was complete. After this change if the erlang SDK is using an initialized redis prefix, then it will be able to evaluate against that store before initialization is complete. Note that the SDK did not previously store the `$inited` key used when detecting that a store is initialized, so the store will need updated by this SDK version (or newer) at least once before it would be considered initialized.
+
+## [2.0.1] - 2023-05-04
+### Fixed:
+- Fixed an issue where invalid contexts would generate events resulting in a crash in the event server.
+
 ## [2.0.0] - 2023-02-22
 The latest version of this SDK supports LaunchDarkly's new custom contexts feature. Contexts are an evolution of a previously-existing concept, "users." Contexts let you create targeting rules for feature flags based on a variety of different information, including attributes pertaining to users, organizations, devices, and more. You can even combine contexts to create "multi-contexts." 
-
-This feature is only available to members of LaunchDarkly's Early Access Program (EAP). If you're in the EAP, you can use contexts by updating your SDK to the latest version and, if applicable, updating your Relay Proxy. Outdated SDK versions do not support contexts, and will cause unpredictable flag evaluation behavior.
-
-If you are not in the EAP, only use single contexts of kind "user", or continue to use the user type if available. If you try to create contexts, the context will be sent to LaunchDarkly, but any data not related to the user object will be ignored.
 
 For detailed information about this version, please refer to the list below. For information on how to upgrade from the previous version, please read the [migration guide](https://docs.launchdarkly.com/sdk/server-side/erlang/migration-1-to-2).
 

@@ -11,7 +11,8 @@
 -module(ldclient_usage).
 
 -export([
-    init_with_all_options/0
+    init_with_all_options/0,
+    use_variation_with_all_types_context/0
 ]).
 
 init_with_all_options() ->
@@ -33,6 +34,9 @@ init_with_all_options() ->
         redis_database => 0,
         redis_password => "password",
         redis_prefix => "prefix",
+        redis_tls => [
+            {verify, verify_peer}
+        ],
         use_ldd => false,
         cache_ttl => 1000,
         send_events => false,
@@ -47,3 +51,22 @@ init_with_all_options() ->
             custom_headers => [{"example-header-1", "heaver-value"}]
         }
     }).
+
+use_variation_with_all_types_context() ->
+    ldclient:variation(<<"flag-key">>,
+        ldclient_context:set_private_attributes([<<"binary">>],
+        ldclient_context:set(<<"binary">>, <<"myString">>,
+        ldclient_context:set(<<"integer">>, 14,
+        ldclient_context:set(<<"float">>, 3.14,
+        ldclient_context:set(<<"boolean">>, false,
+        ldclient_context:set(<<"array">>, [true, 14, 3.14, <<"myString">>, #{<<"a">> => <<"b">>}, [<<"arr">>]],
+        ldclient_context:set(<<"object">>, #{
+            <<"binary">> => <<"myString">>,
+            <<"integer">> => <<"myString">>,
+            <<"float">> => <<"myString">>,
+            <<"boolean">> => <<"myString">>,
+            <<"array">> => [<<"arr">>],
+            <<"object">> => #{<<"a">> => <<"b">>}
+        },
+        ldclient_context:new(<<"org-key">>, <<"org">>)))))))), false).
+

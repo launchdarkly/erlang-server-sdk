@@ -1,0 +1,28 @@
+# This is a composite to allow sharing these steps into other workflows.
+# For instance it could be used by regular CI as well as the release process.
+
+name: CI Workflow
+description: "Shared CI workflow."
+inputs:
+  run_tests:
+    description: "If true, run unit tests, otherwise skip them."
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - run: make compile
+      shell: bash
+    - uses: supercharge/redis-github-action@1.6.0
+    - run: make ci-tests
+      shell: bash
+    - uses: ./.github/actions/build-docs
+    - run: make dialyze
+      shell: bash
+    - run: make build-contract-tests
+      shell: bash
+    - run: make start-contract-test-service-bg
+      shell: bash
+    - run: make run-contract-tests
+      shell: bash
