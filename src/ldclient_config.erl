@@ -281,7 +281,27 @@ get_event_schema() ->
 %% @end
 -spec tls_basic_options() -> [ssl:tls_client_option()].
 tls_basic_options() ->
-    tls_basic_options(filelib:is_regular(?HTTP_DEFAULT_LINUX_CASTORE)).
+    case erlang:list_to_integer(erlang:system_info(otp_release)) >= 25 of
+        true -> tls_basic_erlef_options();
+        false -> tls_basic_options(filelib:is_regular(?HTTP_DEFAULT_LINUX_CASTORE))
+    end.
+
+%% The public_key:cacerts_get function does not exist prior to OTP 25, so we
+%% need to ignore the warning when building code that will not be using it.
+-dialyzer({no_missing_calls, tls_basic_erlef_options/0}).
+
+%% @doc Provide basic options for using TLS with the default OTP 25+.
+%% Follows the recommendations from the Erlang Security Working Group.
+%% https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl
+%%
+%% @end
+-spec tls_basic_erlef_options() -> [ssl:tls_client_option()].
+tls_basic_erlef_options() ->
+    CaCerts = public_key:cacerts_get(),
+    [
+        {cacerts, CaCerts}
+        | tls_base_options()
+    ].
 
 %% @doc Provide basic options for using TLS with the default linux store.
 %% This will try to use the a certificate store located at
