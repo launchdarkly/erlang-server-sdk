@@ -25,7 +25,8 @@
     fail_and_retry/1,
     payload_id_differs/1,
     add_flag_eval_events_flush_in_experiment_fallthrough/1,
-    add_flag_eval_events_flush_in_experiment_rule_match/1
+    add_flag_eval_events_flush_in_experiment_rule_match/1,
+    auto_flush_with_cast/1
 ]).
 
 %%====================================================================
@@ -47,7 +48,8 @@ all() ->
         fail_and_retry,
         payload_id_differs,
         add_flag_eval_events_flush_in_experiment_fallthrough,
-        add_flag_eval_events_flush_in_experiment_rule_match
+        add_flag_eval_events_flush_in_experiment_rule_match,
+        auto_flush_with_cast
     ].
 
 init_per_suite(Config) ->
@@ -62,7 +64,12 @@ init_per_suite(Config) ->
         events_capacity => 2,
         events_flush_interval => 1000
     },
+    AsyncEventsOptions = Options#{
+        experimental_async_add_event => true,
+        events_flush_interval => 1000
+    },
     ldclient:start_instance("", another1, Another1Options),
+    ldclient:start_instance("", async_events_client, AsyncEventsOptions),
     ldclient:start_instance("sdk-key-events-fail", failer, Another1Options),
     Config.
 
@@ -257,7 +264,8 @@ send_await_events(Events, Options, Tag) ->
     register_event_forwarding_process(),
     IncludeReasons = maps:get(include_reasons, Options, false),
     Flush = maps:get(flush, Options, false),
-    [ok = ldclient_event_server:add_event(Tag, E, #{include_reasons => IncludeReasons}) || E <- Events],
+    [ok = ldclient_event_server:add_event(Tag, E, 
+        #{include_reasons => IncludeReasons}) || E <- Events],
     ok = if Flush -> ldclient_event_server:flush(Tag); true -> ok end,
     receive_events().
 
@@ -800,6 +808,26 @@ auto_flush(_) ->
         ldclient_context:new_from_user(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
     Events = [Event1, Event2],
     {ActualEvents, _} = send_await_events(Events, #{flush => false}, another1),
+    [
+        #{
+            <<"kind">> := <<"identify">>,
+            <<"context">> := #{<<"key">> := <<"12345">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"creationDate">> := _
+        },
+        #{
+            <<"kind">> := <<"identify">>,
+            <<"context">> := #{<<"key">> := <<"abcde">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+auto_flush_with_cast(_) ->
+    Event1 = ldclient_event:new_identify(
+        ldclient_context:new_from_user(#{key => <<"12345">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Event2 = ldclient_event:new_identify(
+        ldclient_context:new_from_user(#{key => <<"abcde">>, first_name => <<"Tester">>, last_name => <<"Testerson">>})),
+    Events = [Event1, Event2],
+    {ActualEvents, _} = send_await_events(Events, #{flush => false}, async_events_client),
     [
         #{
             <<"kind">> := <<"identify">>,

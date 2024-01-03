@@ -83,7 +83,19 @@
     datasource => poll | stream | file | testdata | undefined,
     http_options => http_options(),
     stream_initial_retry_delay_ms => non_neg_integer(),
-    application => app_info()
+    application => app_info(),
+
+    %% This functionality is experimental and may be removed. It changes event 
+    %% processing to be completely async. This removes the back pressure 
+    %% experienced under heavy event load. If event processing cannot catch 
+    %% up, then this option can result in unbounded growth of the mailbox
+    %% for the event processor. If this situation arises then the BEAM VM will
+    %% exhaust all available memory and eventually crash (not just the erlang
+    %% process experiencing unbounded growth, but the entire node). 
+    %% This option should only be used if you are certain that your spikes
+    %% will not cause this situation, and you are okay with the VM crashing
+    %% when the situation is encountered.
+    experimental_async_add_event => boolean()
 }.
 % Settings stored for each running SDK instance
 
@@ -126,6 +138,7 @@
 -define(DEFAULT_TESTDATA_TAG, default).
 -define(DEFAULT_DATASOURCE, undefined).
 -define(DEFAULT_STREAM_RETRY_DELAY, 1000).
+-define(DEFAULT_EXPERIMENTAL_ASYNC_ADD_EVENT, false).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
@@ -188,6 +201,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     StreamInitialRetryDelayMs = maps:get(stream_initial_retry_delay_ms, Options, ?DEFAULT_STREAM_RETRY_DELAY),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     AppInfo = parse_application_info(maps:get(application, Options, ?APPLICATION_DEFAULT_OPTIONS)),
+    ExperimentalAsyncAddEvent = parse_experimental_async_add_event(
+        maps:get(experimental_async_add_event, Options, ?DEFAULT_EXPERIMENTAL_ASYNC_ADD_EVENT)),
     RedisTls = maps:get(redis_tls, Options, ?DEFAULT_REDIS_TLS),
     #{
         sdk_key => SdkKey,
@@ -222,7 +237,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         testdata_tag => TestDataTag,
         datasource => DataSource,
         stream_initial_retry_delay_ms => StreamInitialRetryDelayMs,
-        application => AppInfo
+        application => AppInfo,
+        experimental_async_add_event => ExperimentalAsyncAddEvent
     }.
 
 %% @doc Get all registered tags
@@ -435,3 +451,16 @@ parse_private_attributes(Attributes) -> lists:map(fun ensure_attribute_reference
     ldclient_attribute_reference:attribute_reference().
 ensure_attribute_reference(Attribute) when is_binary(Attribute) -> ldclient_attribute_reference:new(Attribute);
 ensure_attribute_reference(Attribute) -> Attribute.
+
+-spec parse_experimental_async_add_event(Enabled :: boolean()) -> boolean().
+parse_experimental_async_add_event(false) -> false;
+parse_experimental_async_add_event(true) -> 
+        error_logger:warning_msg("Using the experimental_async_add_event option. 
+            This functionality is experimental and may be removed. 
+            It changes event processing to be completely async. This removes the back pressure experienced under heavy 
+            event load. If event processing cannot catch up, then this option can result in unbounded growth of the 
+            mailbox for the event processor. If this situation arises then the BEAM VM will exhaust all available memory
+            and eventually crash (not just the erlang process experiencing unbounded growth, but the entire node). This
+            option should only be used if you are certain that your spikes will not cause this situation and you are
+            okay with the VM crashing when the situation is encountered"),
+    true.
