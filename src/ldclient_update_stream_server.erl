@@ -163,9 +163,9 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     Opts = #{gun_opts => GunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
-            {error, gun_open_failed, "Could not open connection to host"};
+            {error, temporary, "Could not open connection to host"};
         {error, gun_open_timeout} ->
-            {error, gun_open_timeout, "Connection timeout"};
+            {error, temporary, "Connection timeout"};
         {ok, Pid} ->
             _ = monitor(process, Pid),
             F = fun(nofin, _Ref, Bin) ->
