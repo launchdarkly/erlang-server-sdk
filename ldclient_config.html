@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module ldclient_config</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module ldclient_config</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul><code>ldclient_config</code> module.
+
+
+<h2><a name="description">Description</a></h2><p><code>ldclient_config</code> module</p>
+ 
+  Acts as a storage interface for SDK client instance settings.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-app_info">app_info()</a></h3>
+<p><tt>app_info() = #{id =&gt; binary(), version =&gt; binary()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-http_options">http_options()</a></h3>
+<p><tt>http_options() = #{tls_options =&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>] | undefined, connect_timeout =&gt; pos_integer() | undefined, custom_headers =&gt; [{Key::string(), Value::string()}] | undefined}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-instance">instance()</a></h3>
+<p><tt>instance() = #{sdk_key =&gt; string(), base_uri =&gt; string(), events_uri =&gt; string(), stream_uri =&gt; string(), feature_store =&gt; atom(), events_capacity =&gt; pos_integer(), events_flush_interval =&gt; pos_integer(), events_dispatcher =&gt; atom(), context_keys_capacity =&gt; pos_integer(), private_attributes =&gt; <a href="#type-private_attributes">private_attributes()</a>, stream =&gt; boolean(), polling_interval =&gt; pos_integer(), polling_update_requestor =&gt; atom(), offline =&gt; boolean(), redis_host =&gt; string(), redis_port =&gt; pos_integer(), redis_database =&gt; integer(), redis_password =&gt; string(), redis_prefix =&gt; string(), redis_tls =&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_option">ssl:tls_option()</a>] | undefined, cache_ttl =&gt; integer(), use_ldd =&gt; boolean(), send_events =&gt; boolean(), file_datasource =&gt; boolean(), file_paths =&gt; [string() | binary()], file_auto_update =&gt; boolean(), file_poll_interval =&gt; pos_integer(), file_allow_duplicate_keys =&gt; boolean(), testdata_tag =&gt; atom(), datasource =&gt; poll | stream | file | testdata | undefined, http_options =&gt; <a href="#type-http_options">http_options()</a>, stream_initial_retry_delay_ms =&gt; non_neg_integer(), application =&gt; <a href="#type-app_info">app_info()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-private_attributes">private_attributes()</a></h3>
+<p><tt>private_attributes() = all | [<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_attribute_reference.html#type-attribute_reference">ldclient_attribute_reference:attribute_reference()</a>]</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#get_event_schema-0">get_event_schema/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_registered_tags-0">get_registered_tags/0</a></td><td>Get all registered tags.</td></tr>
+<tr><td valign="top"><a href="#get_user_agent-0">get_user_agent/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_value-2">get_value/2</a></td><td>Gets application environment variable value.</td></tr>
+<tr><td valign="top"><a href="#get_version-0">get_version/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-0">init/0</a></td><td>Initialize settings environment map.</td></tr>
+<tr><td valign="top"><a href="#register-2">register/2</a></td><td>Register settings for a new client instance.</td></tr>
+<tr><td valign="top"><a href="#tls_basic_certifi_options-0">tls_basic_certifi_options/0</a></td><td>Provide basic TLS options using the bundled certifi store.</td></tr>
+<tr><td valign="top"><a href="#tls_basic_linux_options-0">tls_basic_linux_options/0</a></td><td>Provide basic options for using TLS with the default linux store.</td></tr>
+<tr><td valign="top"><a href="#tls_basic_options-0">tls_basic_options/0</a></td><td>Provide basic options for using TLS.</td></tr>
+<tr><td valign="top"><a href="#tls_ca_certfile_options-1">tls_ca_certfile_options/1</a></td><td>Provide basic options for using TLS with the given store.</td></tr>
+<tr><td valign="top"><a href="#unregister-1">unregister/1</a></td><td>Unregister settings for a client instance.</td></tr>
+<tr><td valign="top"><a href="#with_tls_revocation-1">with_tls_revocation/1</a></td><td>Append the specified TLS options with certificate revocation.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="get_event_schema-0">get_event_schema/0</a></h3>
+<div class="spec">
+<p><tt>get_event_schema() -&gt; string()</tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="get_registered_tags-0">get_registered_tags/0</a></h3>
+<div class="spec">
+<p><tt>get_registered_tags() -&gt; [atom()]</tt><br></p>
+<p> </p>
+</div><p>Get all registered tags
+ </p>
+
+<h3 class="function"><a name="get_user_agent-0">get_user_agent/0</a></h3>
+<div class="spec">
+<p><tt>get_user_agent() -&gt; string()</tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="get_value-2">get_value/2</a></h3>
+<div class="spec">
+<p><tt>get_value(Tag::atom(), Key::atom()) -&gt; undefined | term()</tt><br></p>
+<p> </p>
+</div><p><p>Gets application environment variable value</p>
+ 
+  This is a convenience function to retrieve application environment variables
+  in one place. <code>Tag</code> is the instance tag. <code>Key</code> is the key of the
+  configuration option.</p>
+
+<h3 class="function"><a name="get_version-0">get_version/0</a></h3>
+<div class="spec">
+<p><tt>get_version() -&gt; string()</tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="init-0">init/0</a></h3>
+<div class="spec">
+<p><tt>init() -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Initialize settings environment map</p>
+ 
+  Initializes an empty map for instance settings in application environment.</p>
+
+<h3 class="function"><a name="register-2">register/2</a></h3>
+<div class="spec">
+<p><tt>register(Tag::atom(), Settings::<a href="#type-instance">instance()</a>) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p>Register settings for a new client instance
+ </p>
+
+<h3 class="function"><a name="tls_basic_certifi_options-0">tls_basic_certifi_options/0</a></h3>
+<div class="spec">
+<p><tt>tls_basic_certifi_options() -&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]</tt><br></p>
+<p> </p>
+</div><p>Provide basic TLS options using the bundled certifi store.
+ </p>
+
+<h3 class="function"><a name="tls_basic_linux_options-0">tls_basic_linux_options/0</a></h3>
+<div class="spec">
+<p><tt>tls_basic_linux_options() -&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]</tt><br></p>
+<p> </p>
+</div><p>Provide basic options for using TLS with the default linux store.
+  This will try to use the a certificate store located at
+  /etc/ssl/certs/ca-certificates.crt.
+ </p>
+
+<h3 class="function"><a name="tls_basic_options-0">tls_basic_options/0</a></h3>
+<div class="spec">
+<p><tt>tls_basic_options() -&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]</tt><br></p>
+<p> </p>
+</div><p>Provide basic options for using TLS.
+  This will try to use the a certificate store located at
+  /etc/ssl/certs/ca-certificates.crt, but if that file
+  does not exist, then it will use the bundled certifi store.
+ </p>
+
+<h3 class="function"><a name="tls_ca_certfile_options-1">tls_ca_certfile_options/1</a></h3>
+<div class="spec">
+<p><tt>tls_ca_certfile_options(CaStorePath::string()) -&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]</tt><br></p>
+<p> </p>
+</div><p>Provide basic options for using TLS with the given store.
+ </p>
+
+<h3 class="function"><a name="unregister-1">unregister/1</a></h3>
+<div class="spec">
+<p><tt>unregister(Tag::atom()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p>Unregister settings for a client instance
+ </p>
+
+<h3 class="function"><a name="with_tls_revocation-1">with_tls_revocation/1</a></h3>
+<div class="spec">
+<p><tt>with_tls_revocation(Options::[<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]) -&gt; [<a href="http://www.erlang.org/edoc/doc/ssl/doc/ssl.html#type-tls_client_option">ssl:tls_client_option()</a>]</tt><br></p>
+<p> </p>
+</div><p>Append the specified TLS options with certificate revocation.
+  The crl_cache does not actually cache at this time, so this will
+  result in an additional request per TLS handshake.
+ </p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc</i></p>
+</body>
+</html>
