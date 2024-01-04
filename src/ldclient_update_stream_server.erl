@@ -20,6 +20,9 @@
     feature_store := atom(),
     storage_tag := atom(),
     stream_uri := string(),
+    poll_uri := string(),
+    requestor := atom(),
+    requestor_state := any(),
     %% Try to use a proper type with Gun 2.0
     gun_options := any(),
     headers := map()
@@ -31,6 +34,7 @@
 
 %% Maximum backoff delay of 30 seconds.
 -define(MAX_BACKOFF_DELAY, 30000).
+-define(LATEST_ALL_PATH, "/sdk/latest-all").
 
 %%===================================================================
 %% Supervision
@@ -49,6 +53,9 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
+    SdkKey = ldclient_config:get_value(Tag, sdk_key),
+    PollUri = ldclient_config:get_value(Tag, base_uri) ++ ?LATEST_ALL_PATH,
+    Requestor = ldclient_config:get_value(Tag, polling_update_requestor),
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
@@ -66,6 +73,9 @@ init([Tag]) ->
         storage_tag => Tag,
         stream_uri => StreamUri,
         gun_options => GunOptions,
+        poll_uri => PollUri,
+        requestor => Requestor,
+        requestor_state => Requestor:init(Tag, SdkKey),
         headers => Headers
     },
     self() ! {listen},
@@ -121,25 +131,36 @@ code_change(_OldVsn, State, _Extra) ->
 do_listen(#{
     feature_store := FeatureStore,
     storage_tag := Tag,
-    stream_uri := Uri,
+    stream_uri := StreamUri,
+    requestor := Requestor,
+    requestor_state := RequestorState,
+    poll_uri := PollUri,
     backoff := Backoff,
     gun_options := GunOptions,
     headers := Headers
     } = State
 ) ->
-    try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers) of
+    {Result, NewRequestorState} = Requestor:all(PollUri, RequestorState),
+    ok = ldclient_update_poll_server:process_response(Result, FeatureStore, Tag, PollUri),
+    HeadersWithEtag = case Requestor:etag(PollUri, NewRequestorState) of
+        {ok, Etag} ->
+            maps:put(<<"If-None-Match">>, list_to_binary(Etag), Headers);
+        error -> Headers
+    end,
+    error_logger:info_msg("HTTP headers to streaming: ~p", [HeadersWithEtag]),
+    try do_listen(StreamUri, FeatureStore, Tag, GunOptions, HeadersWithEtag) of
         {error, temporary, Reason} ->
             NewBackoff = do_listen_fail_backoff(Backoff, temporary, Reason),
-            State#{backoff := NewBackoff};
+            State#{backoff := NewBackoff, requestor_state := NewRequestorState};
         {error, permanent, Reason} ->
             error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
             State;
         {ok, Pid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),
-            State#{conn := Pid, backoff := NewBackoff}
+            State#{conn := Pid, backoff := NewBackoff, requestor_state := NewRequestorState}
         catch Code:Reason ->
             NewBackoff = do_listen_fail_backoff(Backoff, Code, Reason),
-            State#{backoff := NewBackoff}
+            State#{backoff := NewBackoff, requestor_state := NewRequestorState}
     end.
 
 %% @doc Used for firing backoff before shotgun pid is monitored
@@ -163,9 +184,9 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     Opts = #{gun_opts => GunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
-            {error, gun_open_failed, "Could not open connection to host"};
+            {error, temporary, "Could not open connection to host"};
         {error, gun_open_timeout} ->
-            {error, gun_open_timeout, "Connection timeout"};
+            {error, temporary, "Connection timeout"};
         {ok, Pid} ->
             _ = monitor(process, Pid),
             F = fun(nofin, _Ref, Bin) ->
@@ -233,7 +254,7 @@ process_items(put, Data, ldclient_storage_redis, Tag) ->
     ok = ldclient_storage_redis:set_init(Tag);
 process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
-    error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    error_logger:info_msg("Received stream put event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
     ParsedFlags = maps:map(
         fun(_K, V) -> ldclient_flag:new(V) end
         , Flags),
@@ -245,7 +266,9 @@ process_items(put, Data, FeatureStore, Tag) ->
 process_items(patch, Data, FeatureStore, Tag) ->
     case get_patch_item(Data) of
         {Bucket, Key, Item, ParseFunction} ->
-            ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction);
+            ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction),
+            error_logger:info_msg("Received stream patch event for key ~p", [Key]),
+            ok;
         error ->
             #{<<"path">> := Path} = Data,
             error_logger:warning_msg("Unrecognized patch path ~p", [Path]),

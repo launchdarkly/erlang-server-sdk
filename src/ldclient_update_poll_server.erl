@@ -25,6 +25,9 @@
     timer_ref => timer:tref()
 }.
 
+%% API
+-export([process_response/4]).
+
 %% Constants
 -define(LATEST_ALL_PATH, "/sdk/latest-all").
 
@@ -162,7 +165,8 @@ process_response_body(ResponseBody, FeatureStore, Tag) ->
         fun(_K, V) -> ldclient_segment:new(V) end
         , Segments),
     ok = FeatureStore:upsert_clean(Tag, features, ParsedFlags),
-    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments).
+    ok = FeatureStore:upsert_clean(Tag, segments, ParsedSegments),
+    error_logger:info_msg("Received ~p flags and ~p segments via polling.", [maps:size(ParsedFlags), maps:size(ParsedSegments)]).
 
 -spec get_put_items(Data :: map()) -> [map()].
 get_put_items(#{<<"flags">> := Flags, <<"segments">> := Segments}) ->

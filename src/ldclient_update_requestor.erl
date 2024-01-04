@@ -22,5 +22,8 @@
 %% such as ETag caching.
 -callback all(Uri :: string(), State :: any()) -> {response(), any()}.
 
+%% `etag' should return the current Etag value from state
+- callback etag(Uri :: string(), State :: any()) -> {ok, binary()} | error.
+
 %% `init' should return an initial value for the `State' argument to `all'
 -callback init(Tag :: atom(), SdkKey :: string()) -> any().

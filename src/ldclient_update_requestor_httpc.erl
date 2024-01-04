@@ -9,7 +9,7 @@
 -behaviour(ldclient_update_requestor).
 
 %% Behavior callbacks
--export([init/2, all/2]).
+-export([init/2, all/2, etag/2]).
 
 %% Internal type for ETag cache state
 -type state() :: #{
@@ -45,7 +45,7 @@ init(Tag, _SdkKey) ->
                  {ldclient_update_requestor:response(), state()}.
 all(Uri, State) ->
     #{etag_state := EtagState, headers := Headers, http_options := HttpOptions} = State,
-    ETagHeaders = case maps:find(Uri, EtagState) of
+    ETagHeaders = case etag(Uri, State) of
         error -> Headers;
         {ok, Etag} -> [{"If-None-Match", Etag}|Headers]
     end,
@@ -64,6 +64,10 @@ all(Uri, State) ->
             end;
         _ -> {{error, network_error}, State}
     end.
+
+-spec etag(Uri :: string(), State :: state()) -> {ok, binary()} | error.
+etag(Uri, #{etag_state := EtagState}) ->
+    maps:find(Uri, EtagState).
 
 %%===================================================================
 %% Internal functions
