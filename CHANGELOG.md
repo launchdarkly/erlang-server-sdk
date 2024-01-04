@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.1.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.4...v3.1.0) (2024-01-04)
+
+
+### Features
+
+* For otp 25+ use public_key:cacerts_get for the default certificate list. ([#114](https://github.com/launchdarkly/erlang-server-sdk/issues/114)) ([b7065aa](https://github.com/launchdarkly/erlang-server-sdk/commit/b7065aacb2bdfab1a395eb8bdd5a0754b19bee1a))
+
+
+### Bug Fixes
+
+* Make gun open errors explicitly into temporary failures ([#118](https://github.com/launchdarkly/erlang-server-sdk/issues/118)) ([fc70445](https://github.com/launchdarkly/erlang-server-sdk/commit/fc70445daf179e3d24a5dc5685f5db6ea0ee91cc))
+
 ## [3.0.4](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.0.3...v3.0.4) (2023-12-04)
 
 
