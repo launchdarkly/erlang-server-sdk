@@ -74,7 +74,8 @@ get_service_detail(Req, State) ->
       <<"tags">>,
       <<"server-side-polling">>,
       <<"user-type">>,
-      <<"inline-context">>
+      <<"inline-context">>,
+      <<"anonymous-redaction">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),

@@ -230,7 +230,7 @@ maybe_set_reason(_Event, OutputEvent) ->
 -spec format_event_set_context(binary(), ldclient_context:context(), map(), ldclient_config:private_attributes()) -> map().
 format_event_set_context(<<"feature">>, Context, OutputEvent, GlobalPrivateAttributes) ->
     OutputEvent#{
-        <<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)
+        <<"context">> => ldclient_context_filter:format_context_for_event_with_anonyous_redaction(GlobalPrivateAttributes, Context)
     };
 format_event_set_context(<<"debug">>, Context, OutputEvent, GlobalPrivateAttributes) ->
     OutputEvent#{
