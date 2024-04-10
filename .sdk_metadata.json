@@ -5,7 +5,7 @@
       "name": "Erlang Server SDK",
       "type": "server-side",
       "languages": [
-        "Erlang"
+        "Erlang", "Elixir"
       ]
     }
   }
