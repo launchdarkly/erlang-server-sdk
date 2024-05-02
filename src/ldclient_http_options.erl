@@ -52,7 +52,7 @@ gun_parse_http_options(HttpOptions) ->
 
 -spec gun_parse_http_options(Options :: ldclient_config:http_options(), GunOptions :: map()) -> map().
 gun_parse_http_options(HttpOptions, GunOptions) ->
-    OptionsWithgitTls = gun_parse_tls_options(HttpOptions, GunOptions),
+    OptionsWithTls = gun_parse_tls_options(HttpOptions, GunOptions),
     gun_parse_connect_timeout(HttpOptions, OptionsWithTls).
 
 -spec gun_parse_tls_options(ConfigOptions :: ldclient_config:http_options(), GunOptions :: map()) -> map().
