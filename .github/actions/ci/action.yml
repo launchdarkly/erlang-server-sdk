@@ -8,6 +8,9 @@ inputs:
     description: "If true, run unit tests, otherwise skip them."
     required: false
     default: "true"
+  github_token:
+    description: "Github token used to access contract test harness."
+    required: true
 
 runs:
   using: composite
@@ -27,5 +30,5 @@ runs:
     - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.0.0
       with:
         test_service_port: 8000
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ inputs.github_token }}
         extra_params: '--skip-from=./test-service/testharness-suppressions.txt'
