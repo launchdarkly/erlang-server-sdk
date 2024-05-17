@@ -397,7 +397,7 @@ get_all() ->
 
 -spec tls_base_options() -> [ssl:tls_client_option()].
 tls_base_options() ->
-    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2'),
+    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2', 'tlsv1.3'),
     CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
