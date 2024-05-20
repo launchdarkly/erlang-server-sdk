@@ -20,7 +20,10 @@
     check_secure_default_shotgun_stream_endpoint/1,
     check_secure_default_httpc_poll_endpoint/1,
     check_secure_default_httpc_events_endpoint/1,
-    check_secure_default_shotgun_invalid/1
+    check_secure_default_shotgun_invalid/1,
+    check_secure_default_shotgun_stream_endpoint_federal/1,
+    check_secure_default_httpc_poll_endpoint_federal/1,
+    check_secure_default_httpc_events_endpoint_federal/1
 ]).
 
 %%====================================================================
@@ -38,7 +41,10 @@ all() ->
         check_secure_default_shotgun_stream_endpoint,
         check_secure_default_httpc_poll_endpoint,
         check_secure_default_httpc_events_endpoint,
-        check_secure_default_shotgun_invalid
+        check_secure_default_shotgun_invalid,
+        check_secure_default_shotgun_stream_endpoint_federal,
+        check_secure_default_httpc_poll_endpoint_federal,
+        check_secure_default_httpc_events_endpoint_federal
     ].
 
 init_per_suite(Config) ->
@@ -58,7 +64,7 @@ end_per_testcase(_, _Config) ->
 %% Helpers
 %%====================================================================
 
-open_stream(Uri, HttpOptions) ->
+open_stream(Uri, HttpOptions, SdkKeyEnv) ->
     GunOpts = ldclient_http_options:gun_parse_http_options(HttpOptions),
     Opts = #{gun_opts => GunOpts},
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
@@ -84,7 +90,7 @@ open_stream(Uri, HttpOptions) ->
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
             Headers = #{
-                "authorization" => os:getenv("LD_SDK_KEY"),
+                "authorization" => os:getenv(SdkKeyEnv),
                 <<"user-agent">> => ldclient_config:get_user_agent()
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
@@ -105,7 +111,14 @@ check_secure_default_shotgun_stream_endpoint(_) ->
         tls_options => ldclient_config:tls_basic_options(),
         connect_timeout => undefined,
         custom_headers => undefined
-    }).
+    }, "LD_SDK_KEY").
+
+check_secure_default_shotgun_stream_endpoint_federal(_) ->
+    {ok, _} = open_stream("https://stream.launchdarkly.us/all", #{
+        tls_options => ldclient_config:tls_basic_options(),
+        connect_timeout => undefined,
+        custom_headers => undefined
+    }, "LD_FED_SDK_KEY").
 
 check_secure_default_httpc_poll_endpoint(_) ->
     Options = [{ssl, ldclient_config:tls_basic_options()}],
@@ -114,10 +127,27 @@ check_secure_default_httpc_poll_endpoint(_) ->
         {"User-Agent", ldclient_config:get_user_agent()}
     ]}, Options, []).
 
+check_secure_default_httpc_poll_endpoint_federal(_) ->
+    Options = [{ssl, ldclient_config:tls_basic_options()}],
+    {ok, _} = httpc:request(get, {"https://sdk.launchdarkly.us/sdk/latest-all", [
+        {"Authorization", os:getenv("LD_FED_SDK_KEY")},
+        {"User-Agent", ldclient_config:get_user_agent()}
+    ]}, Options, []).
+
 check_secure_default_httpc_events_endpoint(_) ->
     Options = [{ssl, ldclient_config:tls_basic_options()}],
     {ok, _} = httpc:request(post, {"https://events.launchdarkly.com/bulk", [
         {"Authorization", os:getenv("LD_SDK_KEY")},
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
+        {"User-Agent", ldclient_config:get_user_agent()}],
+        "application/json",
+        <<"[{\"endDate\":1634839284004,\"features\":{\"test-boolean-flag\":{\"counters\":[{\"count\":1,\"unknown\":false,\"value\":true,\"variation\":0,\"version\":1}],\"default\":\"default-value\"}},\"kind\":\"summary\",\"startDate\":1634839284004},{\"creationDate\":1634839284004,\"kind\":\"index\",\"user\":{\"firstName\":\"Tester\",\"key\":\"12345-track\",\"lastName\":\"Testerson\",\"privateAttrs\":[]}}]">>
+    }, Options, []).
+
+check_secure_default_httpc_events_endpoint_federal(_) ->
+    Options = [{ssl, ldclient_config:tls_basic_options()}],
+    {ok, _} = httpc:request(post, {"https://events.launchdarkly.us/bulk", [
+        {"Authorization", os:getenv("LD_FED_SDK_KEY")},
         {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
         {"User-Agent", ldclient_config:get_user_agent()}],
         "application/json",
@@ -175,4 +205,4 @@ check_secure_default_shotgun_invalid(_) ->
         tls_options => ldclient_config:tls_basic_options(),
         connect_timeout => undefined,
         custom_headers => undefined
-    }).
+    }, "LD_SDK_KEY").

@@ -135,6 +135,17 @@
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
 
+%% Enable TLS 1.3 support for erlang 23 and higher.
+%% TLS 1.3 support stabilized during 22, but this implementation does not work in 22.0.
+%% To use TLS 1.3 with OTP 22, custom TLS options can be used.
+-if(?OTP_RELEASE >= 23).
+-define(MAX_SUPPORTED_TLS_VERSION, 'tlsv1.3').
+-define(SUPPORTED_TLS_VERSIONS, ['tlsv1.2', 'tlsv1.3']).
+-else.
+-define(MAX_SUPPORTED_TLS_VERSION, 'tlsv1.2').
+-define(SUPPORTED_TLS_VERSIONS, ['tlsv1.2']).
+-endif.
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -395,13 +406,15 @@ get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
 
--spec tls_base_options() -> [ssl:tls_client_option()].
-tls_base_options() ->
-    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2'),
-    CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
+-spec get_suites(TlsVersion :: ssl:protocol_version()) -> ssl:ciphers().
+get_suites(TlsVersion) ->
+    DefaultCipherSuites = ssl:cipher_suites(default, TlsVersion),
+    ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
                            (ecdhe_rsa) -> true;
+                           %% TLS 1.3 ciphers will have 'any' as the key_exchange.
+                           (any) -> true;
                            (_) -> false
                        end
         },
@@ -410,11 +423,16 @@ tls_base_options() ->
                   (_) -> true
               end
         }
-    ]),
+    ]).
 
+-spec tls_base_options() -> [ssl:tls_client_option()].
+tls_base_options() ->
+    CipherSuites = get_suites(?MAX_SUPPORTED_TLS_VERSION),
     [{verify, verify_peer},
         {ciphers, CipherSuites},
         {depth, 3},
+        %% Only include TLS versions we know we support.
+        {versions, ?SUPPORTED_TLS_VERSIONS},
         {customize_hostname_check, [
             {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
         ]}].

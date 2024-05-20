@@ -141,6 +141,7 @@ tls_basic_options(_) ->
         {verify, verify_peer},
         {ciphers, Ciphers},
         {depth, 3},
+        {versions, _Versions},
         {customize_hostname_check, _}] = BasicOptions,
         true = (length(Ciphers) =/= 0);
     false -> 
@@ -152,6 +153,7 @@ tls_basic_options(_) ->
                     {verify, verify_peer},
                     {ciphers, Ciphers},
                     {depth, 3},
+                    {versions, _Versions},
                     {customize_hostname_check, _}] = BasicOptions,
                 true = (length(Ciphers) =/= 0);
             {_, _} ->
@@ -160,6 +162,7 @@ tls_basic_options(_) ->
                     {verify, verify_peer},
                     {ciphers, Ciphers},
                     {depth, 3},
+                    {versions, _Versions},
                     {customize_hostname_check, _}] = BasicOptions,
                 true = (length(Ciphers) =/= 0)
         end
@@ -171,6 +174,7 @@ tls_with_ca_certfile_options(_) ->
         {verify, verify_peer},
         {ciphers, Ciphers},
         {depth, 3},
+        {versions, _Versions},
         {customize_hostname_check, _}] = ldclient_config:tls_ca_certfile_options("imaginary/path/to/certfile.crt"),
     true = (length(Ciphers) =/= 0).
 
@@ -180,6 +184,7 @@ tls_basic_linux_options(_) ->
         {verify, verify_peer},
         {ciphers, Ciphers},
         {depth, 3},
+        {versions, _Versions},
         {customize_hostname_check, _}] = ldclient_config:tls_basic_linux_options(),
     true = (length(Ciphers) =/= 0).
 
