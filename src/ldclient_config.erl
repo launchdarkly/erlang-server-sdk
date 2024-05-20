@@ -395,24 +395,12 @@ get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
 
-% OTP version 22 or greater is required for tls1.3 support.
--if(?OTP_RELEASE >= 22).
-get_suites() ->
-    ssl:cipher_suites(default, 'tlsv1.2') ++ ssl:cipher_suites(default, 'tlsv1.3').
--else.
-get_suites() ->
-    ssl:cipher_suites(default, 'tlsv1.2').
--endif.
-
--spec tls_base_options() -> [ssl:tls_client_option()].
-tls_base_options() ->
-    DefaultCipherSuites = get_suites(),
-    CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
+get_suites_1_2() ->
+    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2'),
+    ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
                            (ecdhe_rsa) -> true;
-                           % Retain 'any' to prevent filtering 1.3 ciphers.
-                           (any) -> true;
                            (_) -> false
                        end
         },
@@ -421,8 +409,23 @@ tls_base_options() ->
                   (_) -> true
               end
         }
-    ]),
+    ]).
 
+%% OTP version 22 or greater is required for tls1.3 support.
+-if(?OTP_RELEASE >= 22).
+get_suites() ->
+    %% Get the filtered 1.2 suites supported and the suites that are exclusive to tlsv1.3 and combine them.
+    %% Suites from the ssl:cipher_suites function must be filtered to ensure they are limited to only those supported
+    %% by the linked cryptography library.
+    get_suites_1_2() ++ ssl:filter_cipher_suites(ssl:cipher_suites(exclusive, 'tlsv1.3'), []).
+-else.
+get_suites() ->
+    get_suites_1_2().
+-endif.
+
+-spec tls_base_options() -> [ssl:tls_client_option()].
+tls_base_options() ->
+    CipherSuites = get_suites(),
     [{verify, verify_peer},
         {ciphers, CipherSuites},
         {depth, 3},
