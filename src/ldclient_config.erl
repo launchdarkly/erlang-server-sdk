@@ -135,8 +135,10 @@
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
 
-%% OTP version 22 or greater is required for tls1.3 support.
--if(?OTP_RELEASE >= 22).
+%% Enable TLS 1.3 support for erlang 23 and higher.
+%% TLS 1.3 support stabilized during 22, but this implementation does not work in 22.0.
+%% To use TLS 1.3 with OTP 22, custom TLS options can be used.
+-if(?OTP_RELEASE >= 23).
 -define(MAX_SUPPORTED_TLS_VERSION, 'tlsv1.3').
 -define(SUPPORTED_TLS_VERSIONS, ['tlsv1.2', 'tlsv1.3']).
 -else.
