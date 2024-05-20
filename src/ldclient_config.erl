@@ -397,7 +397,11 @@ get_all() ->
 
 -spec tls_base_options() -> [ssl:tls_client_option()].
 tls_base_options() ->
-    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2', 'tlsv1.3'),
+    % OTP version 22 or greater is requires for tls1.3 support.
+    DefaultCipherSuites = case erlang:list_to_integer(erlang:system_info(otp_release)) >= 22 of
+        true -> ssl:cipher_suites(default, 'tlsv1.2') ++ ssl:cipher_suites(default, 'tlsv1.3');
+        false -> ssl:cipher_suites(default, 'tlsv1.2')
+    end,
     CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
