@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.3.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.2.0...v3.3.0) (2024-05-20)
+
+
+### Features
+
+* add tlsv1.3 to default cipher suites ([#128](https://github.com/launchdarkly/erlang-server-sdk/issues/128)) ([4074483](https://github.com/launchdarkly/erlang-server-sdk/commit/407448308d9d0f4aaaef0243cec16885f7300a7c))
+
 ## [3.2.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.1.0...v3.2.0) (2024-03-14)
 
 
