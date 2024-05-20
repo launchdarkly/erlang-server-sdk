@@ -411,6 +411,8 @@ tls_base_options() ->
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
                            (ecdhe_rsa) -> true;
+                           % Retain 'any' to prevent filtering 1.3 ciphers.
+                           (any) -> true;
                            (_) -> false
                        end
         },
