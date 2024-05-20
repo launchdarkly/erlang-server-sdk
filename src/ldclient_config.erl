@@ -395,13 +395,18 @@ get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
 
+-if(?OTP_RELEASE >= 22).
+get_suites() ->
+    ssl:cipher_suites(default, 'tlsv1.2') ++ ssl:cipher_suites(default, 'tlsv1.3').
+-else.
+get_suites() ->
+    ssl:cipher_suites(default, 'tlsv1.2').
+-endif.
+
 -spec tls_base_options() -> [ssl:tls_client_option()].
 tls_base_options() ->
     % OTP version 22 or greater is requires for tls1.3 support.
-    DefaultCipherSuites = case erlang:list_to_integer(erlang:system_info(otp_release)) >= 22 of
-        true -> ssl:cipher_suites(default, 'tlsv1.2') ++ ssl:cipher_suites(default, 'tlsv1.3');
-        false -> ssl:cipher_suites(default, 'tlsv1.2')
-    end,
+    DefaultCipherSuites = get_suites(),
     CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
