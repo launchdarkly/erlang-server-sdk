@@ -135,6 +135,15 @@
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
 
+%% OTP version 22 or greater is required for tls1.3 support.
+-if(?OTP_RELEASE >= 22).
+-define(MAX_SUPPORTED_TLS_VERSION, 'tlsv1.3').
+-define(SUPPORTED_TLS_VERSIONS, ['tlsv1.2', 'tlsv1.3']).
+-else.
+-define(MAX_SUPPORTED_TLS_VERSION, 'tlsv1.2').
+-define(SUPPORTED_TLS_VERSIONS, ['tlsv1.2']).
+-endif.
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -395,12 +404,15 @@ get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
 
-get_suites_1_2() ->
-    DefaultCipherSuites = ssl:cipher_suites(default, 'tlsv1.2'),
+-spec get_suites(TlsVersion :: ssl:protocol_version()) -> ssl:ciphers().
+get_suites(TlsVersion) ->
+    DefaultCipherSuites = ssl:cipher_suites(default, TlsVersion),
     ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
                            (ecdhe_ecdsa) -> true;
                            (ecdhe_rsa) -> true;
+                           %% TLS 1.3 ciphers will have 'any' as the key_exchange.
+                           (any) -> true;
                            (_) -> false
                        end
         },
@@ -411,24 +423,14 @@ get_suites_1_2() ->
         }
     ]).
 
-%% OTP version 22 or greater is required for tls1.3 support.
--if(?OTP_RELEASE >= 22).
-get_suites() ->
-    %% Get the filtered 1.2 suites supported and the suites that are exclusive to tlsv1.3 and combine them.
-    %% Suites from the ssl:cipher_suites function must be filtered to ensure they are limited to only those supported
-    %% by the linked cryptography library.
-    get_suites_1_2() ++ ssl:filter_cipher_suites(ssl:cipher_suites(exclusive, 'tlsv1.3'), []).
--else.
-get_suites() ->
-    get_suites_1_2().
--endif.
-
 -spec tls_base_options() -> [ssl:tls_client_option()].
 tls_base_options() ->
-    CipherSuites = get_suites(),
+    CipherSuites = get_suites(?MAX_SUPPORTED_TLS_VERSION),
     [{verify, verify_peer},
         {ciphers, CipherSuites},
         {depth, 3},
+        %% Only include TLS versions we know we support.
+        {versions, ?SUPPORTED_TLS_VERSIONS},
         {customize_hostname_check, [
             {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
         ]}].
