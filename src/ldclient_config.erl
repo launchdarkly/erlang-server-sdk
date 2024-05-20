@@ -395,6 +395,7 @@ get_all() ->
     {ok, Instances} = application:get_env(ldclient, instances),
     Instances.
 
+% OTP version 22 or greater is required for tls1.3 support.
 -if(?OTP_RELEASE >= 22).
 get_suites() ->
     ssl:cipher_suites(default, 'tlsv1.2') ++ ssl:cipher_suites(default, 'tlsv1.3').
@@ -405,7 +406,6 @@ get_suites() ->
 
 -spec tls_base_options() -> [ssl:tls_client_option()].
 tls_base_options() ->
-    % OTP version 22 or greater is requires for tls1.3 support.
     DefaultCipherSuites = get_suites(),
     CipherSuites = ssl:filter_cipher_suites(DefaultCipherSuites, [
         {key_exchange, fun
