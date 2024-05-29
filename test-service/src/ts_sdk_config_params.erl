@@ -255,19 +255,17 @@ add_tag_application_version(_, Options) -> Options.
 application_or_empty(#{application := Application} = _Options) -> Application;
 application_or_empty(_Options) -> #{}.
 
-add_tls_config(#{tls := undefined} = _Configuration, Options) ->
+basic_tls_options(Options) ->
     Options#{
         http_options => #{
-            tls_options => [{reuse_sessions, false} | ldclient_config:tls_basic_linux_options()]
+            tls_options => ldclient_config:tls_basic_options()
         }
-    };
+    }.
+
+add_tls_config(#{tls := undefined} = _Configuration, Options) ->
+    basic_tls_options(Options);
 add_tls_config(#{tls := TlsOptions} = _Configuration, Options) ->
-    WithBasicTls = Options#{
-        http_options => #{
-%%            tls_options => ldclient_config:tls_basic_options()
-            tls_options => [{reuse_sessions, false} | ldclient_config:tls_basic_linux_options()]
-        }
-    },
+    WithBasicTls = basic_tls_options(Options),
     WithSkipVerifyPeer = add_skip_verify_peer(TlsOptions, WithBasicTls),
     add_custom_ca(TlsOptions, WithSkipVerifyPeer).
 
