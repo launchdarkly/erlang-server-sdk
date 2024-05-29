@@ -269,28 +269,20 @@ add_tls_config(#{tls := TlsOptions} = _Configuration, Options) ->
     WithSkipVerifyPeer = add_skip_verify_peer(TlsOptions, WithBasicTls),
     add_custom_ca(TlsOptions, WithSkipVerifyPeer).
 
+skip_verify_peer_to_option(true) -> verify_none;
+skip_verify_peer_to_option(false) -> verify_peer.
+
 add_skip_verify_peer(#{
-    skip_verify_peer := false
+    skip_verify_peer := SkipVerifyPeer
 } = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
     TlsOptions = maps:get(tls_options, HttpOptions, []),
     Options#{
         http_options => HttpOptions#{
-            tls_options => [{verify, verify_peer} | proplists:delete(verify, TlsOptions)]
-        }
-    };
-add_skip_verify_peer(#{
-    skip_verify_peer := true
-} = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
-    TlsOptions = maps:get(tls_options, HttpOptions, []),
-    Options#{
-        http_options => HttpOptions#{
-            tls_options => [{verify, verify_none} | proplists:delete(verify, TlsOptions)]
+            tls_options => [{verify, skip_verify_peer_to_option(SkipVerifyPeer)} | proplists:delete(verify, TlsOptions)]
         }
     }.
 
-add_custom_ca(#{custom_ca_file := undefined, skip_verify_peer := true} = _TlsConfiguration, Options) ->
-    Options;
-add_custom_ca(#{custom_ca_file := undefined, skip_verify_peer := false} = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
+add_custom_ca(#{custom_ca_file := undefined} = _TlsConfiguration, Options) ->
     Options;
 add_custom_ca(#{custom_ca_file := CaCertFile} = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
     TlsOptions = maps:get(tls_options, HttpOptions, []),
