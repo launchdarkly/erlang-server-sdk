@@ -75,7 +75,10 @@ get_service_detail(Req, State) ->
       <<"server-side-polling">>,
       <<"user-type">>,
       <<"inline-context">>,
-      <<"anonymous-redaction">>
+      <<"anonymous-redaction">>,
+      <<"tls:custom-ca">>,
+      <<"tls:skip-verify-peer">>,
+      <<"tls:verify-peer">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),
