@@ -262,8 +262,16 @@ basic_tls_options(Options) ->
         }
     }.
 
+%% When using OTP >= 23 the TLS configuration defaults to using verify_peer.
+%% Before OTP 23 we must define our own options to pass the secure defaults.
+-if(?OTP_RELEASE >= 23).
+-define(BASIC_OPTIONS(X), X).
+-else.
+-define(BASIC_OPTIONS(X), basic_tls_options(X)).
+-endif.
+
 add_tls_config(#{tls := undefined} = _Configuration, Options) ->
-    basic_tls_options(Options);
+    ?BASIC_OPTIONS(Options);
 add_tls_config(#{tls := TlsOptions} = _Configuration, Options) ->
     WithBasicTls = basic_tls_options(Options),
     WithSkipVerifyPeer = add_skip_verify_peer(TlsOptions, WithBasicTls),
