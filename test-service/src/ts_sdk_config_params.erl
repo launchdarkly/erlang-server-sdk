@@ -20,7 +20,8 @@
     streaming => sdk_config_streaming_params(),
     polling => sdk_config_polling_params(),
     events => sdk_config_event_params(),
-    tags => sdk_config_tags_params()
+    tags => sdk_config_tags_params(),
+    tls => sdk_config_tls_params() | undefined
 }.
 
 -type sdk_config_streaming_params() :: #{
@@ -47,10 +48,16 @@
     application_version => binary() | undefined
 }.
 
+-type sdk_config_tls_params() :: #{
+    skip_verify_peer => boolean(),
+    custom_ca_file => binary() | undefined
+}.
+
 -export_type([sdk_config_params/0]).
 -export_type([sdk_config_streaming_params/0]).
 -export_type([sdk_config_event_params/0]).
 -export_type([sdk_config_tags_params/0]).
+-export_type([sdk_config_tls_params/0]).
 
 -spec null_to_undefined(Item :: any()) -> any().
 null_to_undefined(null) -> undefined;
@@ -68,6 +75,7 @@ parse_config_params(Params) ->
     Polling = parse_config_polling_params(Params),
     Events = parse_config_events_params(Params),
     Tags = parse_config_tag_params(Params),
+    Tls = parse_config_tls_params(Params),
     #{
         credential => Credential,
         start_wait_time_ms => StartWaitTimeMS,
@@ -75,7 +83,8 @@ parse_config_params(Params) ->
         streaming => Streaming,
         events => Events,
         tags => Tags,
-        polling => Polling
+        polling => Polling,
+        tls => Tls
     }.
 
 -spec parse_config_tag_params(Params :: map()) -> sdk_config_tags_params().
@@ -135,6 +144,16 @@ parse_config_events_params(_Params) ->
         flush_interval_ms => undefined
     }.
 
+parse_config_tls_params(#{<<"tls">> := TlsParams} = _Params) when is_map(TlsParams) ->
+    SkipVerifyPeer = map_get_null_default(<<"skipVerifyPeer">>, TlsParams, false),
+    CustomCAFile = map_get_null_default(<<"customCAFile">>, TlsParams, undefined),
+    #{
+        skip_verify_peer => SkipVerifyPeer,
+        custom_ca_file => CustomCAFile
+    };
+parse_config_tls_params(_Params) ->
+    undefined.
+
 -spec to_ldclient_options(Configuration :: sdk_config_params()) -> map().
 to_ldclient_options(Configuration) ->
     WithEventsUri = add_events_uri(Configuration, #{}),
@@ -146,7 +165,8 @@ to_ldclient_options(Configuration) ->
     WithTags = add_tags_config(Configuration, WithStreamRetryDelay),
     WithPollingUri = add_polling_uri(Configuration, WithTags),
     WithPollingInterval = add_poll_interval(Configuration, WithPollingUri),
-    WithPollingInterval.
+    WithTlsConfig = add_tls_config(Configuration, WithPollingInterval),
+    WithTlsConfig.
 
 -spec add_stream_retry_delay(Configuration :: sdk_config_params(), Options:: map()) -> map().
 add_stream_retry_delay(#{streaming := #{
@@ -234,3 +254,49 @@ add_tag_application_version(_, Options) -> Options.
 
 application_or_empty(#{application := Application} = _Options) -> Application;
 application_or_empty(_Options) -> #{}.
+
+basic_tls_options(Options) ->
+    Options#{
+        http_options => #{
+            tls_options => ldclient_config:tls_basic_options()
+        }
+    }.
+
+%% When using OTP >= 26 the TLS configuration defaults to using verify_peer.
+%% Before OTP 26 we must define our own options to pass the secure defaults.
+-if(?OTP_RELEASE >= 26).
+-define(BASIC_OPTIONS(X), X).
+-else.
+-define(BASIC_OPTIONS(X), basic_tls_options(X)).
+-endif.
+
+add_tls_config(#{tls := undefined} = _Configuration, Options) ->
+    ?BASIC_OPTIONS(Options);
+add_tls_config(#{tls := TlsOptions} = _Configuration, Options) ->
+    WithBasicTls = basic_tls_options(Options),
+    WithSkipVerifyPeer = add_skip_verify_peer(TlsOptions, WithBasicTls),
+    add_custom_ca(TlsOptions, WithSkipVerifyPeer).
+
+skip_verify_peer_to_option(true) -> verify_none;
+skip_verify_peer_to_option(false) -> verify_peer.
+
+add_skip_verify_peer(#{
+    skip_verify_peer := SkipVerifyPeer
+} = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
+    TlsOptions = maps:get(tls_options, HttpOptions, []),
+    Options#{
+        http_options => HttpOptions#{
+            tls_options => [{verify, skip_verify_peer_to_option(SkipVerifyPeer)} | proplists:delete(verify, TlsOptions)]
+        }
+    }.
+
+add_custom_ca(#{custom_ca_file := undefined} = _TlsConfiguration, Options) ->
+    Options;
+add_custom_ca(#{custom_ca_file := CaCertFile} = _TlsConfiguration, #{http_options := HttpOptions} = Options) ->
+    TlsOptions = maps:get(tls_options, HttpOptions, []),
+    Options#{
+        http_options => HttpOptions#{
+            %% Remove cacerts and/or cacertfile from the options and then specify the cert file.
+            tls_options => [{cacertfile, CaCertFile} | proplists:delete(cacerts, proplists:delete(cacertfile, TlsOptions))]
+        }
+    }.
