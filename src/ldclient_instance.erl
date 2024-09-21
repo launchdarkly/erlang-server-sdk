@@ -17,6 +17,7 @@
     base_uri => string(),
     stream_uri => string(),
     feature_store => atom(),
+    events_uri => string(),
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
