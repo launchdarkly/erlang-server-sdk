@@ -38,7 +38,7 @@ ci-tests:
 		$(REBAR3) ct as test_otp_25 --dir="test,test-redis" --logdir logs/ct;\
 	else\
 		echo Tests for OTP 21;\
-		@$(REBAR3) ct as test_otp_21 --dir="test,test-redis" --logdir logs/ct;\
+		$(REBAR3) ct as test_otp_21 --dir="test,test-redis" --logdir logs/ct;\
 	fi
 
 
