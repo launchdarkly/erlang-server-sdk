@@ -48,11 +48,11 @@ send_events(Tag, Events, SummaryEvent) ->
 -spec get_last_server_time(Tag :: atom()) -> integer().
 get_last_server_time(Tag) ->
     TableName = ets_table_name(Tag),
-    case whereis(TableName) of
+    case ets:info(TableName) of
         undefined ->
             0;
         _ ->
-            case ets:lookup(ets_table_name(Tag), last_known_server_time) of
+            case ets:lookup(TableName, last_known_server_time) of
                 [] -> 0;
                 [{last_known_server_time, LastKnownServerTime}] -> LastKnownServerTime
             end
@@ -120,7 +120,8 @@ handle_cast({send_events, Events, SummaryEvent},
        ok ->
            State;
        {ok, Date} ->
-           ets:insert(ets_table_name(Tag), {last_known_server_time, Date});
+           ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
+           State;
        {error, temporary, _Reason} ->
            erlang:send_after(1000, self(), {send, OutputEvents, PayloadId}),
            State;
