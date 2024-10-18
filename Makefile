@@ -33,7 +33,14 @@ release-tests:
 
 #This is used on CircleCI because the Redis Docker container is already started unlike the local tests command
 ci-tests:
-	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
+	@if [ "$(ERL_VERSION)" -ge "25" ]; then\
+		echo Tests for OTP 25+;\
+		$(REBAR3) ct as test_otp_25 --dir="test,test-redis" --logdir logs/ct;\
+	else\
+		echo Tests for OTP 21;\
+		@$(REBAR3) ct as test_otp_21 --dir="test,test-redis" --logdir logs/ct;\
+	fi
+
 
 tls-tests:
 	@$(REBAR3) ct --dir="test-tls" --logdir logs/ct
