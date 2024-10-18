@@ -7,7 +7,7 @@
 -module(ldclient_backoff).
 
 %% API
--export([init/4, fail/1, succeed/1, fire/1]).
+-export([init/4, init/5, fail/1, succeed/1, fire/1]).
 
 %% Types
 
@@ -19,7 +19,8 @@
     active_since => integer() | undefined,
     destination => pid(),
     value => term(),
-    max_exp => float()
+    max_exp => float(),
+    uniform => fun(() -> float())
 }.
 
 -define(JITTER_RATIO, 0.5).
@@ -36,6 +37,11 @@
 
 -spec init(Initial :: non_neg_integer(), Max :: non_neg_integer(), Destination :: pid(), Value :: term()) -> backoff().
 init(Initial, Max, Destination, Value) ->
+    init(Initial, Max, Destination, Value, fun() -> rand:uniform() end).
+
+%% This version of the function exists for testing and allows injecting the random number source.
+-spec init(Initial :: non_neg_integer(), Max :: non_neg_integer(), Destination :: pid(), Value :: term(), Uniform :: fun(() -> float())) -> backoff().
+init(Initial, Max, Destination, Value, Uniform) ->
     SafeInitial = lists:max([Initial, 1]),
     #{
         initial => SafeInitial, %% Do not allow initial delay to be 0 or negative.
@@ -47,10 +53,12 @@ init(Initial, Max, Destination, Value) ->
         value => Value,
         %% The exponent at which the backoff delay will exceed the maximum.
         %% Beyond this limit the backoff can be set to the max.
-        max_exp => math:ceil(math:log2(Max/SafeInitial))
+        max_exp => math:ceil(math:log2(Max/SafeInitial)),
         %% For reasonable values this should ensure we never overflow.
         %% Note that while integers can be arbitrarily large the math library uses C functions
         %% that are implemented with floats.
+        %% Allow for alternate random number source.
+        uniform => Uniform
     }.
 
 %% @doc Get an updated backoff with updated delay. Does not start a timer automatically.
@@ -98,17 +106,16 @@ update_backoff(#{attempt := Attempt} = Backoff, _ActiveDuration) ->
     Backoff#{current => delay(NewAttempt, Backoff), attempt => NewAttempt, active_since => undefined}.
 
 -spec delay(Attempt :: non_neg_integer(), Backoff :: backoff()) -> non_neg_integer().
-delay(Attempt, #{initial := Initial, max := Max, max_exp := MaxExp} = _Backoff)
+delay(Attempt, #{initial := Initial, max := Max, max_exp := MaxExp, uniform := Uniform} = _Backoff)
   when Attempt - 1 < MaxExp ->
-    jitter(min(backoff(Initial, Attempt), Max));
-delay(_Attempt, #{max := Max} = _Backoff) ->
-    jitter(Max).
+    jitter(min(backoff(Initial, Attempt), Max), Uniform);
+delay(_Attempt, #{max := Max, uniform := Uniform} = _Backoff) ->
+    jitter(Max, Uniform).
 
 -spec backoff(Initial :: non_neg_integer(), Attempt :: non_neg_integer()) -> non_neg_integer().
 backoff(Initial, Attempt) ->
     trunc(Initial * (math:pow(2, Attempt - 1))).
 
--spec jitter(Value :: non_neg_integer()) -> non_neg_integer().
-jitter(Value) ->
-    trunc(Value - (rand:uniform() * ?JITTER_RATIO * Value)).
-
+-spec jitter(Value :: non_neg_integer(), Uniform :: fun(() -> float())) -> non_neg_integer().
+jitter(Value, Uniform) ->
+    trunc(Value - (Uniform() * ?JITTER_RATIO * Value)).

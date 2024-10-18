@@ -60,9 +60,7 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 
 backoff_client(InitialDelay, Ratio) ->
-    meck:new(rand, [unstick]),
-    meck:expect(rand, uniform, fun() -> Ratio end),
-    ldclient_backoff:init(InitialDelay, 30000, 0, listen).
+    ldclient_backoff:init(InitialDelay, 30000, 0, listen, fun() -> Ratio end).
 
 backoff_client(InitialDelay) ->
     backoff_client(InitialDelay, 0).
@@ -100,7 +98,7 @@ delay_doubles_consecutive_failures(_) ->
     #{current := 16000} = FifthUpdate,
     SixthUpdate = ldclient_backoff:fail(FifthUpdate),
     #{current := 30000} = SixthUpdate.
-    
+
 
 backoff_respects_max(_) ->
     Backoff =
@@ -166,7 +164,7 @@ handles_initial_greater_than_max(_) ->
     30000 = ldclient_backoff:delay(1, Backoff),
     30000 = ldclient_backoff:delay(2, Backoff).
 
-handles_bad_initial_retry(_) -> 
+handles_bad_initial_retry(_) ->
     Backoff = backoff_client(0),
     1 = ldclient_backoff:delay(1, Backoff),
     2 = ldclient_backoff:delay(2, Backoff),
@@ -174,7 +172,7 @@ handles_bad_initial_retry(_) ->
     16384 = ldclient_backoff:delay(15, Backoff),
     30000 = ldclient_backoff:delay(16, Backoff),
     %% Second backoff we do not use backoff_client as meck is already setup.
-    Backoff2 = ldclient_backoff:init(-100, 30000, 0, listen),
+    Backoff2 = backoff_client(-100),
     1 = ldclient_backoff:delay(1, Backoff2),
     2 = ldclient_backoff:delay(2, Backoff2),
     4 = ldclient_backoff:delay(3, Backoff2),

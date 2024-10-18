@@ -24,7 +24,7 @@ doc:
 
 tests:
 	docker run --name ld-test-redis -p 6379:6379 -d redis
-	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct --cover
+	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
 	docker rm --force ld-test-redis
 
 #This is used in running releaser. In this environment we do not want to run the redis tests.
