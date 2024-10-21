@@ -40,8 +40,8 @@ target_match
 }.
 
 -type all_flags_state_options() :: #{
-    with_reasons => boolean()
-%%    client_side_only => boolean(), % TODO: Support.
+    with_reasons => boolean(),
+    client_side_only => boolean()
 %%    details_only_for_tracked_flags => boolean() % TODO: Support.
 }.
 
@@ -113,6 +113,26 @@ all_flags_state(Context, Options, Tag) ->
 is_not_deleted(#{deleted := true}) -> false;
 is_not_deleted(_) -> true.
 
+-spec is_prereq_of(FlagKey :: ldclient_flag:key(), Event :: ldclient_event:event()) -> boolean().
+is_prereq_of(FlagKey, #{data := #{prereq_of := PrereqOf}} = _Event) ->
+    FlagKey =:= PrereqOf.
+
+-spec maybe_add_prerequisites(Prerequisites :: [ldclient_flag:key()], Map :: map()) -> map().
+maybe_add_prerequisites([] = _Prerequisites, Map) -> Map;
+maybe_add_prerequisites(Prerequisites, Map) -> Map#{<<"prerequisites">> => Prerequisites}.
+
+
+-spec is_visible(Item :: map(), Options :: all_flags_state_options()) -> boolean().
+is_visible(
+    #{clientSideAvailability := #{
+        usingEnvironmentId := UsingEnvironmentId
+    }} = _Item,
+    #{client_side_only := true} = _Options
+) -> UsingEnvironmentId;
+%% All flags will have the availability set via parsing. So when client_side_only is not true
+%% we want everything to be visible.
+is_visible(_, _) -> true.
+
 -spec all_flags_state(
     Context :: ldclient_context:context(),
     Options :: all_flags_state_options(),
@@ -127,17 +147,26 @@ all_flags_state(_Context, _Options, _Tag, _, not_initialized) ->
 all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, store_initialized) ->
     error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
     all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, initialized);
-all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, _, initialized) ->
+all_flags_state(Context, #{with_reasons := WithReason} = Options, Tag, _, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
-    AllFlags = [Flag || Flag = {_, FlagValue} <- FeatureStore:all(Tag, features), is_not_deleted(FlagValue)],
+    AllFlags = [Flag || Flag = {_, FlagValue} <- FeatureStore:all(Tag, features), is_not_deleted(FlagValue), is_visible(FlagValue, Options)],
     EvalFun = fun({FlagKey, #{version := Version} = Flag}, #{<<"$flagsState">> := FlagsState} = Acc) ->
         % Here the state is either initialized, or store_initialized, and we are online. Call directly to that version
         % of flag_key_for_context. This will prevent additional warnings for the client initialization not being
         % complete in the store_initialized state.
-        {{VariationIndex, V, Reason}, _Events} = flag_key_for_context(Tag, FlagKey, Context, null, online, initialized),
-        FlagState = maybe_add_track_events(Flag,
+        {{VariationIndex, V, Reason}, Events} = flag_key_for_context(Tag, FlagKey, Context, null, online, initialized),
+        DirectPrereqEvents = lists:filter(fun(Event) -> is_prereq_of(FlagKey, Event) end, Events),
+        Prereqs = lists:reverse(lists:map(fun(Event) ->
+                #{data := #{key := Key}} = Event,
+                Key
+            end,
+            DirectPrereqEvents
+        )),
+        FlagState =
+            maybe_add_prerequisites(Prereqs,
+            maybe_add_track_events(Flag,
             maybe_add_debug_events_until_date(Flag, #{
-                <<"version">> => Version})),
+                <<"version">> => Version}))),
         UpdatedFlagState = case is_integer(VariationIndex) of
             true -> FlagState#{
                 <<"variation">> => VariationIndex

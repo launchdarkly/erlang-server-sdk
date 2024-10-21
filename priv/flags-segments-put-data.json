@@ -96,6 +96,10 @@
             },
             "prereqs-fail-off": {
                 "clientSide": true,
+                "clientSideAvailability": {
+                    "usingEnvironmentId": true,
+                    "usingMobileKey": false
+                },
                 "debugEventsUntilDate": null,
                 "deleted": false,
                 "fallthrough": {
@@ -124,6 +128,10 @@
             },
             "prereqs-fail-off-null": {
                 "clientSide": true,
+                "clientSideAvailability": {
+                    "usingEnvironmentId": true,
+                    "usingMobileKey": false
+                },
                 "debugEventsUntilDate": null,
                 "deleted": false,
                 "fallthrough": {
@@ -152,6 +160,10 @@
             },
             "prereqs-fail-variation": {
                 "clientSide": true,
+                "clientSideAvailability": {
+                    "usingEnvironmentId": true,
+                    "usingMobileKey": false
+                },
                 "debugEventsUntilDate": null,
                 "deleted": false,
                 "fallthrough": {
@@ -254,6 +266,10 @@
             },
             "prereqs-success": {
                 "clientSide": true,
+                "clientSideAvailability": {
+                    "usingEnvironmentId": true,
+                    "usingMobileKey": false
+                },
                 "debugEventsUntilDate": null,
                 "deleted": false,
                 "fallthrough": {

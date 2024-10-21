@@ -78,7 +78,9 @@ get_service_detail(Req, State) ->
       <<"anonymous-redaction">>,
       <<"tls:custom-ca">>,
       <<"tls:skip-verify-peer">>,
-      <<"tls:verify-peer">>
+      <<"tls:verify-peer">>,
+      <<"client-prereq-events">>,
+      <<"all-flags-client-side-only">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),
