@@ -2,6 +2,15 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.4.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.3.1...v3.4.0) (2024-10-24)
+
+
+### Features
+
+* Add support for client-side prerequisite events. ([167308a](https://github.com/launchdarkly/erlang-server-sdk/commit/167308a01dc334ef960e56d976b6be32bac60326))
+* Add support for client-side visibility for all_flags_state. ([167308a](https://github.com/launchdarkly/erlang-server-sdk/commit/167308a01dc334ef960e56d976b6be32bac60326))
+* Use ets for last-known server-time. ([#136](https://github.com/launchdarkly/erlang-server-sdk/issues/136)) ([568ac51](https://github.com/launchdarkly/erlang-server-sdk/commit/568ac5146cf881a63d33d2576ca6dc9490c9c002))
+
 ## [3.3.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.3.0...v3.3.1) (2024-09-23)
 
 
