@@ -67,6 +67,7 @@
     all_flags_state/1,
     all_flags_state_with_reason/1,
     all_flags_state_offline/1,
+    all_flags_state_client_side_only/1,
     malformed_clause/1,
     malformed_rollout/1,
     malformed_segment_rollout/1,
@@ -136,6 +137,7 @@ all() ->
         all_flags_state,
         all_flags_state_with_reason,
         all_flags_state_offline,
+        all_flags_state_client_side_only,
         malformed_clause,
         malformed_rollout,
         malformed_segment_rollout,
@@ -750,7 +752,7 @@ missing_all_fields(_) ->
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
 
-missing_rollout_for_rule(_) -> 
+missing_rollout_for_rule(_) ->
     {{2,<<"FallthroughValue">>,fallthrough}, Events} = ldclient_eval:flag_key_for_context(default, <<"missing-rollout-for-rule">>, #{key => <<"context123">>, kind => <<"user">>}, "DefaultValue"),
     ExpectedEvents = lists:sort([{<<"missing-rollout-for-rule">>, feature_request, 2, <<"FallthroughValue">>, "DefaultValue", fallthrough, null}]),
     ActualEvents = lists:sort(extract_events(Events)),
@@ -810,6 +812,101 @@ rule_match_rollout_not_in_experiment(_) ->
     ExpectedEvents = ActualEvents.
 
 all_flags_state(_) ->
+    #{<<"$flagsState">> :=
+        #{<<"bad-variation">> :=
+        #{<<"trackEvents">> := true,<<"version">> := 5},
+        <<"experiment-traffic-allocation-v2">> :=
+            #{<<"reason">> :=
+                    #{kind := <<"FALLTHROUGH">>,inExperiment := true},
+                <<"trackReason">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"experiment-traffic-allocation-v2-rules">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 1},
+        <<"extra-fields">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"fallthrough-no-rollout-or-variation">> :=
+            #{<<"trackEvents">> := true,<<"version">> := 7243},
+        <<"keep-it-off">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 5},
+        <<"keep-it-off-null-off-variation">> :=
+            #{<<"trackEvents">> := true,<<"version">> := 5},
+        <<"keep-it-on">> :=
+            #{<<"prerequisites">> := [<<"keep-it-on-two">>],
+                <<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"keep-it-on-another">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"keep-it-on-two">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"missing-all-fields">> := #{<<"version">> := 0},
+        <<"missing-rollout-for-rule">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 2,
+                <<"version">> := 4243},
+        <<"missing-some-fields">> :=
+            #{<<"variation">> := 0,<<"version">> := 0},
+        <<"prereqs-fail-off">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 245},
+        <<"prereqs-fail-off-null">> :=
+            #{<<"trackEvents">> := true,<<"version">> := 2},
+        <<"prereqs-fail-variation">> :=
+            #{<<"prerequisites">> := [<<"keep-it-on">>],
+                <<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 245},
+        <<"prereqs-success">> :=
+            #{<<"prerequisites">> :=
+                    [<<"keep-it-on">>,<<"keep-it-on-another">>],
+                <<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 24},
+        <<"roll-me">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 4,
+                <<"version">> := 5},
+        <<"roll-me-custom">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"roll-me-invalid">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 5},
+        <<"rule-me">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5},
+        <<"segment-me">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 1,
+                <<"version">> := 5},
+        <<"target-me">> :=
+            #{<<"trackEvents">> := true,<<"variation">> := 0,
+                <<"version">> := 5}
+    },
+    <<"$valid">> := true,
+    <<"bad-variation">> := null,
+    <<"experiment-traffic-allocation-v2">> := <<"a">>,
+    <<"experiment-traffic-allocation-v2-rules">> := <<"a">>,
+    <<"extra-fields">> := true,
+    <<"fallthrough-no-rollout-or-variation">> := null,
+    <<"keep-it-off">> := false,
+    <<"keep-it-off-null-off-variation">> := null,
+    <<"keep-it-on">> := true,
+    <<"keep-it-on-another">> := true,
+    <<"keep-it-on-two">> := true,
+    <<"missing-all-fields">> := null,
+    <<"missing-rollout-for-rule">> := <<"FallthroughValue">>,
+    <<"missing-some-fields">> := true,
+    <<"prereqs-fail-off">> := false,
+    <<"prereqs-fail-off-null">> := null,
+    <<"prereqs-fail-variation">> := false,
+    <<"prereqs-success">> := false,
+    <<"roll-me">> := <<"e">>,
+    <<"roll-me-custom">> := <<"a">>,
+    <<"roll-me-invalid">> := <<"b">>,
+    <<"rule-me">> := <<"a">>,<<"segment-me">> := false,
+    <<"target-me">> := true} = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => false}, default).
+
+all_flags_state_with_reason(_) ->
     #{<<"$flagsState">> :=
         #{<<"bad-variation">> :=
             #{<<"reason">> :=
@@ -967,169 +1064,40 @@ all_flags_state(_) ->
         <<"target-me">> := true
     } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, default).
 
-all_flags_state_with_reason(_) ->
-    #{<<"$flagsState">> :=
-    #{<<"bad-variation">> :=
-    #{<<"reason">> :=
-    #{errorKind := <<"MALFORMED_FLAG">>,
-        kind := <<"ERROR">>},
-        <<"trackEvents">> := true,
-        <<"version">> := 5},
-        <<"experiment-traffic-allocation-v2">> :=
-        #{<<"reason">> :=
-        #{inExperiment := true,
-            kind := <<"FALLTHROUGH">>},
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"experiment-traffic-allocation-v2-rules">> :=
-        #{<<"reason">> :=
-        #{inExperiment := true,
-            kind := <<"RULE_MATCH">>,
-            ruleId :=
-            <<"ab4a9fb3-7e85-429f-8078-23aa70094540">>,
-            ruleIndex := 0},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 1},
-        <<"extra-fields">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,<<"variation">> := 0,
-            <<"version">> := 5},
-        <<"fallthrough-no-rollout-or-variation">> :=
-        #{<<"reason">> :=
-        #{errorKind := <<"MALFORMED_FLAG">>,
-            kind := <<"ERROR">>},
-            <<"trackEvents">> := true,
-            <<"version">> := 7243},
-        <<"keep-it-off">> :=
-        #{<<"reason">> := #{kind := <<"OFF">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 5},
-        <<"keep-it-off-null-off-variation">> :=
-        #{<<"reason">> := #{kind := <<"OFF">>},
-            <<"trackEvents">> := true,
-            <<"version">> := 5},
-        <<"keep-it-on">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"keep-it-on-another">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"keep-it-on-two">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"missing-all-fields">> :=
-        #{<<"reason">> :=
-        #{errorKind := <<"MALFORMED_FLAG">>,
-            kind := <<"ERROR">>},
-            <<"version">> := 0},
-        <<"missing-rollout-for-rule">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 2,
-            <<"version">> := 4243},
-        <<"missing-some-fields">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"variation">> := 0,
-            <<"version">> := 0},
-        <<"prereqs-fail-off">> :=
-        #{<<"reason">> :=
-        #{kind := <<"PREREQUISITE_FAILED">>,
-            prerequisiteKey := <<"keep-it-off">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 245},
-        <<"prereqs-fail-off-null">> :=
-        #{<<"reason">> :=
-        #{kind := <<"PREREQUISITE_FAILED">>,
-            prerequisiteKey := <<"keep-it-off">>},
-            <<"trackEvents">> := true,
-            <<"version">> := 2},
-        <<"prereqs-fail-variation">> :=
-        #{<<"reason">> :=
-        #{kind := <<"PREREQUISITE_FAILED">>,
-            prerequisiteKey := <<"keep-it-on">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 245},
-        <<"prereqs-success">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 24},
-        <<"roll-me">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 4,
-            <<"version">> := 5},
-        <<"roll-me-custom">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"roll-me-invalid">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 5},
-        <<"rule-me">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5},
-        <<"segment-me">> :=
-        #{<<"reason">> :=
-        #{kind := <<"RULE_MATCH">>,
-            ruleId :=
-            <<"489a185d-caaf-4db9-b192-e09e927d070c">>,
-            ruleIndex := 1},
-            <<"trackEvents">> := true,
-            <<"variation">> := 1,
-            <<"version">> := 5},
-        <<"target-me">> :=
-        #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},
-            <<"trackEvents">> := true,
-            <<"variation">> := 0,
-            <<"version">> := 5}
-    },
-        <<"$valid">> := true,
-        <<"bad-variation">> := null,
-        <<"experiment-traffic-allocation-v2">> := <<"a">>,
-        <<"experiment-traffic-allocation-v2-rules">> := <<"a">>,
-        <<"extra-fields">> := true,
-        <<"fallthrough-no-rollout-or-variation">> := null,
-        <<"keep-it-off">> := false,
-        <<"keep-it-off-null-off-variation">> := null,
-        <<"keep-it-on">> := true,
-        <<"keep-it-on-another">> := true,
-        <<"keep-it-on-two">> := true,
-        <<"missing-all-fields">> := null,
-        <<"missing-rollout-for-rule">> := <<"FallthroughValue">>,
-        <<"missing-some-fields">> := true,
-        <<"prereqs-fail-off">> := false,
-        <<"prereqs-fail-off-null">> := null,
-        <<"prereqs-fail-variation">> := false,
-        <<"prereqs-success">> := false,
-        <<"roll-me">> := <<"e">>,
-        <<"roll-me-custom">> := <<"a">>,
-        <<"roll-me-invalid">> := <<"b">>,
-        <<"rule-me">> := <<"a">>,
-        <<"segment-me">> := false,
-        <<"target-me">> := true
-    } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, default).
-
 all_flags_state_offline(_) ->
     #{
         <<"$flagsState">> := #{},
         <<"$valid">> := false
     } = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => true}, offline).
+
+  all_flags_state_client_side_only(_) ->
+    #{<<"$flagsState">> :=
+    #{<<"fallthrough-no-rollout-or-variation">> :=
+        #{<<"trackEvents">> := true,<<"version">> := 7243},
+    <<"missing-rollout-for-rule">> :=
+        #{<<"trackEvents">> := true,<<"variation">> := 2,
+            <<"version">> := 4243},
+    <<"prereqs-fail-off">> :=
+        #{<<"trackEvents">> := true,<<"variation">> := 1,
+            <<"version">> := 245},
+    <<"prereqs-fail-off-null">> :=
+        #{<<"trackEvents">> := true,<<"version">> := 2},
+    <<"prereqs-fail-variation">> :=
+        #{<<"prerequisites">> := [<<"keep-it-on">>],
+            <<"trackEvents">> := true,<<"variation">> := 1,
+            <<"version">> := 245},
+    <<"prereqs-success">> :=
+        #{<<"prerequisites">> :=
+                [<<"keep-it-on">>,<<"keep-it-on-another">>],
+            <<"trackEvents">> := true,<<"variation">> := 1,
+            <<"version">> := 24}},
+    <<"$valid">> := true,
+    <<"fallthrough-no-rollout-or-variation">> := null,
+    <<"missing-rollout-for-rule">> := <<"FallthroughValue">>,
+    <<"prereqs-fail-off">> := false,
+    <<"prereqs-fail-off-null">> := null,
+    <<"prereqs-fail-variation">> := false,
+    <<"prereqs-success">> := false} = ldclient_eval:all_flags_state(#{key => <<"userKeyA">>, kind => <<"user">>}, #{with_reasons => false, client_side_only => true}, default).
 
 malformed_clause(_) ->
     ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => <<"

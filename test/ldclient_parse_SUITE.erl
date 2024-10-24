@@ -22,7 +22,11 @@
     parse_segment_full/1,
     parse_flag_rollout_kind/1,
     parse_flag_invalid_kind/1,
-    parse_flag_experiment_kind/1
+    parse_flag_experiment_kind/1,
+    parse_client_side_availability_both_false/1,
+    parse_client_side_availability_using_environment_id/1,
+    parse_client_side_availability_using_mobile_key/1,
+    parse_client_side_availability_both_true/1
 ]).
 
 %%====================================================================
@@ -42,7 +46,11 @@ all() ->
         parse_segment_full,
         parse_flag_rollout_kind,
         parse_flag_invalid_kind,
-        parse_flag_experiment_kind
+        parse_flag_experiment_kind,
+        parse_client_side_availability_both_false,
+        parse_client_side_availability_using_environment_id,
+        parse_client_side_availability_using_mobile_key,
+        parse_client_side_availability_both_true
     ].
 
 init_per_suite(Config) ->
@@ -92,7 +100,11 @@ parse_flag_empty(_) ->
         trackEvents              => false,
         trackEventsFallthrough   => false,
         variations               => [],
-        version                  => 0
+        version                  => 0,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -125,7 +137,11 @@ parse_flag_key_only(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
-        version                  => 0
+        version                  => 0,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -161,7 +177,11 @@ parse_flag_bare(_) ->
         trackEvents             => true,
         trackEventsFallthrough => true,
         variations               => [true, false],
-        version                  => 10
+        version                  => 10,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -278,7 +298,11 @@ parse_flag_full(_) ->
         trackEvents             => true,
         trackEventsFallthrough => true,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
-        version                  => 9
+        version                  => 9,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -336,7 +360,11 @@ parse_flag_ignore_invalid(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [<<"A">>, <<"B">>, <<"C">>],
-        version                  => 0
+        version                  => 0,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -370,7 +398,11 @@ parse_flag_invalid_fallthrough(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
-        version                  => 0
+        version                  => 0,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -539,7 +571,11 @@ parse_flag_invalid_kind(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
-        version                  => 9
+        version                  => 9,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -584,7 +620,11 @@ parse_flag_rollout_kind(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
-        version                  => 9
+        version                  => 9,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
 
@@ -629,6 +669,66 @@ parse_flag_experiment_kind(_) ->
         trackEvents             => false,
         trackEventsFallthrough => false,
         variations               => [],
-        version                  => 9
+        version                  => 9,
+        clientSideAvailability   => #{
+            usingEnvironmentId => false,
+            usingMobileKey => false
+        }
     },
     FlagExpected = ldclient_flag:new(FlagRaw).
+
+parse_client_side_availability_both_false(_) ->
+    BothFalse = #{
+        <<"clientSideAvailability">> => #{
+            <<"usingEnvironmentId">> => false,
+            <<"usingMobileKey">> => false
+        }
+    },
+    #{
+        clientSideAvailability := #{
+            usingEnvironmentId := false,
+            usingMobileKey := false
+        }
+    } = ldclient_flag:new(BothFalse).
+
+parse_client_side_availability_using_environment_id(_) ->
+    UsingEnvironment = #{
+        <<"clientSideAvailability">> => #{
+            <<"usingEnvironmentId">> => true,
+            <<"usingMobileKey">> => false
+        }
+    },
+    #{
+        clientSideAvailability := #{
+            usingEnvironmentId := true,
+            usingMobileKey := false
+        }
+    } = ldclient_flag:new(UsingEnvironment).
+
+parse_client_side_availability_using_mobile_key(_) ->
+    UsingMobileKey = #{
+        <<"clientSideAvailability">> => #{
+            <<"usingEnvironmentId">> => false,
+            <<"usingMobileKey">> => true
+        }
+    },
+    #{
+        clientSideAvailability := #{
+            usingEnvironmentId := false,
+            usingMobileKey := true
+        }
+    } = ldclient_flag:new(UsingMobileKey).
+
+parse_client_side_availability_both_true(_) ->
+    BothTrue = #{
+        <<"clientSideAvailability">> => #{
+            <<"usingEnvironmentId">> => true,
+            <<"usingMobileKey">> => true
+        }
+    },
+    #{
+        clientSideAvailability := #{
+            usingEnvironmentId := true,
+            usingMobileKey := true
+        }
+    } =  ldclient_flag:new(BothTrue).

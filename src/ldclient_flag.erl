@@ -13,21 +13,22 @@
 
 %% Types
 -type flag() :: #{
-    debugEventsUntilDate  => pos_integer() | null,
+    debugEventsUntilDate     => pos_integer() | null,
     deleted                  => boolean(),
     fallthrough              => variation_or_rollout(),
     key                      => key(),
-    offVariation            => variation(),
+    offVariation             => variation(),
     on                       => boolean(),
     prerequisites            => [prerequisite()],
     rules                    => [ldclient_rule:rule()],
     salt                     => binary(),
     targets                  => [target()],
     contextTargets           => [target()],
-    trackEvents             => boolean(),
-    trackEventsFallthrough => boolean(),
+    trackEvents              => boolean(),
+    trackEventsFallthrough   => boolean(),
     variations               => [variation_value()],
-    version                  => version()
+    version                  => version(),
+    clientSideAvailability   => client_side_availability()
 }.
 
 -type key() :: binary().
@@ -62,6 +63,12 @@
 
 -type version() :: non_neg_integer().
 
+-type client_side_availability() :: #{
+    usingEnvironmentId => boolean(),
+    usingMobileKey => boolean()
+}.
+%% Describes the availability of the flag to client-side SDKs.
+
 -export_type([flag/0]).
 -export_type([key/0]).
 -export_type([prerequisite/0]).
@@ -92,7 +99,11 @@ new(RawFlagMap) ->
         <<"trackEvents">>            => false,
         <<"trackEventsFallthrough">> => false,
         <<"variations">>             => [],
-        <<"version">>                => 0
+        <<"version">>                => 0,
+        <<"clientSideAvailability">> => #{
+            <<"usingEnvironmentId">> => false,
+            <<"usingMobileKey">> => false
+        }
     },
     FlagMap = maps:merge(FlagTemplate, RawFlagMap),
     new_from_template(FlagMap).
@@ -136,24 +147,35 @@ new_from_template(#{
     <<"trackEvents">>            := TrackEvents,
     <<"trackEventsFallthrough">> := TrackEventsFallthrough,
     <<"variations">>             := Variations,
-    <<"version">>                := Version
+    <<"version">>                := Version,
+    <<"clientSideAvailability">> := ClientSideAvailability
 }) ->
     #{
-        debugEventsUntilDate  => DebugEventsUntilDate,
+        debugEventsUntilDate     => DebugEventsUntilDate,
         deleted                  => Deleted,
         fallthrough              => parse_variation_or_rollout(Fallthrough),
         key                      => Key,
-        offVariation            => OffVariation,
+        offVariation             => OffVariation,
         on                       => On,
         prerequisites            => parse_prerequisites(Prerequisites),
         rules                    => parse_rules(Rules),
         salt                     => Salt,
         targets                  => parse_targets(Targets),
         contextTargets           => parse_targets(ContextTargets),
-        trackEvents             => TrackEvents,
-        trackEventsFallthrough => TrackEventsFallthrough,
+        trackEvents              => TrackEvents,
+        trackEventsFallthrough   => TrackEventsFallthrough,
         variations               => Variations,
-        version                  => Version
+        version                  => Version,
+        clientSideAvailability   => parse_client_side_availability(ClientSideAvailability)
+    }.
+
+-spec parse_client_side_availability(ClientSideAvailability :: map()) -> client_side_availability().
+parse_client_side_availability(ClientSideAvailability) ->
+    UsingEnvironmentId = maps:get(<<"usingEnvironmentId">>, ClientSideAvailability, false),
+    UsingMobileKey = maps:get(<<"usingMobileKey">>, ClientSideAvailability, false),
+    #{
+        usingEnvironmentId => UsingEnvironmentId,
+        usingMobileKey => UsingMobileKey
     }.
 
 -spec parse_prerequisites([map()]) -> [prerequisite()].
