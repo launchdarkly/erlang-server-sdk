@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.5.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.4.0...v3.5.0) (2024-11-07)
+
+
+### Features
+
+* Updates shotgun version to 1.1.0 release ([#139](https://github.com/launchdarkly/erlang-server-sdk/issues/139)) ([52dafc3](https://github.com/launchdarkly/erlang-server-sdk/commit/52dafc354ecc93145b6f6b833799d91c5611dfb9))
+
 ## [3.4.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.3.1...v3.4.0) (2024-10-24)
 
 
