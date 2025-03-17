@@ -68,6 +68,7 @@
     redis_host => string(),
     redis_port => pos_integer(),
     redis_database => integer(),
+    redis_username => string() | undefined,
     redis_password => string(),
     redis_prefix => string(),
     redis_tls => [ssl:tls_option()] | undefined,
@@ -112,6 +113,7 @@
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
 -define(DEFAULT_REDIS_PORT, 6379).
 -define(DEFAULT_REDIS_DATABASE, 0).
+-define(DEFAULT_REDIS_USERNAME, undefined).
 -define(DEFAULT_REDIS_PASSWORD, "").
 -define(DEFAULT_REDIS_PREFIX, "launchdarkly").
 -define(DEFAULT_REDIS_TLS, undefined).
@@ -185,6 +187,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     RedisHost = maps:get(redis_host, Options, ?DEFAULT_REDIS_HOST),
     RedisPort = maps:get(redis_port, Options, ?DEFAULT_REDIS_PORT),
     RedisDatabase = maps:get(redis_database, Options, ?DEFAULT_REDIS_DATABASE),
+    RedisUsername = maps:get(redis_username, Options, ?DEFAULT_REDIS_USERNAME),
     RedisPassword = maps:get(redis_password, Options, ?DEFAULT_REDIS_PASSWORD),
     RedisPrefix = maps:get(redis_prefix, Options, ?DEFAULT_REDIS_PREFIX),
     CacheTtl = maps:get(cache_ttl, Options, ?DEFAULT_CACHE_TTL),
@@ -218,6 +221,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         redis_host => RedisHost,
         redis_port => RedisPort,
         redis_database => RedisDatabase,
+        redis_username => RedisUsername,
         redis_password => RedisPassword,
         redis_prefix => RedisPrefix,
         redis_tls => RedisTls,

@@ -30,6 +30,7 @@
     redis_host => string(),
     redis_port => pos_integer(),
     redis_database => integer(),
+    redis_username => string() | undefined,
     redis_password => string(),
     redis_prefix => string(),
     redis_tls => [ssl:tls_option()] | undefined,

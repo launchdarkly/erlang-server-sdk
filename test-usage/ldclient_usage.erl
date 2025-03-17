@@ -32,6 +32,7 @@ init_with_all_options() ->
         redis_host => "redis_host",
         redis_port => 9900,
         redis_database => 0,
+        redis_username => "username",
         redis_password => "password",
         redis_prefix => "prefix",
         redis_tls => [
@@ -69,4 +70,3 @@ use_variation_with_all_types_context() ->
             <<"object">> => #{<<"a">> => <<"b">>}
         },
         ldclient_context:new(<<"org-key">>, <<"org">>)))))))), false).
-

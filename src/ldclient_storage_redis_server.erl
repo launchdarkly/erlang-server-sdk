@@ -57,11 +57,12 @@ init([Tag]) ->
     Host = ldclient_config:get_value(Tag, redis_host),
     Port = ldclient_config:get_value(Tag, redis_port),
     Database = ldclient_config:get_value(Tag, redis_database),
+    Username = ldclient_config:get_value(Tag, redis_username),
     Password = ldclient_config:get_value(Tag, redis_password),
     Prefix = ldclient_config:get_value(Tag, redis_prefix),
     TlsOpts = ldclient_config:get_value(Tag, redis_tls),
     BasicOpts = [
-        {host, Host}, {port, Port}, {database, Database}, {password, Password}
+        {host, Host}, {port, Port}, {database, Database}, {username, Username}, {password, Password}
     ],
     EredisOpts = set_tls_options(BasicOpts, TlsOpts),
     {ok, Client} = eredis:start_link(EredisOpts),
@@ -341,4 +342,3 @@ get_init(Client, Prefix) ->
         undefined -> false;
         _ -> true
     end.
-
