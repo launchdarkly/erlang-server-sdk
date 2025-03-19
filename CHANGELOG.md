@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.6.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.5.0...v3.6.0) (2025-03-17)
+
+
+### Features
+
+* Add support for setting the redis username when using redis persistence. ([#142](https://github.com/launchdarkly/erlang-server-sdk/issues/142)) ([c37fefd](https://github.com/launchdarkly/erlang-server-sdk/commit/c37fefdcf0788deab39ae0ecb351dab25ddb34c6))
+* Update certifi to 2.14.0 ([#144](https://github.com/launchdarkly/erlang-server-sdk/issues/144)) ([69771cf](https://github.com/launchdarkly/erlang-server-sdk/commit/69771cf5f20147f10d785c759e694719b88dd44a))
+
 ## [3.5.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.4.0...v3.5.0) (2024-11-07)
 
 
