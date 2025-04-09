@@ -17,7 +17,7 @@ runs:
   steps:
     - run: make compile
       shell: bash
-    - uses: supercharge/redis-github-action@1.6.0
+    - uses: supercharge/redis-github-action@1.8.0
     - run: make ci-tests
       shell: bash
     - uses: ./.github/actions/build-docs
