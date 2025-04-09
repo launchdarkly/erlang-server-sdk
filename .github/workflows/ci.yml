@@ -26,11 +26,41 @@ jobs:
     name: Build and Test - ${{ matrix.versions.otp }}
 
     steps:
-      - uses: erlef/setup-beam@v1.18.2
-        with:
-          version-type: loose
-          otp-version: ${{ matrix.versions.otp }}
-          rebar3-version: ${{ matrix.versions.rebar }}
+      - name: Install kerl
+        run: |
+          curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
+          chmod a+x /tmp/kerl
+          
+      - name: Install Erlang OTP
+        run: |
+          # Map OTP version patterns to specific versions
+          if [[ "${{ matrix.versions.otp }}" == "21.x" ]]; then
+            OTP_VERSION="21.3.8.24"
+          elif [[ "${{ matrix.versions.otp }}" == "25.x" ]]; then
+            OTP_VERSION="25.3.2.19"
+          elif [[ "${{ matrix.versions.otp }}" == "27.x" ]]; then
+            OTP_VERSION="27.3.2"
+          else
+            echo "Unsupported OTP version: ${{ matrix.versions.otp }}"
+            exit 1
+          fi
+          
+          # Build and install Erlang
+          /tmp/kerl build $OTP_VERSION $OTP_VERSION
+          /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
+          . ~/otp/$OTP_VERSION/activate
+          
+          # Install rebar3
+          mkdir -p ~/bin
+          curl -s https://s3.amazonaws.com/rebar3/rebar3 -o ~/bin/rebar3
+          chmod +x ~/bin/rebar3
+          echo "~/bin" >> $GITHUB_PATH
+          
+          # Verify installation
+          echo "Installed Erlang version:"
+          erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
+          echo "Installed rebar3 version:"
+          rebar3 --version
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
