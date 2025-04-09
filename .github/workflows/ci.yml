@@ -50,17 +50,19 @@ jobs:
           /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
           . ~/otp/$OTP_VERSION/activate
           
-          # Install rebar3
+          # Install specific rebar3 version
           mkdir -p ~/bin
-          curl -s https://s3.amazonaws.com/rebar3/rebar3 -o ~/bin/rebar3
+          REBAR_VERSION="${{ matrix.versions.rebar }}"
+          curl -s https://github.com/erlang/rebar3/releases/download/${REBAR_VERSION}/rebar3 -o ~/bin/rebar3
           chmod +x ~/bin/rebar3
-          echo "~/bin" >> $GITHUB_PATH
+          export PATH="$HOME/bin:$PATH"
+          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
           
           # Verify installation
           echo "Installed Erlang version:"
           erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
           echo "Installed rebar3 version:"
-          rebar3 --version
+          ~/bin/rebar3 --version
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
