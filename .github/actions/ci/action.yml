@@ -25,8 +25,15 @@ runs:
       shell: bash
     - run: make build-contract-tests
       shell: bash
-    - run: make start-contract-test-service-bg
+    - name: Start contract test service
       shell: bash
+      run: |
+        make build-contract-tests
+        cd test-service/_build/prod/rel/ts/bin/
+        ./ts daemon
+        sleep 5
+        ./ts ping || (cat /tmp/ts_daemon.log.* && exit 1)
+        curl -s http://localhost:8000 || (cat /tmp/ts_daemon.log.* && exit 1)
     - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.1.0
       with:
         test_service_port: 8000
