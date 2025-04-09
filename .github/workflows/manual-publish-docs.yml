@@ -4,7 +4,7 @@ on:
 name: Publish Documentation
 jobs:
   build-publish:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # Needed to get tokens during publishing.
     permissions:
       id-token: write
