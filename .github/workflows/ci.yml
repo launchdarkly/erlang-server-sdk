@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '**.md' #Do not need to run CI for markdown changes.
+      - "**.md" #Do not need to run CI for markdown changes.
   pull_request:
     branches: [main]
     paths-ignore:
-      - '**.md'
+      - "**.md"
   workflow_dispatch:
 
 jobs:
@@ -18,11 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         versions:
-        - {os: 'ubuntu-24.04', otp: '21.x', rebar: '3.15.2'}
-        - {os: 'ubuntu-24.04', otp: '25.x', rebar: '3.18.0'}
-        - {os: 'ubuntu-24.04', otp: '27.x', rebar: '3.23.0'}
+          - { otp: "21.x", rebar: "3.15.2" }
+          - { otp: "25.x", rebar: "3.18.0" }
+          - { otp: "27.x", rebar: "3.23.0" }
 
-    runs-on: ${{ matrix.versions.os }}
+    runs-on: ubuntu-24.04
     name: Build and Test - ${{ matrix.versions.otp }}
 
     steps:
@@ -30,8 +30,8 @@ jobs:
         run: |
           curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
           chmod a+x /tmp/kerl
-          
-      - name: Install Erlang OTP
+
+      - name: Install Erlang OTP and rebar3
         run: |
           # Map OTP version patterns to specific versions
           if [[ "${{ matrix.versions.otp }}" == "21.x" ]]; then
@@ -44,20 +44,23 @@ jobs:
             echo "Unsupported OTP version: ${{ matrix.versions.otp }}"
             exit 1
           fi
-          
+
           # Build and install Erlang
           /tmp/kerl build $OTP_VERSION $OTP_VERSION
           /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
           . ~/otp/$OTP_VERSION/activate
-          
+
           # Install specific rebar3 version
-          mkdir -p ~/bin
-          REBAR_VERSION="${{ matrix.versions.rebar }}"
-          curl -s https://github.com/erlang/rebar3/releases/download/${REBAR_VERSION}/rebar3 -o ~/bin/rebar3
-          chmod +x ~/bin/rebar3
-          export PATH="$HOME/bin:$PATH"
-          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
-          
+          pushd .
+          cd ~/
+          git clone https://github.com/erlang/rebar3.git
+          cd rebar3
+          git checkout ${{ matrix.versions.rebar }}
+          ./bootstrap
+          ./rebar3 local install
+          export PATH=/root/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin:$PATH
+          popd
+
           # Verify installation
           echo "Installed Erlang version:"
           erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
