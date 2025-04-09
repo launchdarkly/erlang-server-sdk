@@ -58,8 +58,8 @@ jobs:
           git checkout ${{ matrix.versions.rebar }}
           ./bootstrap
           ./rebar3 local install
-          export PATH=/root/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin:$PATH
-          echo "/root/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin" >> "$GITHUB_PATH"
+          export PATH=$HOME/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin:$PATH
+          echo "$HOME/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin" >> "$GITHUB_PATH"
           popd
 
           # Verify installation
