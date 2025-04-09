@@ -21,7 +21,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           default-branch: main
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.18.2
         if: ${{ steps.release.outputs.releases_created }}
         with:
           version-type: loose

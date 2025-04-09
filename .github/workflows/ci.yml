@@ -26,7 +26,7 @@ jobs:
     name: Build and Test - ${{ matrix.versions.otp }}
 
     steps:
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.18.2
         with:
           version-type: loose
           otp-version: ${{ matrix.versions.otp }}

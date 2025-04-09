@@ -15,7 +15,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1.18.2
         with:
           version-type: loose
           otp-version: 25.x
