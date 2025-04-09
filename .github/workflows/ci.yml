@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - "**.md" #Do not need to run CI for markdown changes.
+      - '**.md' #Do not need to run CI for markdown changes.
   pull_request:
     branches: [main]
     paths-ignore:
-      - "**.md"
+      - '**.md'
   workflow_dispatch:
 
 jobs:
@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         versions:
-          - { otp: "21.x", rebar: "3.15.2" }
-          - { otp: "25.x", rebar: "3.18.0" }
-          - { otp: "27.x", rebar: "3.23.0" }
+          - { otp: "21.x", rebar: "0be8717a4ff5b4a0c3dcef5031fe9833197d861e" } # rebar 3.15.2
+          - { otp: "25.x", rebar: "174fd9070195443d693d444ecd1f2b7aa91661fe" } # rebar 3.18.0
+          - { otp: "27.x", rebar: "bde4b54248d16280b2c70a244aca3bb7566e2033" } # rebar 3.23.0
 
     runs-on: ubuntu-24.04
     name: Build and Test - ${{ matrix.versions.otp }}
@@ -59,13 +59,14 @@ jobs:
           ./bootstrap
           ./rebar3 local install
           export PATH=/root/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin:$PATH
+          echo "/root/otp/${{ matrix.versions.otp }}/.cache/rebar3/bin" >> "$GITHUB_PATH"
           popd
 
           # Verify installation
           echo "Installed Erlang version:"
           erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
           echo "Installed rebar3 version:"
-          ~/bin/rebar3 --version
+          rebar3 --version
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0

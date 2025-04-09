@@ -17,7 +17,7 @@ runs:
   steps:
     - run: make compile
       shell: bash
-    - uses: supercharge/redis-github-action@1.8.0
+    - uses: supercharge/redis-github-action@ea9b21c6ecece47bd99595c532e481390ea0f044
     - run: make ci-tests
       shell: bash
     - uses: ./.github/actions/build-docs
@@ -27,13 +27,7 @@ runs:
       shell: bash
     - name: Start contract test service
       shell: bash
-      run: |
-        make build-contract-tests
-        cd test-service/_build/prod/rel/ts/bin/
-        ./ts daemon
-        sleep 5
-        ./ts ping || (cat /tmp/ts_daemon.log.* && exit 1)
-        curl -s http://localhost:8000 || (cat /tmp/ts_daemon.log.* && exit 1)
+      run: make start-contract-test-service-bg
     - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.1.0
       with:
         test_service_port: 8000
