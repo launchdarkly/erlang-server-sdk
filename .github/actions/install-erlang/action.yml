@@ -8,7 +8,7 @@ inputs:
   rebar_version:
     description: 'The rebar3 version to install'
     required: true
-    default: '3.18.0'
+    default: '174fd9070195443d693d444ecd1f2b7aa91661fe' # 3.18.0
 runs:
   using: "composite"
   steps:
@@ -22,24 +22,12 @@ runs:
       - name: Install Erlang OTP and rebar3
         shell: bash
         run: |
-          # Map OTP version patterns to specific versions
-          if [[ "${{ matrix.versions.otp }}" == "21.x" ]]; then
-            OTP_VERSION="21.3.8.24"
-          elif [[ "${{ matrix.versions.otp }}" == "25.x" ]]; then
-            OTP_VERSION="25.3.2.19"
-          elif [[ "${{ matrix.versions.otp }}" == "27.x" ]]; then
-            OTP_VERSION="27.3.2"
-          else
-            echo "Unsupported OTP version: ${{ matrix.versions.otp }}"
-            exit 1
-          fi
-
           # Build and install Erlang
-          /tmp/kerl build $OTP_VERSION $OTP_VERSION
-          /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
-          . ~/otp/$OTP_VERSION/activate
+          /tmp/kerl build ${{ inputs.otp_version }} ${{ inputs.otp_version }}
+          /tmp/kerl install ${{ inputs.otp_version }} ~/otp/${{ inputs.otp_version }}
+          . ~/otp/${{ inputs.otp_version }}/activate
           # Persist to the github actions path for use in future steps.
-          echo "$HOME/otp/$OTP_VERSION/bin" >> "$GITHUB_PATH"
+          echo "$HOME/otp/${{ inputs.otp_version }}/bin" >> "$GITHUB_PATH"
 
           # Install specific rebar3 version
           pushd .
@@ -51,9 +39,9 @@ runs:
           ./rebar3 local install
 
           # Add to the path for use in this step.
-          export PATH=$HOME/otp/$OTP_VERSION/.cache/rebar3/bin:$PATH
+          export PATH=$HOME/otp/${{ inputs.otp_version }}/.cache/rebar3/bin:$PATH
           # Persist to the github actions path for use in future steps.
-          echo "$HOME/otp/$OTP_VERSION/.cache/rebar3/bin" >> "$GITHUB_PATH"
+          echo "$HOME/otp/${{ inputs.otp_version }}/.cache/rebar3/bin" >> "$GITHUB_PATH"
           
           popd
 

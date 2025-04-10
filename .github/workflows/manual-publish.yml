@@ -21,7 +21,7 @@ jobs:
         uses: ./.github/actions/install-erlang
         with:
           otp_version: '25.3.2.19'
-          rebar_version: '3.18.0'
+          rebar_version: '174fd9070195443d693d444ecd1f2b7aa91661fe' # 3.18.0
 
       - id: build-and-test
         # Build using the same steps from CI.
