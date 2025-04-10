@@ -10,35 +10,14 @@ jobs:
       id-token: write
       contents: write # Need to publish github pages.
     steps:
-      - name: Install kerl
-        run: |
-          curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
-          chmod a+x /tmp/kerl
-          
-      - name: Install Erlang OTP
-        run: |
-          # Install OTP 25.3.2.19
-          OTP_VERSION="25.3.2.19"
-          
-          # Build and install Erlang
-          /tmp/kerl build $OTP_VERSION $OTP_VERSION
-          /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
-          . ~/otp/$OTP_VERSION/activate
-          
-          # Install specific rebar3 version
-          mkdir -p ~/bin
-          REBAR_VERSION="3.18.0"
-          curl -s https://github.com/erlang/rebar3/releases/download/${REBAR_VERSION}/rebar3 -o ~/bin/rebar3
-          chmod +x ~/bin/rebar3
-          export PATH="$HOME/bin:$PATH"
-          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
-          
-          # Verify installation
-          echo "Installed Erlang version:"
-          erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
-          echo "Installed rebar3 version:"
-          ~/bin/rebar3 --version
       - uses: actions/checkout@v3
+      
+      - name: Install Erlang and rebar3
+        uses: ./.github/actions/install-erlang
+        with:
+          otp_version: '25.3.2.19'
+          rebar_version: '3.18.0'
+
       - id: build
         name: Build Documentation
         uses: ./.github/actions/build-docs

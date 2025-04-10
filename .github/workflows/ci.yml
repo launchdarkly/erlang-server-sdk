@@ -26,56 +26,15 @@ jobs:
     name: Build and Test - ${{ matrix.versions.otp }}
 
     steps:
-      - name: Install kerl
-        run: |
-          curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
-          chmod a+x /tmp/kerl
-
-      - name: Install Erlang OTP and rebar3
-        run: |
-          # Map OTP version patterns to specific versions
-          if [[ "${{ matrix.versions.otp }}" == "21.x" ]]; then
-            OTP_VERSION="21.3.8.24"
-          elif [[ "${{ matrix.versions.otp }}" == "25.x" ]]; then
-            OTP_VERSION="25.3.2.19"
-          elif [[ "${{ matrix.versions.otp }}" == "27.x" ]]; then
-            OTP_VERSION="27.3.2"
-          else
-            echo "Unsupported OTP version: ${{ matrix.versions.otp }}"
-            exit 1
-          fi
-
-          # Build and install Erlang
-          /tmp/kerl build $OTP_VERSION $OTP_VERSION
-          /tmp/kerl install $OTP_VERSION ~/otp/$OTP_VERSION
-          . ~/otp/$OTP_VERSION/activate
-          # Persist to the github actions path for use in future steps.
-          echo "$HOME/otp/$OTP_VERSION/bin" >> "$GITHUB_PATH"
-
-          # Install specific rebar3 version
-          pushd .
-          cd ~/
-          git clone https://github.com/erlang/rebar3.git
-          cd rebar3
-          git checkout ${{ matrix.versions.rebar }}
-          ./bootstrap
-          ./rebar3 local install
-
-          # Add to the path for use in this step.
-          export PATH=$HOME/otp/$OTP_VERSION/.cache/rebar3/bin:$PATH
-          # Persist to the github actions path for use in future steps.
-          echo "$HOME/otp/$OTP_VERSION/.cache/rebar3/bin" >> "$GITHUB_PATH"
-          
-          popd
-
-          # Verify installation
-          echo "Installed Erlang version:"
-          erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
-          echo "Installed rebar3 version:"
-          rebar3 --version
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      - name: Install Erlang and rebar3
+        uses: ./.github/actions/install-erlang
+        with:
+          otp_version: ${{ matrix.versions.otp }}
+          rebar_version: ${{ matrix.versions.rebar }}
 
       - uses: ./.github/actions/ci
         with:

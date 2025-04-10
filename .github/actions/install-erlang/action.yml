@@ -1,0 +1,40 @@
+name: 'Install Erlang OTP and rebar3'
+description: 'Installs a specific version of Erlang OTP and rebar3'
+inputs:
+  otp_version:
+    description: 'The OTP version to install'
+    required: true
+    default: '25.3.2.19'
+  rebar_version:
+    description: 'The rebar3 version to install'
+    required: true
+    default: '3.18.0'
+runs:
+  using: "composite"
+  steps:
+    - name: Install kerl
+      shell: bash
+      run: |
+        curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
+        chmod a+x /tmp/kerl
+
+    - name: Install Erlang OTP
+      shell: bash
+      run: |
+        # Build and install Erlang
+        /tmp/kerl build ${{ inputs.otp_version }} ${{ inputs.otp_version }}
+        /tmp/kerl install ${{ inputs.otp_version }} ~/otp/${{ inputs.otp_version }}
+        . ~/otp/${{ inputs.otp_version }}/activate
+        
+        # Install specific rebar3 version
+        mkdir -p ~/bin
+        curl -s https://github.com/erlang/rebar3/releases/download/${{ inputs.rebar_version }}/rebar3 -o ~/bin/rebar3
+        chmod +x ~/bin/rebar3
+        export PATH="$HOME/bin:$PATH"
+        echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
+        
+        # Verify installation
+        echo "Installed Erlang version:"
+        erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
+        echo "Installed rebar3 version:"
+        ~/bin/rebar3 --version 
