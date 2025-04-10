@@ -14,11 +14,13 @@ runs:
   steps:
 
       - name: Install kerl
+        shell: bash
         run: |
           curl -s https://raw.githubusercontent.com/kerl/kerl/master/kerl > /tmp/kerl
           chmod a+x /tmp/kerl
 
       - name: Install Erlang OTP and rebar3
+        shell: bash
         run: |
           # Map OTP version patterns to specific versions
           if [[ "${{ matrix.versions.otp }}" == "21.x" ]]; then
