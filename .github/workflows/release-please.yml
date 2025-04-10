@@ -29,9 +29,6 @@ jobs:
       - name: Install Erlang and rebar3
         if: ${{ steps.release.outputs.releases_created }}
         uses: ./.github/actions/install-erlang
-        with:
-          otp_version: '25.3.2.19'
-          rebar_version: '3.18.0'
 
       - uses: ./.github/actions/configure-rebar
         with:

@@ -3,11 +3,11 @@ description: 'Installs a specific version of Erlang OTP and rebar3'
 inputs:
   otp_version:
     description: 'The OTP version to install'
-    required: true
+    required: false
     default: '25.3.2.19'
   rebar_version:
     description: 'The rebar3 version to install'
-    required: true
+    required: false
     default: '174fd9070195443d693d444ecd1f2b7aa91661fe' # 3.18.0
 runs:
   using: "composite"
