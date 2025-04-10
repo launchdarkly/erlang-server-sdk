@@ -25,12 +25,12 @@ runs:
           # Build and install Erlang
           /tmp/kerl build ${{ inputs.otp_version }} ${{ inputs.otp_version }}
           /tmp/kerl install ${{ inputs.otp_version }} ~/otp/${{ inputs.otp_version }}
+          # This will make the erlang version available to the current shell.
           . ~/otp/${{ inputs.otp_version }}/activate
           # Persist to the github actions path for use in future steps.
           echo "$HOME/otp/${{ inputs.otp_version }}/bin" >> "$GITHUB_PATH"
 
           # Install specific rebar3 version
-          pushd .
           cd ~/
           git clone https://github.com/erlang/rebar3.git
           cd rebar3
@@ -42,8 +42,6 @@ runs:
           export PATH=$HOME/otp/${{ inputs.otp_version }}/.cache/rebar3/bin:$PATH
           # Persist to the github actions path for use in future steps.
           echo "$HOME/otp/${{ inputs.otp_version }}/.cache/rebar3/bin" >> "$GITHUB_PATH"
-          
-          popd
 
           # Verify installation
           echo "Installed Erlang version:"
