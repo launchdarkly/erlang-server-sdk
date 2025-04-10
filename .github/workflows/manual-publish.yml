@@ -9,18 +9,17 @@ on:
 
 jobs:
   manual-build-publish:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # Needed to get tokens during publishing.
     permissions:
       id-token: write
       contents: read
     steps:
-      - uses: erlef/setup-beam@v1
-        with:
-          version-type: loose
-          otp-version: 25.x
-          rebar3-version: 3.18.0
       - uses: actions/checkout@v3
+      
+      - name: Install Erlang and rebar3
+        uses: ./.github/actions/install-erlang
+
       - id: build-and-test
         # Build using the same steps from CI.
         name: Build and Test

@@ -7,7 +7,7 @@ on:
 
 jobs:
   release-package:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions: 
       id-token: write # Needed if using OIDC to get release secrets.
       contents: write # Contents and pull-requests are for release-please to make releases.
@@ -21,17 +21,14 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           default-branch: main
 
-      - uses: erlef/setup-beam@v1
-        if: ${{ steps.release.outputs.releases_created }}
-        with:
-          version-type: loose
-          otp-version: 25.x
-          rebar3-version: 3.18.0
-          
       - uses: actions/checkout@v3
         if: ${{ steps.release.outputs.releases_created }}
         with:
           fetch-depth: 0 #If you only need the current version keep this.
+
+      - name: Install Erlang and rebar3
+        if: ${{ steps.release.outputs.releases_created }}
+        uses: ./.github/actions/install-erlang
 
       - uses: ./.github/actions/configure-rebar
         with:
