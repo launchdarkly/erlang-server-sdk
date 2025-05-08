@@ -74,7 +74,7 @@ get_service_detail(Req, State) ->
       <<"tags">>,
       <<"server-side-polling">>,
       <<"user-type">>,
-      <<"inline-context">>,
+      <<"inline-context-all">>,
       <<"anonymous-redaction">>,
       <<"tls:custom-ca">>,
       <<"tls:skip-verify-peer">>,
