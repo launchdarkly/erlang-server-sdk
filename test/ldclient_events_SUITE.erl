@@ -786,7 +786,7 @@ add_custom_events(_) ->
         #{
             <<"key">> := <<"event-foo">>,
             <<"kind">> := <<"custom">>,
-            <<"contextKeys">> := #{<<"user">> := <<"123456">>},
+            <<"context">> := #{<<"key">> := <<"123456">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"data">> := #{<<"k1">> := <<"v1">>},
             <<"creationDate">> := _
         },
@@ -798,7 +798,7 @@ add_custom_events(_) ->
         #{
             <<"key">> := <<"event-bar">>,
             <<"kind">> := <<"custom">>,
-            <<"contextKeys">> := #{<<"user">> := <<"abcdef">>},
+            <<"context">> := #{<<"key">> := <<"abcdef">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"data">> := #{<<"k2">> := <<"v2">>},
             <<"creationDate">> := _
         },
@@ -810,7 +810,7 @@ add_custom_events(_) ->
         #{
             <<"key">> := <<"event-baz">>,
             <<"kind">> := <<"custom">>,
-            <<"contextKeys">> := #{<<"user">> := <<"987656">>},
+            <<"context">> := #{<<"key">> := <<"987656">>, <<"kind">> := <<"user">>, <<"firstName">> := <<"Tester">>, <<"lastName">> := <<"Testerson">>},
             <<"data">> := #{<<"k3">> := <<"v3">>},
             <<"metricValue">> := 123,
             <<"creationDate">> := _
