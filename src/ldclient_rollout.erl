@@ -147,7 +147,8 @@ match_weighted_variations(Bucket, [#{weight := Weight}|Rest], Sum) ->
     FlagKey :: ldclient_flag:key(),
     Salt :: binary(),
     ContextValue :: binary() | null) -> float().
-bucket_context_value(null, _FlagKey, _Salt, null) -> 0.0;
+
+bucket_context_value(_Seed, _FlagKey, _Salt, null) -> 0.0;
 %% when no seed is present hash with `key.salt.attribute`
 bucket_context_value(null, FlagKey, Salt, ContextValue) ->
     bucket_hash(<<FlagKey/binary, $., Salt/binary, $., ContextValue/binary>>);
