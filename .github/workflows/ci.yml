@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         versions:
-          - { otp: "21.3.8.24", rebar: "0be8717a4ff5b4a0c3dcef5031fe9833197d861e" } # rebar 3.15.2
+          - { otp: "24.3.4.17", rebar: "e008a2ff40f708494a7c259a1fd8c2e77f7cd6a0" } # rebar 3.17.0
           - { otp: "25.3.2.19", rebar: "174fd9070195443d693d444ecd1f2b7aa91661fe" } # rebar 3.18.0
           - { otp: "27.3.2", rebar: "bde4b54248d16280b2c70a244aca3bb7566e2033" } # rebar 3.23.0
 
