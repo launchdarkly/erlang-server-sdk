@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.8.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.7.2...v3.8.0) (2025-08-08)
+
+
+### Features
+
+* Update minimum OTP version to 24. ([82f0e77](https://github.com/launchdarkly/erlang-server-sdk/commit/82f0e773475f5cd78a54d2aad36994e129f9cbd0))
+
+
+### Bug Fixes
+
+* Fix issue where sometimes a dropped stream would not reconnect. ([82f0e77](https://github.com/launchdarkly/erlang-server-sdk/commit/82f0e773475f5cd78a54d2aad36994e129f9cbd0))
+
 ## [3.7.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.7.1...v3.7.2) (2025-06-25)
 
 
