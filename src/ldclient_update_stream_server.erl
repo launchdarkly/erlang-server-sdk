@@ -181,7 +181,7 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     error_logger:warning_msg("Streaming connection ended"),
                     shotgun:close(Pid)
                 end,
-            Options = #{async => true, async_mode => sse, handle_event => F},
+            Options = #{async => true, async_mode => sse, handle_event => F, allow_reconnect => false},
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     shotgun:close(Pid),
