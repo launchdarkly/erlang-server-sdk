@@ -8,6 +8,8 @@
 
 -behaviour(gen_server).
 
+-include_lib("kernel/include/logger.hrl").
+
 %% Supervision
 -export([start_link/1, init/1]).
 
@@ -49,6 +51,7 @@ start_link(Tag) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
+    logger:set_process_metadata(#{module => ?MODULE}),
     StreamUri = ldclient_config:get_value(Tag, stream_uri) ++ "/all",
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
@@ -89,6 +92,18 @@ handle_info({listen}, #{stream_uri := Uri} = State) ->
     error_logger:info_msg("Starting streaming connection to URL: ~p", [Uri]),
     NewState = do_listen(State),
     {noreply, NewState};
+handle_info(check_shotgun_state, #{conn := undefined} = State) ->
+    ?LOG_INFO("Skipping silent failure polling until we can re-establish a Shotgun connection"),
+    {noreply, State};
+handle_info(check_shotgun_state, #{conn := ShotgunPid} = State) ->
+    case sys:get_state(ShotgunPid) of
+        {down, _} ->
+            ?LOG_WARNING("Shotgun is in the 'down' state, but ldclient hasn't detected that yet");
+        _ ->
+            ok
+    end,
+    erlang:send_after(1000, self(), {check_shotgun_state}),
+    {noreply, State};
 handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff} = State) ->
     NewBackoff = ldclient_backoff:fail(Backoff),
     _ = ldclient_backoff:fire(NewBackoff),
@@ -140,6 +155,8 @@ do_listen(#{
             State;
         {ok, Pid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),
+            ?LOG_INFO("Established Shotgun connection"),
+            erlang:send_after(1000, self(), check_shotgun_state),
             State#{conn := Pid, backoff := NewBackoff}
         catch Code:_Reason ->
             % Don't pass raw exception reason as it could contain unsafe data
@@ -182,7 +199,9 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                         error_logger:warning_msg("Invalid SSE event error (~p)", [Code]),
                         shotgun:close(Pid)
                     end;
-                (fin, _Ref, _Bin) ->
+                (fin, _Ref, Bin) ->
+                    ?LOG_INFO("ldclient received a 'FIN' SSE and ignored the data it contains, which is: ~p", [Bin]),
+
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
                     shotgun:close(Pid)
@@ -316,7 +335,7 @@ maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction) ->
 -spec maybe_delete_item(atom(), atom(), atom(), binary(), pos_integer()|undefined) -> ok.
 maybe_delete_item(FeatureStore, Tag, Bucket, Key, NewVersion) ->
     case FeatureStore:get(Tag, Bucket, Key) of
-        [] -> 
+        [] ->
             NewDeletedFlag = ldclient_flag:new(#{<<"key">> => Key, <<"deleted">> => true, <<"version">> => NewVersion}),
             NewItem = #{Key => NewDeletedFlag},
             FeatureStore:upsert(Tag, Bucket, NewItem);
