@@ -36,9 +36,11 @@ start_link(Tag) ->
 -spec init(Args :: term()) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
-init([_Tag]) ->
+init([Tag]) ->
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
+    % When using the null update processor we are always initialized.
+    ldclient_update_processor_state:set_initialized_state(Tag, true),
     State = #{},
     {ok, State}.
 
