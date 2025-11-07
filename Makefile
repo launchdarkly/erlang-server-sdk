@@ -22,8 +22,8 @@ run:
 doc:
 	@$(REBAR3) edoc
 
-tests:
-	docker run --name ld-test-redis -p 6379:6379 -d redis
+tests: clean-redis
+	docker run --name ld-test-redis -p 6379:6379 -d redis:7.2
 	@$(REBAR3) ct --dir="test,test-redis" --logdir logs/ct
 	docker rm --force ld-test-redis
 
@@ -40,7 +40,7 @@ tls-tests:
 
 #This is for local debugging if your tests fail and the Redis Docker container is not torn down properly
 clean-redis:
-	docker rm --force ld-test-redis
+	docker rm --force ld-test-redis 2> /dev/null || true
 
 colon := :
 build-contract-tests:

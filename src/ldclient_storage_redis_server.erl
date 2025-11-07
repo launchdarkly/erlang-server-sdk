@@ -236,11 +236,16 @@ empty_bucket(true, Bucket, Client, Prefix) ->
 all_items(false, Bucket, _Client, _Prefix) ->
     {error, bucket_not_found, "Redis hash " ++ atom_to_list(Bucket) ++ " does not exist."};
 all_items(true, Bucket, Client, Prefix) ->
-    {ok, Values} = eredis:q(Client, ["HGETALL", bucket_name(Prefix, Bucket)]),
-    NullFilter = [<<"null">>],
-    NewValues = lists:filter(fun(Elem) ->
-        not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
-    pairs(NewValues, Bucket).
+    case eredis:q(Client, ["HGETALL", bucket_name(Prefix, Bucket)]) of
+        {ok, Values} ->
+            NullFilter = [<<"null">>],
+            NewValues = lists:filter(fun(Elem) ->
+                not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
+            pairs(NewValues, Bucket);
+        {error, Reason} ->
+            error_logger:error_msg("Redis error listing all items in bucket ~p: ~s", [Bucket, format_error(Reason)]),
+            []
+    end.
 
 pairs([A, B | L], Bucket) ->
     Decoded = jsx:decode(B, [return_maps]),
@@ -265,19 +270,24 @@ pairs([], _Bucket) -> [].
 lookup_key(false, _Key, Bucket, _Client, _Prefix) ->
     {error, bucket_not_found, "Redis hash " ++ atom_to_list(Bucket) ++ " does not exist."};
 lookup_key(true, Key, Bucket, Client, Prefix) ->
-    {ok, Value} = eredis:q(Client, ["HGET", bucket_name(Prefix, Bucket), Key]),
-    if
-        (Value == undefined) -> [];
-        true ->
-            Decoded = jsx:decode(Value, [return_maps]),
+    case eredis:q(Client, ["HGET", bucket_name(Prefix, Bucket), Key]) of
+        {ok, Value} ->
             if
-                Bucket == features ->
-                    Parsed = ldclient_flag:new(Decoded),
-                    [{Key, Parsed}];
-                Bucket == segments ->
-                    Parsed = ldclient_segment:new(Decoded),
-                    [{Key, Parsed}]
-            end
+                (Value == undefined) -> [];
+                true ->
+                    Decoded = jsx:decode(Value, [return_maps]),
+                    if
+                        Bucket == features ->
+                            Parsed = ldclient_flag:new(Decoded),
+                            [{Key, Parsed}];
+                        Bucket == segments ->
+                            Parsed = ldclient_segment:new(Decoded),
+                            [{Key, Parsed}]
+                    end
+            end;
+        {error, Reason} ->
+            error_logger:error_msg("Redis error looking up key ~p in bucket ~p: ~s", [Key, Bucket, format_error(Reason)]),
+            []
     end.
 
 %% @doc Upsert key value pairs in bucket
@@ -330,6 +340,14 @@ delete_key(true, Key, Bucket, Client, Prefix) ->
 bucket_name(Prefix, Bucket) ->
     lists:concat([Prefix, ":", Bucket]).
 
+%% @doc Format Redis error for logging
+%% @private
+%%
+%% @end
+-spec format_error(Reason :: no_connection | binary()) -> string().
+format_error(no_connection) -> "no connection to Redis";
+format_error(Reason) when is_binary(Reason) -> binary_to_list(Reason).
+
 -spec set_init(Client :: client_pid(), Prefix :: string()) -> ok.
 set_init(Client, Prefix) ->
     {ok, _} = eredis:q(Client, ["SET", lists:concat([Prefix, ":$inited"]), ""]),
@@ -337,8 +355,13 @@ set_init(Client, Prefix) ->
 
 -spec get_init(Client :: client_pid(), Prefix :: string()) -> boolean().
 get_init(Client, Prefix) ->
-    {ok, Value} = eredis:q(Client, ["GET", lists:concat([Prefix, ":$inited"])]),
-    case Value of
-        undefined -> false;
-        _ -> true
+    case eredis:q(Client, ["GET", lists:concat([Prefix, ":$inited"])]) of
+        {ok, Value} ->
+            case Value of
+                undefined -> false;
+                _ -> true
+            end;
+        {error, Reason} ->
+            error_logger:error_msg("Redis error getting init flag: ~s", [format_error(Reason)]),
+            false
     end.
