@@ -12,7 +12,7 @@
 -export([start_link/1, init/1]).
 
 %% Behavior callbacks
--export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, terminate/2, format_status/1]).
 
 %% API
 -export([
@@ -151,6 +151,15 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% @doc Redact SDK key from state for logging
+%% @private
+%%
+%% @end
+format_status(#{state := State}) ->
+    #{state => State#{sdk_key => "[REDACTED]"}};
+format_status(Other) ->
+    Other.
 
 %%===================================================================
 %% Internal functions

@@ -60,10 +60,10 @@ send(State, JsonEvents, PayloadId, Uri) ->
 
 -type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
 
--spec process_request({error, term()} | http_request()) 
+-spec process_request({error, term()} | http_request())
     -> {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
 process_request({error, Reason}) ->
-    {error, temporary, Reason};
+    {error, temporary, ldclient_key_redaction:format_httpc_error(Reason)};
 process_request({ok, {{_Version, StatusCode, _ReasonPhrase}, Headers, _Body}}) when StatusCode < 400 ->
     {ok, get_server_time(Headers)};
 process_request({ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}}) ->
