@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.8.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.8.0...v3.8.1) (2025-11-12)
+
+
+### Bug Fixes
+
+* Handle connection errors during read operations. ([#163](https://github.com/launchdarkly/erlang-server-sdk/issues/163)) ([5838c2b](https://github.com/launchdarkly/erlang-server-sdk/commit/5838c2b31609e2e27ffa6bfed7ad1725f7725188))
+* Handle redis errors during mutations. ([#165](https://github.com/launchdarkly/erlang-server-sdk/issues/165)) ([9dbe853](https://github.com/launchdarkly/erlang-server-sdk/commit/9dbe8535c376cd992a089d2b82f63311f93b4494))
+* Prevent uninitialized SDK warning in daemon mode. ([#162](https://github.com/launchdarkly/erlang-server-sdk/issues/162)) ([0961922](https://github.com/launchdarkly/erlang-server-sdk/commit/0961922ac65ba91ee9b11bb30f54d4ef2ffe2996))
+* Redact SDK in gen_server descriptions and network errors. ([#166](https://github.com/launchdarkly/erlang-server-sdk/issues/166)) ([3a4e005](https://github.com/launchdarkly/erlang-server-sdk/commit/3a4e005f55b0a3a96e11371d311c9b2bf990b5b9))
+
 ## [3.8.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.7.2...v3.8.0) (2025-08-08)
 
 
