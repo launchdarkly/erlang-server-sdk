@@ -37,9 +37,15 @@ init(SupRef, Tag, _) ->
     StorageSup = ?CHILD(ldclient_storage_redis_sup, ldclient_storage_redis_sup, [SupRegName, WorkerRegName, Tag], supervisor),
     {ok, _} = supervisor:start_child(SupRef, StorageSup),
     ok = ldclient_storage_cache:init(SupRef, Tag, []),
-    % Pre-create features and segments buckets
-    ok = create(Tag, features),
-    ok = create(Tag, segments).
+    % Pre-create features and segments buckets only if not in daemon mode
+    UseLdd = ldclient_config:get_value(Tag, use_ldd),
+    case UseLdd of
+        false ->
+            ok = create(Tag, features),
+            ok = create(Tag, segments);
+        true ->
+            ok
+    end.
 
 -spec create(Tag :: atom(), Bucket :: atom()) ->
     ok |

@@ -43,7 +43,10 @@ start_link(SupName, UpdateSupName, UpdateWorkerModule, EventSupName, Tag) ->
 -spec init(Args :: term()) ->
     {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
 init([UpdateSupName, UpdateWorkerModule, EventSupName, Tag]) ->
-    {ok, {{one_for_one, 1, 5}, children(UpdateSupName, UpdateWorkerModule, EventSupName, Tag)}}.
+    % Allow up to 10 restarts in 60 seconds before giving up.
+    % This provides resilience for transient failures in child supervisors
+    % (update processor, events, storage) while preventing infinite restart loops.
+    {ok, {{one_for_one, 10, 60}, children(UpdateSupName, UpdateWorkerModule, EventSupName, Tag)}}.
 
 %%===================================================================
 %% Internal functions

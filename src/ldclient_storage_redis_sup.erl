@@ -27,7 +27,10 @@ start_link(SupRegName, WorkerRegName, Tag) when is_atom(SupRegName), is_atom(Wor
 -spec init(Args :: term()) ->
     {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
 init([WorkerRegName, Tag]) ->
-    {ok, {{one_for_one, 0, 1}, children(WorkerRegName, Tag)}}.
+    % Allow up to 10 restarts in 60 seconds before giving up.
+    % This provides resilience for transient Redis connection issues while
+    % preventing infinite restart loops.
+    {ok, {{one_for_one, 10, 60}, children(WorkerRegName, Tag)}}.
 
 %%===================================================================
 %% Internal functions

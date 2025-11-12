@@ -17,7 +17,9 @@
     server_upsert_clean/1,
     server_all/1,
     server_process_events_put/1,
-    server_process_events_patch/1
+    server_process_events_patch/1,
+    buckets_precreated_non_daemon_mode/1,
+    buckets_not_precreated_daemon_mode/1
 ]).
 
 %%====================================================================
@@ -32,7 +34,9 @@ all() ->
         server_upsert_clean,
         server_all,
         server_process_events_put,
-        server_process_events_patch
+        server_process_events_patch,
+        buckets_precreated_non_daemon_mode,
+        buckets_not_precreated_daemon_mode
     ].
 
 init_per_suite(Config) ->
@@ -313,3 +317,45 @@ server_process_events_patch(_) ->
                trackEvents := false,trackEventsFallthrough := false,
                variations := [],version := 1}}
     ] = lists:sort(ldclient_storage_redis:all(default, features)).
+
+buckets_precreated_non_daemon_mode(_) ->
+    % Start a new instance with use_ldd: false (non-daemon mode)
+    Tag = non_daemon_test,
+    Options = #{
+        feature_store => ldclient_storage_redis,
+        stream => false,
+        polling_update_requestor => ldclient_update_requestor_test,
+        redis_prefix => "non_daemon_test",
+        use_ldd => false,
+        cache_ttl => 0
+    },
+    ldclient:start_instance("", Tag, Options),
+
+    % Verify buckets were pre-created by trying to create them again
+    {error, already_exists, _} = ldclient_storage_redis:create(Tag, features),
+    {error, already_exists, _} = ldclient_storage_redis:create(Tag, segments),
+
+    % Clean up
+    ok = ldclient:stop_instance(Tag).
+
+buckets_not_precreated_daemon_mode(_) ->
+    % Start a new instance with use_ldd: true (daemon mode)
+    Tag = daemon_test,
+    Options = #{
+        feature_store => ldclient_storage_redis,
+        stream => false,
+        polling_update_requestor => ldclient_update_requestor_test,
+        redis_prefix => "daemon_test",
+        use_ldd => true,
+        cache_ttl => 0
+    },
+    ldclient:start_instance("", Tag, Options),
+
+    % Verify buckets were NOT pre-created by successfully creating them
+    ok = ldclient_storage_redis:create(Tag, features),
+    ok = ldclient_storage_redis:create(Tag, segments),
+
+    % Clean up
+    ok = ldclient_storage_redis:empty(Tag, features),
+    ok = ldclient_storage_redis:empty(Tag, segments),
+    ok = ldclient:stop_instance(Tag).
