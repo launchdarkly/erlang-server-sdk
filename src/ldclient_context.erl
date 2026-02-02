@@ -155,7 +155,7 @@ new(Key) when erlang:is_binary(Key) ->
 new(Key, Kind) when erlang:is_binary(Key) and erlang:is_binary(Kind) ->
     #{key => Key, kind => Kind}.
 
-%% @doc Create a multi context from several multiple single kind contexts.
+%% @doc Create a multi context from several single kind contexts and/or multi contexts.
 %%
 %% ```
 %% MyMultiContext = ldclient_context:new_multi_from([
@@ -163,17 +163,36 @@ new(Key, Kind) when erlang:is_binary(Key) and erlang:is_binary(Kind) ->
 %%     ldclient_context:new(<<"org-key">>, <<"org">>)]).
 %% '''
 %%
-%% Each of the contexts being combined should have unique keys. If more than one context of the same kind is added,
-%% then only a single context of the duplicated type will remain.
+%% Multi contexts in the input list will be flattened, with each of their component contexts being added individually:
+%% ```
+%% MultiContext1 = ldclient_context:new_multi_from([
+%%     ldclient_context:new(<<"user-key">>),
+%%     ldclient_context:new(<<"org-key">>, <<"org">>)]),
+%% MultiContext2 = ldclient_context:new_multi_from([
+%%     MultiContext1,
+%%     ldclient_context:new(<<"device-key">>, <<"device">>)]).
+%% %% MultiContext2 contains user, org, and device contexts.
+%% '''
 %%
-%% If `new_from_multi' is called with a list containing a single context, then the single context will be returned.
-%% A multi context should contain more than one kind.
+%% Each of the contexts being combined should have unique kinds. If more than one context of the same kind is added,
+%% then only a single context of the duplicated kind will remain.
+%%
+%% If `new_multi_from' is called with a list containing a single context (or a multi-context containing only 1 context),
+%% then a single-kind context will be returned.
 %% @end
--spec new_multi_from(Contexts :: [single_context()]) -> multi_context() | single_context().
-new_multi_from(Contexts) when length(Contexts) =:= 1 ->
-    hd(Contexts);
+-spec new_multi_from(Contexts :: [context()]) -> multi_context() | single_context().
 new_multi_from(Contexts) ->
-    new_multi_from(Contexts, #{kind => <<"multi">>}).
+    MultiContext = new_multi_from(Contexts, #{kind => <<"multi">>}),
+    %% If the result only has one kind (besides the 'kind' key itself), return a single-kind context.
+    case maps:size(MultiContext) of
+        2 ->
+            %% One kind plus 'kind' key - convert back to single context.
+            [SingleKind] = get_kinds(MultiContext),
+            #{SingleKind := ContextPart} = MultiContext,
+            ContextPart#{kind => SingleKind};
+        _ ->
+            MultiContext
+    end.
 
 %% @doc Create a context from a map.
 %%
@@ -614,7 +633,15 @@ is_built_in(_Key) -> false.
 -spec filter_kinds(Kinds :: [binary()]) -> [binary()].
 filter_kinds(Kinds) -> lists:filter(fun(Key) -> Key =/= kind end, Kinds).
 
--spec new_multi_from(Contexts :: [single_context()], MultiContext :: multi_context()) -> multi_context().
+-spec new_multi_from(Contexts :: [context()], MultiContext :: multi_context()) -> multi_context().
+new_multi_from([#{kind := <<"multi">>} = Context | RemainingContexts] = _Contexts, MultiContext) ->
+    %% Flatten multi-context: extract each kind and add it to the accumulator.
+    Kinds = get_kinds(Context),
+    UpdatedMultiContext = lists:foldl(fun(Kind, Acc) ->
+        #{Kind := ContextPart} = Context,
+        Acc#{Kind => ContextPart}
+    end, MultiContext, Kinds),
+    new_multi_from(RemainingContexts, UpdatedMultiContext);
 new_multi_from([#{kind := Kind} = Context | RemainingContexts] = _Contexts, MultiContext) ->
     ContextWithoutKind = maps:remove(kind, Context),
     new_multi_from(RemainingContexts, MultiContext#{Kind => ContextWithoutKind});

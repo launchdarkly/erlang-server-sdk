@@ -21,6 +21,9 @@
     can_get_kinds_of_multi_context/1,
     can_get_attribute_in_multi_context/1,
     multi_created_from_single_is_single/1,
+    can_merge_multi_context_with_single_contexts/1,
+    can_merge_multiple_multi_contexts/1,
+    merging_multi_with_overlapping_kinds_uses_last/1,
     setting_attribute_by_atom_uses_binary/1,
     can_validate_kinds/1,
     can_set_built_in_attributes/1,
@@ -59,6 +62,9 @@ all() ->
         can_get_kinds_of_multi_context,
         can_get_attribute_in_multi_context,
         multi_created_from_single_is_single,
+        can_merge_multi_context_with_single_contexts,
+        can_merge_multiple_multi_contexts,
+        merging_multi_with_overlapping_kinds_uses_last,
         setting_attribute_by_atom_uses_binary,
         can_validate_kinds,
         can_set_built_in_attributes,
@@ -155,6 +161,72 @@ multi_created_from_single_is_single(_) ->
     %% If you attempt to create a multi context from a single context, then you just get that same single context back.
     #{kind := <<"org">>, key := <<"org-key">>} =
         ldclient_context:new_multi_from([ldclient_context:new(<<"org-key">>, <<"org">>)]).
+
+can_merge_multi_context_with_single_contexts(_) ->
+    %% Create an initial multi context
+    MultiContext = ldclient_context:new_multi_from([
+        ldclient_context:new(<<"user-key">>),
+        ldclient_context:new(<<"org-key">>, <<"org">>)
+    ]),
+    %% Merge the multi context with a new single context
+    MergedContext = ldclient_context:new_multi_from([
+        MultiContext,
+        ldclient_context:new(<<"device-key">>, <<"device">>)
+    ]),
+    %% Verify the result is a flattened multi context with all three kinds
+    #{
+        kind := <<"multi">>,
+        <<"user">> := #{key := <<"user-key">>},
+        <<"org">> := #{key := <<"org-key">>},
+        <<"device">> := #{key := <<"device-key">>}
+    } = MergedContext,
+    %% Verify it's valid
+    true = ldclient_context:is_valid(MergedContext, false),
+    %% Verify get_kinds returns all three kinds
+    Kinds = ldclient_context:get_kinds(MergedContext),
+    true = lists:member(<<"user">>, Kinds),
+    true = lists:member(<<"org">>, Kinds),
+    true = lists:member(<<"device">>, Kinds).
+
+can_merge_multiple_multi_contexts(_) ->
+    %% Create two multi contexts
+    Multi1 = ldclient_context:new_multi_from([
+        ldclient_context:new(<<"user-key">>),
+        ldclient_context:new(<<"org-key">>, <<"org">>)
+    ]),
+    Multi2 = ldclient_context:new_multi_from([
+        ldclient_context:new(<<"device-key">>, <<"device">>),
+        ldclient_context:new(<<"app-key">>, <<"app">>)
+    ]),
+    %% Merge both multi contexts
+    MergedContext = ldclient_context:new_multi_from([Multi1, Multi2]),
+    %% Verify the result is a flattened multi context with all four kinds
+    #{
+        kind := <<"multi">>,
+        <<"user">> := #{key := <<"user-key">>},
+        <<"org">> := #{key := <<"org-key">>},
+        <<"device">> := #{key := <<"device-key">>},
+        <<"app">> := #{key := <<"app-key">>}
+    } = MergedContext,
+    %% Verify it's valid
+    true = ldclient_context:is_valid(MergedContext, false).
+
+merging_multi_with_overlapping_kinds_uses_last(_) ->
+    %% Create a multi context with user and org
+    Multi1 = ldclient_context:new_multi_from([
+        ldclient_context:new(<<"user-key-1">>),
+        ldclient_context:new(<<"org-key">>, <<"org">>)
+    ]),
+    %% Create a single user context with a different key
+    UserContext = ldclient_context:new(<<"user-key-2">>),
+    %% Merge - the later user context should override the earlier one
+    MergedContext = ldclient_context:new_multi_from([Multi1, UserContext]),
+    %% Verify the user key is from the second context
+    #{
+        kind := <<"multi">>,
+        <<"user">> := #{key := <<"user-key-2">>},
+        <<"org">> := #{key := <<"org-key">>}
+    } = MergedContext.
 
 can_get_kinds_of_multi_context(_) ->
     [<<"org">>, <<"user">>] =
