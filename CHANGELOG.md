@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.9.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.8.1...v3.9.0) (2026-02-09)
+
+
+### Features
+
+* Support combining multi-contexts using ldcontext:new_multi_from. ([#167](https://github.com/launchdarkly/erlang-server-sdk/issues/167)) ([7c9f934](https://github.com/launchdarkly/erlang-server-sdk/commit/7c9f934ec307d266ce0c4588c83c822021508a07)), closes [#126](https://github.com/launchdarkly/erlang-server-sdk/issues/126)
+
+
+### Bug Fixes
+
+* Fix an issue where &lt;<kind&gt;> would be included in the list of context kinds when kind was binary. ([#168](https://github.com/launchdarkly/erlang-server-sdk/issues/168)) ([8cdee5c](https://github.com/launchdarkly/erlang-server-sdk/commit/8cdee5cfcc13f9a6dd1f49ba5ce91ed2007c36b5))
+
 ## [3.8.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.8.0...v3.8.1) (2025-11-12)
 
 
