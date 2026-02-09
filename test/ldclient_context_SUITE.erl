@@ -19,6 +19,7 @@
     returns_null_for_invalid_attribute_reference/1,
     can_create_a_multi_context_from_singles/1,
     can_get_kinds_of_multi_context/1,
+    can_get_kinds_of_multi_context_binary_kind/1,
     can_get_attribute_in_multi_context/1,
     multi_created_from_single_is_single/1,
     setting_attribute_by_atom_uses_binary/1,
@@ -57,6 +58,7 @@ all() ->
         returns_null_for_invalid_attribute_reference,
         can_create_a_multi_context_from_singles,
         can_get_kinds_of_multi_context,
+        can_get_kinds_of_multi_context_binary_kind,
         can_get_attribute_in_multi_context,
         multi_created_from_single_is_single,
         setting_attribute_by_atom_uses_binary,
@@ -160,6 +162,13 @@ can_get_kinds_of_multi_context(_) ->
     [<<"org">>, <<"user">>] =
         ldclient_context:get_kinds(#{
             kind => <<"multi">>,
+            <<"user">> => #{key => <<"user-key">>},
+            <<"org">> => #{key => <<"org-key">>}}).
+
+can_get_kinds_of_multi_context_binary_kind(_) ->
+    [<<"org">>, <<"user">>] =
+        ldclient_context:get_kinds(#{
+            <<"kind">> => <<"multi">>,
             <<"user">> => #{key => <<"user-key">>},
             <<"org">> => #{key => <<"org-key">>}}).
 

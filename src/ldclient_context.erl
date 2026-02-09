@@ -610,9 +610,9 @@ is_built_in(_Key) -> false.
 
 
 %% Get a list of the kinds in a multi-context. This isn't all the keys in the object, because it excludes the 'kind'
-%% key.
--spec filter_kinds(Kinds :: [binary()]) -> [binary()].
-filter_kinds(Kinds) -> lists:filter(fun(Key) -> Key =/= kind end, Kinds).
+%% key (either as atom or binary).
+-spec filter_kinds(Kinds :: [binary() | atom()]) -> [binary()].
+filter_kinds(Kinds) -> lists:filter(fun(Key) -> Key =/= kind andalso Key =/= <<"kind">> end, Kinds).
 
 -spec new_multi_from(Contexts :: [single_context()], MultiContext :: multi_context()) -> multi_context().
 new_multi_from([#{kind := Kind} = Context | RemainingContexts] = _Contexts, MultiContext) ->
