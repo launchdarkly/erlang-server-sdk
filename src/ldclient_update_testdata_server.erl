@@ -74,7 +74,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{ tag := Tag, test_data_server := TestDataServer }) ->
-    logger:info("Terminating, reason: ~p; Pid: ~p ~n", [Reason, self()], #{domain => [ldclient]}),
+    logger:info("Terminating, reason: ~p; Pid: ~p", [Reason, self()], #{domain => [ldclient]}),
     gen_server:call(TestDataServer, {unregister_instance, Tag}),
     ok.
 

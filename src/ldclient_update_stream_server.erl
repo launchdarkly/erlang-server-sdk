@@ -94,10 +94,10 @@ handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, 
     _ = ldclient_backoff:fire(NewBackoff),
     % Reason from DOWN message could contain connection details with headers/SDK keys
     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
-    logger:warning("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms~n", [SafeReason, maps:get(current, NewBackoff)], #{domain => [ldclient]}),
+    logger:warning("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms", [SafeReason, maps:get(current, NewBackoff)], #{domain => [ldclient]}),
     {noreply, State#{conn := undefined, backoff := NewBackoff}};
 handle_info({timeout, _TimerRef, listen}, State) ->
-    logger:info("Reconnecting streaming connection...~n", #{domain => [ldclient]}),
+    logger:info("Reconnecting streaming connection...", #{domain => [ldclient]}),
     NewState = do_listen(State),
     {noreply, NewState};
 handle_info(_Info, State) ->
@@ -106,10 +106,10 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{conn := undefined} = _State) ->
-    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
+    logger:info("Terminating, reason: ~p; Pid none", [Reason], #{domain => [ldclient]}),
     ok;
 terminate(Reason, #{conn := ShotgunPid} = _State) ->
-    logger:info("Terminating streaming connection, reason: ~p; Pid ~p~n", [Reason, ShotgunPid], #{domain => [ldclient]}),
+    logger:info("Terminating streaming connection, reason: ~p; Pid ~p", [Reason, ShotgunPid], #{domain => [ldclient]}),
     ok = shotgun:close(ShotgunPid).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -136,7 +136,7 @@ do_listen(#{
         {error, permanent, Reason} ->
             % Reason here is already safe: either a sanitized string from format_shotgun_error
             % or an integer status code from the do_listen/5 method.
-            logger:error("Stream encountered permanent error ~p, giving up~n", [Reason], #{domain => [ldclient]}),
+            logger:error("Stream encountered permanent error ~p, giving up", [Reason], #{domain => [ldclient]}),
             State;
         {ok, Pid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),

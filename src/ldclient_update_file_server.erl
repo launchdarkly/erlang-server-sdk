@@ -94,10 +94,10 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{timer_ref := undefined} = _State) ->
-    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
+    logger:info("Terminating, reason: ~p; Pid none", [Reason], #{domain => [ldclient]}),
     ok;
 terminate(Reason, #{timer_ref := TimerRef} = _State) ->
-    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
+    logger:info("Terminating, reason: ~p; Pid none", [Reason], #{domain => [ldclient]}),
     _ = timer:cancel(TimerRef),
     ok.
 
