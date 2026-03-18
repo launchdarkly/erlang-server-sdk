@@ -283,7 +283,7 @@ ensure_context(#{kind := _Kind} = ContextOrContext) -> ContextOrContext;
 ensure_context(UserOrContext) ->
     case maps:is_key(key, UserOrContext) of
         %% We allow legacy users to have an empty key, but we log it.
-        false -> error_logger:warning_msg("Context key is blank. Flag evaluation will proceed, but the context will not be stored in Launchdarkly");
+        false -> logger:warning("Context key is blank. Flag evaluation will proceed, but the context will not be stored in Launchdarkly", #{domain => [ldclient]});
         true -> ok
     end,
     ldclient_context:new_from_user(UserOrContext).

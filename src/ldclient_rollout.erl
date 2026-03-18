@@ -63,7 +63,7 @@ parse_rollout_kind(<<"experiment">>) -> experiment;
 parse_rollout_kind(<<"rollout">>) -> rollout;
 parse_rollout_kind(Kind) ->
     %% If we are not familiar with this kind, then log it and default to rollout.
-    error_logger:warning_msg("Unrecognized rollout type: ~p", [Kind]),
+    logger:warning("Unrecognized rollout type: ~p", [Kind], #{domain => [ldclient]}),
     rollout.
 
 -spec rollout_context(

@@ -388,8 +388,8 @@ set_valid_tag(Key, Value, MapOrUndefined) ->
                 false -> #{Key => Value}
             end;
         false ->
-            error_logger:warning_msg("The application ~p was invalid. Must only contain letters, numbers, ., _ or -,"
-            " be 64 characters or less, and cannot be an empty string.", [Key]),
+            logger:warning("The application ~p was invalid. Must only contain letters, numbers, ., _ or -,"
+            " be 64 characters or less, and cannot be an empty string.", [Key], #{domain => [ldclient]}),
             MapOrUndefined
     end.
 
@@ -445,10 +445,10 @@ tls_base_options() ->
 tls_basic_options(true) ->
     tls_basic_linux_options();
 tls_basic_options(false) ->
-    error_logger:warning_msg("TLS options are falling back to using the certifi store.
+    logger:warning("TLS options are falling back to using the certifi store.
     This means the OS certificate store was not in the default location (/etc/ssl/certs/ca-certificates.crt).
     Please specify a custom location. You can use tls_ca_certfile_options, or fully specify the tls_options.
-    You may see this warning in development on Mac/Windows."),
+    You may see this warning in development on Mac/Windows.", #{domain => [ldclient]}),
     tls_basic_certifi_options().
 
 -spec validate_tag_value(Value :: binary() | undefined) -> boolean().

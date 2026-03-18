@@ -285,7 +285,7 @@ check_operators(_) ->
         true = case Result =:= ldclient_clause:match_context(Clause, Context, null, null) of
             true -> true;
             false ->
-                error_logger:error_msg("User context. Op ~p, ContextValue $p, ClauseValue ~p Expected ~p", [
+                logger:error("User context. Op ~p, ContextValue $p, ClauseValue ~p Expected ~p", [
                     Operator,
                     ContextValue,
                     ClauseValue,
@@ -308,7 +308,7 @@ check_operators(_) ->
         true = case Result =:= ldclient_clause:match_context(Clause, Context, null, null) of
                    true -> true;
                    false ->
-                       error_logger:error_msg("Non-user context. Op ~p, ContextValue $p, ClauseValue ~p Expected ~p", [
+                       logger:error("Non-user context. Op ~p, ContextValue $p, ClauseValue ~p Expected ~p", [
                            Operator,
                            ContextValue,
                            ClauseValue,
@@ -332,7 +332,7 @@ check_operators(_) ->
         true = case no_match =:= ldclient_clause:match_context(Clause, Context, null, null) of
                    true -> true;
                    false ->
-                       error_logger:error_msg("Mistmatched context kinds, should never match."
+                       logger:error("Mistmatched context kinds, should never match."
                        " Op ~p, ContextValue $p, ClauseValue ~p Expected ~p", [
                            Operator,
                            ContextValue,

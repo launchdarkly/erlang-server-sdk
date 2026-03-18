@@ -272,7 +272,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
+    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
     ok.
 
 %% @doc

@@ -38,7 +38,7 @@
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    error_logger:info_msg("Starting file update server for ~p", [Tag]),
+    logger:info("Starting file update server for ~p", [Tag], #{domain => [ldclient]}),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -94,10 +94,10 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{timer_ref := undefined} = _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
+    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
     ok;
 terminate(Reason, #{timer_ref := TimerRef} = _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
+    logger:info("Terminating, reason: ~p; Pid none~n", [Reason], #{domain => [ldclient]}),
     _ = timer:cancel(TimerRef),
     ok.
 
@@ -164,7 +164,7 @@ read_file(FilePath, ".json") ->
     {ok, Data} = file:read_file(FilePath),
     {ok, jsx:decode(Data, [return_maps])};
 read_file(FilePath, _Extension) ->
-    error_logger:warning_msg("File had unrecognized file extension. Valid extensions are .yaml and .json. File: ~p", [FilePath]),
+    logger:warning("File had unrecognized file extension. Valid extensions are .yaml and .json. File: ~p", [FilePath], #{domain => [ldclient]}),
     {error, #{}}.
 
 -spec try_read_file(FilePath :: string() | binary(), Extension :: string()) -> {ok | error, map()}.
@@ -172,7 +172,7 @@ try_read_file(FilePath, Extension) ->
     try
         read_file(FilePath, Extension)
     catch _:Exception:Stacktrace ->
-        error_logger:warning_msg("Problem reading file: ~p Exception: ~p ~p", [FilePath, Exception, Stacktrace]),
+        logger:warning("Problem reading file: ~p Exception: ~p ~p", [FilePath, Exception, Stacktrace], #{domain => [ldclient]}),
         {error, #{}}
     end.
 
