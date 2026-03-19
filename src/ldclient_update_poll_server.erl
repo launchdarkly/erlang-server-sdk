@@ -142,7 +142,7 @@ process_response({error, {bad_status, StatusCode, Reason}}, _, _, Uri) when Stat
     logger:warning("Unexpected response code: ~p when polling for updates at URL ~p: ~p.", [StatusCode, Uri, Reason], #{domain => [ldclient]}),
     ok;
 process_response({error, network_error}, _, _, Uri) ->
-    logger:warning("Failed to connect to update server at: %p", [Uri], #{domain => [ldclient]}),
+    logger:warning("Failed to connect to update server at: ~p", [Uri], #{domain => [ldclient]}),
     ok;
 process_response({ok, not_modified}, _, _, _) -> ok;
 process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
