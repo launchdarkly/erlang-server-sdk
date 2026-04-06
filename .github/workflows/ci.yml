@@ -21,6 +21,7 @@ jobs:
           - { otp: "24.3.4.17", rebar: "e008a2ff40f708494a7c259a1fd8c2e77f7cd6a0" } # rebar 3.17.0
           - { otp: "25.3.2.19", rebar: "174fd9070195443d693d444ecd1f2b7aa91661fe" } # rebar 3.18.0
           - { otp: "27.3.2", rebar: "bde4b54248d16280b2c70a244aca3bb7566e2033" } # rebar 3.23.0
+          - { otp: "28.4.1", rebar: "619df55d9dab109cbd1b5d9ed1d45c93f5450e24" } # rebar 3.27.0
 
     runs-on: ubuntu-24.04
     name: Build and Test - ${{ matrix.versions.otp }}
