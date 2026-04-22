@@ -42,7 +42,7 @@
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    error_logger:info_msg("Starting polling update server for ~p", [Tag]),
+    logger:info("Starting polling update server for ~p", [Tag], #{domain => [ldclient]}),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -98,7 +98,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{timer_ref := TimerRef} = _State) ->
-    error_logger:info_msg("Terminating polling, reason: ~p", [Reason]),
+    logger:info("Terminating polling, reason: ~p", [Reason], #{domain => [ldclient]}),
     _ = timer:cancel(TimerRef),
     ok;
 terminate(_Reason, _State) ->
@@ -133,16 +133,16 @@ poll(#{ feature_store := FeatureStore,
 
 -spec process_response(ldclient_update_requestor:response(), atom(), atom(), string()) -> ok.
 process_response({error, {bad_status, 401, _Reason}}, _, _, Uri) ->
-    error_logger:warning_msg("Invalid SDK key when when polling for updates at URL ~p. Verify that your SDK key is correct.", [Uri]),
+    logger:warning("Invalid SDK key when when polling for updates at URL ~p. Verify that your SDK key is correct.", [Uri], #{domain => [ldclient]}),
     ok;
 process_response({error, {bad_status, 404, _Reason}}, _, _, Uri) ->
-    error_logger:warning_msg("Resource not found when polling for updates at URL ~p.", [Uri]),
+    logger:warning("Resource not found when polling for updates at URL ~p.", [Uri], #{domain => [ldclient]}),
     ok;
 process_response({error, {bad_status, StatusCode, Reason}}, _, _, Uri) when StatusCode >= 300 ->
-    error_logger:warning_msg("Unexpected response code: ~p when polling for updates at URL ~p: ~p.", [StatusCode, Uri, Reason]),
+    logger:warning("Unexpected response code: ~p when polling for updates at URL ~p: ~p.", [StatusCode, Uri, Reason], #{domain => [ldclient]}),
     ok;
 process_response({error, network_error}, _, _, Uri) ->
-    error_logger:warning_msg("Failed to connect to update server at: %p", [Uri]),
+    logger:warning("Failed to connect to update server at: ~p", [Uri], #{domain => [ldclient]}),
     ok;
 process_response({ok, not_modified}, _, _, _) -> ok;
 process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
@@ -157,7 +157,7 @@ process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
 process_response_body(ResponseBody, ldclient_storage_redis, Tag) ->
     Data = jsx:decode(ResponseBody, [return_maps]),
     [Flags, Segments] = get_put_items(Data),
-    error_logger:info_msg("Received poll event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    logger:info("Received poll event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)], #{domain => [ldclient]}),
     ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
     ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments),
     ok = ldclient_storage_redis:set_init(Tag);

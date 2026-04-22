@@ -30,7 +30,7 @@
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    error_logger:info_msg("Starting null update server for ~p", [Tag]),
+    logger:info("Starting null update server for ~p", [Tag], #{domain => [ldclient]}),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -64,7 +64,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
+    logger:info("Terminating, reason: ~p; Pid none", [Reason], #{domain => [ldclient]}),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

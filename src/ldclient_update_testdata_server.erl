@@ -33,7 +33,7 @@
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    error_logger:info_msg("Starting testdata update server for ~p", [Tag]),
+    logger:info("Starting testdata update server for ~p", [Tag], #{domain => [ldclient]}),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -74,7 +74,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{ tag := Tag, test_data_server := TestDataServer }) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid: ~p ~n", [Reason, self()]),
+    logger:info("Terminating, reason: ~p; Pid: ~p", [Reason, self()], #{domain => [ldclient]}),
     gen_server:call(TestDataServer, {unregister_instance, Tag}),
     ok.
 

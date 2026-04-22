@@ -42,7 +42,7 @@
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    error_logger:info_msg("Starting streaming update server for ~p", [Tag]),
+    logger:info("Starting streaming update server for ~p", [Tag], #{domain => [ldclient]}),
     gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -86,7 +86,7 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({listen}, #{stream_uri := Uri} = State) ->
-    error_logger:info_msg("Starting streaming connection to URL: ~p", [Uri]),
+    logger:info("Starting streaming connection to URL: ~p", [Uri], #{domain => [ldclient]}),
     NewState = do_listen(State),
     {noreply, NewState};
 handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff} = State) ->
@@ -94,10 +94,10 @@ handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, 
     _ = ldclient_backoff:fire(NewBackoff),
     % Reason from DOWN message could contain connection details with headers/SDK keys
     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
-    error_logger:warning_msg("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms~n", [SafeReason, maps:get(current, NewBackoff)]),
+    logger:warning("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms", [SafeReason, maps:get(current, NewBackoff)], #{domain => [ldclient]}),
     {noreply, State#{conn := undefined, backoff := NewBackoff}};
 handle_info({timeout, _TimerRef, listen}, State) ->
-    error_logger:info_msg("Reconnecting streaming connection...~n"),
+    logger:info("Reconnecting streaming connection...", #{domain => [ldclient]}),
     NewState = do_listen(State),
     {noreply, NewState};
 handle_info(_Info, State) ->
@@ -106,10 +106,10 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{conn := undefined} = _State) ->
-    error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
+    logger:info("Terminating, reason: ~p; Pid none", [Reason], #{domain => [ldclient]}),
     ok;
 terminate(Reason, #{conn := ShotgunPid} = _State) ->
-    error_logger:info_msg("Terminating streaming connection, reason: ~p; Pid ~p~n", [Reason, ShotgunPid]),
+    logger:info("Terminating streaming connection, reason: ~p; Pid ~p", [Reason, ShotgunPid], #{domain => [ldclient]}),
     ok = shotgun:close(ShotgunPid).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -136,7 +136,7 @@ do_listen(#{
         {error, permanent, Reason} ->
             % Reason here is already safe: either a sanitized string from format_shotgun_error
             % or an integer status code from the do_listen/5 method.
-            error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
+            logger:error("Stream encountered permanent error ~p, giving up", [Reason], #{domain => [ldclient]}),
             State;
         {ok, Pid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),
@@ -154,7 +154,7 @@ do_listen(#{
 -spec do_listen_fail_backoff(ldclient_backoff:backoff(), atom(), term()) -> ldclient_backoff:backoff().
 do_listen_fail_backoff(Backoff, Code, Reason) ->
     NewBackoff = ldclient_backoff:fail(Backoff),
-    error_logger:warning_msg("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, maps:get(current, NewBackoff)]),
+    logger:warning("Error establishing streaming connection (~p): ~p, will retry in ~p ms", [Code, Reason, maps:get(current, NewBackoff)], #{domain => [ldclient]}),
     _ = ldclient_backoff:fire(NewBackoff),
     NewBackoff.
 
@@ -179,12 +179,12 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     catch Code:_Reason ->
                         % Exception when processing event - don't log exception details
                         % as they could theoretically contain sensitive data
-                        error_logger:warning_msg("Invalid SSE event error (~p)", [Code]),
+                        logger:warning("Invalid SSE event error (~p)", [Code], #{domain => [ldclient]}),
                         shotgun:close(Pid)
                     end;
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
-                    error_logger:warning_msg("Streaming connection ended"),
+                    logger:warning("Streaming connection ended", #{domain => [ldclient]}),
                     shotgun:close(Pid)
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F, allow_reconnect => false},
@@ -234,13 +234,13 @@ decode_data(_, Data) -> jsx:decode(Data, [return_maps]).
 -spec process_items(EventOperation :: ldclient_storage_engine:event_operation(), Data :: map(), FeatureStore :: atom(), Tag :: atom()) -> ok.
 process_items(put, Data, ldclient_storage_redis, Tag) ->
     [Flags, Segments] = get_put_items(Data),
-    error_logger:info_msg("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    logger:info("Received stream event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)], #{domain => [ldclient]}),
     ok = ldclient_storage_redis:upsert_clean(Tag, features, Flags),
     ok = ldclient_storage_redis:upsert_clean(Tag, segments, Segments),
     ok = ldclient_storage_redis:set_init(Tag);
 process_items(put, Data, FeatureStore, Tag) ->
     [Flags, Segments] = get_put_items(Data),
-    error_logger:info_msg("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)]),
+    logger:info("Received event with ~p flags and ~p segments", [maps:size(Flags), maps:size(Segments)], #{domain => [ldclient]}),
     ParsedFlags = maps:map(
         fun(_K, V) -> ldclient_flag:new(V) end
         , Flags),
@@ -255,7 +255,7 @@ process_items(patch, Data, FeatureStore, Tag) ->
             ok = maybe_patch_item(FeatureStore, Tag, Bucket, Key, Item, ParseFunction);
         error ->
             #{<<"path">> := Path} = Data,
-            error_logger:warning_msg("Unrecognized patch path ~p", [Path]),
+            logger:warning("Unrecognized patch path ~p", [Path], #{domain => [ldclient]}),
             ok
     end;
 process_items(delete, Data, FeatureStore, Tag) ->
@@ -281,7 +281,7 @@ delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}
 delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
     ok = maybe_delete_item(FeatureStore, Tag, segments, Key, Version);
 delete_items(_Path, _FeatureStore, _Tag) ->
-    error_logger:error_msg("Invalid delete path").
+    logger:error("Invalid delete path", #{domain => [ldclient]}).
 
 -spec maybe_patch_item(atom(), atom(), atom(), binary(), map(), fun()) -> ok.
 maybe_patch_item(ldclient_storage_redis, Tag, Bucket, Key, Item, _ParseFunction) ->
