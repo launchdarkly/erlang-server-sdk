@@ -14,6 +14,9 @@
     authorization_header_set_on_request/1,
     user_agent_header_set_on_request/1,
     event_schema_set_on_request/1,
+    instance_id_header_set_on_request/1,
+    instance_id_header_stable_across_requests/1,
+    instance_id_header_differs_between_instances/1,
     none_match_is_not_set_with_empty_state/1,
     none_match_is_set_with_state/1,
     etag_response_recorded/1,
@@ -30,6 +33,9 @@ all() ->
         authorization_header_set_on_request,
         user_agent_header_set_on_request,
         event_schema_set_on_request,
+        instance_id_header_set_on_request,
+        instance_id_header_stable_across_requests,
+        instance_id_header_differs_between_instances,
         none_match_is_not_set_with_empty_state,
         none_match_is_set_with_state,
         etag_response_recorded,
@@ -157,3 +163,46 @@ custom_headers_appended(_Config) ->
     %% The custom headers are there as well.
     "String" = bookish_spork_request:header(Request, "basic-string-header"),
     "Binary" = bookish_spork_request:header(Request, "binary-string-header").
+
+%% End-to-end check that polling requests carry the spec-required
+%% X-LaunchDarkly-Instance-Id header and that the value is a v4 UUID.
+instance_id_header_set_on_request(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State),
+    {ok, Request} = bookish_spork:capture_request(),
+    InstanceId = bookish_spork_request:header(Request, "x-launchdarkly-instance-id"),
+    true = is_list(InstanceId),
+    36 = length(InstanceId),
+    true = uuid:is_v4(uuid:string_to_uuid(InstanceId)).
+
+%% The instance id must remain constant across multiple polling requests
+%% for the same SDK instance.
+instance_id_header_stable_across_requests(_Config) ->
+    State0 = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, State1} = ldclient_update_requestor_httpc:all(?MOCK_URI, State0),
+    {ok, Req1} = bookish_spork:capture_request(),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State1),
+    {ok, Req2} = bookish_spork:capture_request(),
+    Id1 = bookish_spork_request:header(Req1, "x-launchdarkly-instance-id"),
+    Id2 = bookish_spork_request:header(Req2, "x-launchdarkly-instance-id"),
+    Id1 = Id2.
+
+%% Different SDK instances (different tags) must produce different
+%% instance ids on their polling requests.
+instance_id_header_differs_between_instances(_Config) ->
+    OtherSettings = ldclient_config:parse_options("sdk-key", #{}),
+    ok = ldclient_config:register(other_instance, OtherSettings),
+    StateA = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    StateB = ldclient_update_requestor_httpc:init(other_instance, "sdk-key"),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, StateA),
+    {ok, ReqA} = bookish_spork:capture_request(),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, StateB),
+    {ok, ReqB} = bookish_spork:capture_request(),
+    IdA = bookish_spork_request:header(ReqA, "x-launchdarkly-instance-id"),
+    IdB = bookish_spork_request:header(ReqB, "x-launchdarkly-instance-id"),
+    true = IdA =/= IdB.

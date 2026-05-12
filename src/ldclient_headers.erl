@@ -42,7 +42,13 @@ get_default_headers(Tag, _Format = string_pairs) ->
 get_default_headers(Tag) ->
     with_tags(Tag, #{
         <<"authorization">> => list_to_binary(ldclient_config:get_value(Tag, sdk_key)),
-        <<"user-agent">> => list_to_binary(ldclient_config:get_user_agent())
+        <<"user-agent">> => list_to_binary(ldclient_config:get_user_agent()),
+        %% Per SCMP-server-connection-minutes-polling, every outbound request
+        %% carries a per-instance v4 UUID. It is generated once per SDK
+        %% instance in ldclient_config:parse_options/2 and stored under the
+        %% instance_id key in the instance settings, so this lookup returns
+        %% the same value for the lifetime of the instance.
+        <<"x-launchdarkly-instance-id">> => ldclient_config:get_value(Tag, instance_id)
     }).
 
 %% @doc Append the tags header to the given map.
