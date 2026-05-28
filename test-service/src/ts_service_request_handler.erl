@@ -80,7 +80,8 @@ get_service_detail(Req, State) ->
       <<"tls:skip-verify-peer">>,
       <<"tls:verify-peer">>,
       <<"client-prereq-events">>,
-      <<"all-flags-client-side-only">>
+      <<"all-flags-client-side-only">>,
+      <<"instance-id">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),

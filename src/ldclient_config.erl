@@ -84,7 +84,8 @@
     datasource => poll | stream | file | testdata | undefined,
     http_options => http_options(),
     stream_initial_retry_delay_ms => non_neg_integer(),
-    application => app_info()
+    application => app_info(),
+    instance_id => binary()
 }.
 % Settings stored for each running SDK instance
 
@@ -203,6 +204,14 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     AppInfo = parse_application_info(maps:get(application, Options, ?APPLICATION_DEFAULT_OPTIONS)),
     RedisTls = maps:get(redis_tls, Options, ?DEFAULT_REDIS_TLS),
+    %% Per SCMP-server-connection-minutes-polling, each SDK instance gets a
+    %% stable v4 UUID that is sent as the X-LaunchDarkly-Instance-Id header on
+    %% every outbound request (polling, streaming, and events). It is
+    %% generated once here in parse_options/2, which is called exactly once
+    %% per ldclient_instance:start/3, and then stored in the per-instance
+    %% settings so ldclient_headers can pick it up alongside the other
+    %% default headers.
+    InstanceId = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     #{
         sdk_key => SdkKey,
         base_uri => BaseUri,
@@ -237,7 +246,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         testdata_tag => TestDataTag,
         datasource => DataSource,
         stream_initial_retry_delay_ms => StreamInitialRetryDelayMs,
-        application => AppInfo
+        application => AppInfo,
+        instance_id => InstanceId
     }.
 
 %% @doc Get all registered tags
