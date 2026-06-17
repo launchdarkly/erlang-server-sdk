@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module ldclient</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module ldclient</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul><code>ldclient</code> module.
+
+
+<h2><a name="description">Description</a></h2><p><code>ldclient</code> module</p>
+ 
+  <p>Acts as an interface to most common SDK functions: starting and stopping  
+client instances, and evaluating feature flags for contexts.</p>
+ 
+  Most use cases only need a single client instance for the lifetime of
+  their application. Consider using multiple instances only if you need to
+  simultaneously access more than one environment. Do not start an instance
+  every time you need to make a variation or other SDK call.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all_flags_state-1">all_flags_state/1</a></td><td>Evaluate all flags for a given context and return their values.</td></tr>
+<tr><td valign="top"><a href="#all_flags_state-2">all_flags_state/2</a></td><td>Evaluate all flags for a given context and given client instance.</td></tr>
+<tr><td valign="top"><a href="#all_flags_state-3">all_flags_state/3</a></td><td>Returns an object that encapsulates the state of all feature flags for a given context.</td></tr>
+<tr><td valign="top"><a href="#identify-1">identify/1</a></td><td>Identify reports details about a context.</td></tr>
+<tr><td valign="top"><a href="#identify-2">identify/2</a></td><td>Identify reports details about a context.</td></tr>
+<tr><td valign="top"><a href="#initialized-1">initialized/1</a></td><td>Returns whether the LaunchDarkly client has initialized.</td></tr>
+<tr><td valign="top"><a href="#is_offline-1">is_offline/1</a></td><td>Returns whether the LaunchDarkly client is in offline mode.</td></tr>
+<tr><td valign="top"><a href="#start_instance-1">start_instance/1</a></td><td>Start client with default options.</td></tr>
+<tr><td valign="top"><a href="#start_instance-2">start_instance/2</a></td><td>Start client with custom name or options.</td></tr>
+<tr><td valign="top"><a href="#start_instance-3">start_instance/3</a></td><td>Start client with custom name and options.</td></tr>
+<tr><td valign="top"><a href="#stop_all_instances-0">stop_all_instances/0</a></td><td>Stop all client instances.</td></tr>
+<tr><td valign="top"><a href="#stop_instance-0">stop_instance/0</a></td><td>Stop client instance.</td></tr>
+<tr><td valign="top"><a href="#stop_instance-1">stop_instance/1</a></td><td>Stop client with the custom name.</td></tr>
+<tr><td valign="top"><a href="#track-3">track/3</a></td><td>Track reports that a context has performed an event.</td></tr>
+<tr><td valign="top"><a href="#track-4">track/4</a></td><td>Track reports that a context has performed an event.</td></tr>
+<tr><td valign="top"><a href="#track_metric-4">track_metric/4</a></td><td>Reports that a context has performed an event, and associates it with a numeric value.</td></tr>
+<tr><td valign="top"><a href="#track_metric-5">track_metric/5</a></td><td>Reports that a context has performed an event, and associates it with a numeric value.</td></tr>
+<tr><td valign="top"><a href="#variation-3">variation/3</a></td><td>Evaluate given flag key for given context.</td></tr>
+<tr><td valign="top"><a href="#variation-4">variation/4</a></td><td>Evaluate given flag key for given context and given client instance.</td></tr>
+<tr><td valign="top"><a href="#variation_detail-3">variation_detail/3</a></td><td>Evaluate given flag key for given context.</td></tr>
+<tr><td valign="top"><a href="#variation_detail-4">variation_detail/4</a></td><td>Evaluate given flag key for given context and given client instance.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="all_flags_state-1">all_flags_state/1</a></h3>
+<div class="spec">
+<p><tt>all_flags_state(Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-feature_flags_state">ldclient_eval:feature_flags_state()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate all flags for a given context and return their values</p>
+ 
+  Evaluates all existing flags, but does not create any events as a side
+  effect of the evaluation. It returns a map of flag keys to evaluated values.</p>
+
+<h3 class="function"><a name="all_flags_state-2">all_flags_state/2</a></h3>
+<div class="spec">
+<p><tt>all_flags_state(Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Tag::atom()) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-feature_flags_state">ldclient_eval:feature_flags_state()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate all flags for a given context and given client instance</p>
+ 
+  Evaluates all existing flags, but does not create any events as a side
+  effect of the evaluation. It returns a map of flag keys to evaluated values.</p>
+
+<h3 class="function"><a name="all_flags_state-3">all_flags_state/3</a></h3>
+<div class="spec">
+<p><tt>all_flags_state(Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Options::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-all_flags_state_options">ldclient_eval:all_flags_state_options()</a>, Tag::atom()) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-feature_flags_state">ldclient_eval:feature_flags_state()</a></tt><br></p>
+<p> </p>
+</div><p><p>Returns an object that encapsulates the state of all feature flags for a given context.</p>
+ 
+  <p>This includes the flag values, and also metadata that can be used on the front end.  
+The most common use case for this method is to bootstrap a set of client-side feature flags from a  
+back-end service.</p>
+ 
+  If you are not using this to boostrap a client, then you likely want all_flags_state/1 or all_flags_state/2.</p>
+
+<h3 class="function"><a name="identify-1">identify/1</a></h3>
+<div class="spec">
+<p><tt>identify(Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Identify reports details about a context</p>
+ 
+  This function uses the default client instance.</p>
+
+<h3 class="function"><a name="identify-2">identify/2</a></h3>
+<div class="spec">
+<p><tt>identify(Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Tag::atom()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Identify reports details about a context</p>
+ 
+  This is useful to report context to a specific client instance.</p>
+
+<h3 class="function"><a name="initialized-1">initialized/1</a></h3>
+<div class="spec">
+<p><tt>initialized(Tag::atom()) -&gt; boolean()</tt><br></p>
+<p> </p>
+</div><p><p>Returns whether the LaunchDarkly client has initialized.</p>
+ 
+  <p>If this value is true, it means the client has succeeded at some point in connecting to LaunchDarkly and  
+has received feature flag data. It could still have encountered a connection problem after that point, so  
+this does not guarantee that the flags are up to date. Alternatively, it could also mean that the client  
+is in offline mode.</p>
+ 
+  If this value is false, it means the client has not yet connected to LaunchDarkly, or has permanently
+  failed. In this state, feature flag evaluations will always return default values.</p>
+
+<h3 class="function"><a name="is_offline-1">is_offline/1</a></h3>
+<div class="spec">
+<p><tt>is_offline(Tag::atom()) -&gt; boolean()</tt><br></p>
+<p> </p>
+</div><p><p>Returns whether the LaunchDarkly client is in offline mode.</p>
+ 
+  In some situations, you might want to stop making remote calls to LaunchDarkly and
+  fall back to default values for your feature flags, this tells you whether only default
+  values will be returned.</p>
+
+<h3 class="function"><a name="start_instance-1">start_instance/1</a></h3>
+<div class="spec">
+<p><tt>start_instance(SdkKey::string()) -&gt; ok | {error, atom(), term()}</tt><br></p>
+<p> </p>
+</div><p><p>Start client with default options</p>
+ 
+  The SDK key is required to connect. Default streamer URL, storage backend
+  and instance name <code>default</code> will be used.</p>
+
+<h3 class="function"><a name="start_instance-2">start_instance/2</a></h3>
+<div class="spec">
+<p><tt>start_instance(SdkKey::string(), TagOrOptions::atom() | map()) -&gt; ok | {error, atom(), term()}</tt><br></p>
+<p> </p>
+</div><p><p>Start client with custom name or options</p>
+ 
+  When <code>TagOrOptions</code> is an atom, the instance is started with that name. When
+  it's a map, it can be used to start with custom options.</p>
+
+<h3 class="function"><a name="start_instance-3">start_instance/3</a></h3>
+<div class="spec">
+<p><tt>start_instance(SdkKey::string(), Tag::atom(), Options::map()) -&gt; ok | {error, atom(), term()}</tt><br></p>
+<p> </p>
+</div><p><p>Start client with custom name and options</p>
+ 
+  Specify both custom client name and options when starting the client.</p>
+
+<h3 class="function"><a name="stop_all_instances-0">stop_all_instances/0</a></h3>
+<div class="spec">
+<p><tt>stop_all_instances() -&gt; ok</tt><br></p>
+<p> </p>
+</div><p>Stop all client instances
+ </p>
+
+<h3 class="function"><a name="stop_instance-0">stop_instance/0</a></h3>
+<div class="spec">
+<p><tt>stop_instance() -&gt; ok | {error, not_found, term()}</tt><br></p>
+<p> </p>
+</div><p><p>Stop client instance</p>
+ 
+  Stops the default client instance.</p>
+
+<h3 class="function"><a name="stop_instance-1">stop_instance/1</a></h3>
+<div class="spec">
+<p><tt>stop_instance(Tag::atom()) -&gt; ok | {error, not_found, term()}</tt><br></p>
+<p> </p>
+</div><p><p>Stop client with the custom name</p>
+ 
+  This is useful if a client instance was started with a custom name.</p>
+
+<h3 class="function"><a name="track-3">track/3</a></h3>
+<div class="spec">
+<p><tt>track(Key::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Track reports that a context has performed an event</p>
+ 
+  Custom data can be attached to the event.</p>
+
+<h3 class="function"><a name="track-4">track/4</a></h3>
+<div class="spec">
+<p><tt>track(Key::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Tag::atom()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Track reports that a context has performed an event</p>
+ 
+  This is useful for specifying a specific client instance.</p>
+
+<h3 class="function"><a name="track_metric-4">track_metric/4</a></h3>
+<div class="spec">
+<p><tt>track_metric(Key::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Metric::number()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Reports that a context has performed an event, and associates it with a numeric value.</p>
+ 
+  <p>This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also  
+be returned as part of the custom event for Data Export.</p>
+ 
+  Custom data can also be attached to the event.</p>
+
+<h3 class="function"><a name="track_metric-5">track_metric/5</a></h3>
+<div class="spec">
+<p><tt>track_metric(Key::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, Data::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_event.html#type-event_data">ldclient_event:event_data()</a>, Metric::number(), Tag::atom()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p><p>Reports that a context has performed an event, and associates it with a numeric value.</p>
+ 
+  <p>This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also  
+be returned as part of the custom event for Data Export.</p>
+ 
+  Custom data can also be attached to the event.</p>
+
+<h3 class="function"><a name="variation-3">variation/3</a></h3>
+<div class="spec">
+<p><tt>variation(FlagKey::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, DefaultValue::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a>) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate given flag key for given context</p>
+ 
+  Evaluates the flag and returns the resulting variation value. The default
+  value will be returned in case of any errors.</p>
+
+<h3 class="function"><a name="variation-4">variation/4</a></h3>
+<div class="spec">
+<p><tt>variation(FlagKey::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, DefaultValue::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a>, Tag::atom()) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate given flag key for given context and given client instance</p>
+ 
+  Evaluates the flag and returns the resulting variation value. The default
+  value will be returned in case of any errors.</p>
+
+<h3 class="function"><a name="variation_detail-3">variation_detail/3</a></h3>
+<div class="spec">
+<p><tt>variation_detail(FlagKey::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, DefaultValue::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a>) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-detail">ldclient_eval:detail()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate given flag key for given context</p>
+ 
+  Evaluates the flag and returns the result detail containing the variation
+  index, value, and reason why the specific result was chosen. The default
+  value will be returned in case of any errors.</p>
+
+<h3 class="function"><a name="variation_detail-4">variation_detail/4</a></h3>
+<div class="spec">
+<p><tt>variation_detail(FlagKey::binary(), Context::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_user.html#type-user">ldclient_user:user()</a> | <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_context.html#type-context">ldclient_context:context()</a>, DefaultValue::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-result_value">ldclient_eval:result_value()</a>, Tag::atom()) -&gt; <a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_eval.html#type-detail">ldclient_eval:detail()</a></tt><br></p>
+<p> </p>
+</div><p><p>Evaluate given flag key for given context and given client instance</p>
+ 
+  Evaluates the flag and returns the result detail containing the variation
+  index, value, and reason why the specific result was chosen. The default
+  value will be returned in case of any errors.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc</i></p>
+</body>
+</html>
