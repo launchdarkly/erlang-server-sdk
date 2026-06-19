@@ -45,7 +45,7 @@ tag => atom()
 %%===================================================================
 
 start_link(WorkerRegName, Tag) ->
-    error_logger:info_msg("Starting redis server with name ~p", [WorkerRegName]),
+    logger:info("Starting redis server with name ~p", [WorkerRegName], #{domain => [ldclient]}),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
 -spec set_tls_options(Options :: list(), TlsOptions :: list()) -> OutOptions :: list().
@@ -211,7 +211,7 @@ create_bucket(false, Bucket, Client, Prefix, Buckets) ->
         {ok, _} ->
             {ok, [Bucket | Buckets]};
         {error, Reason} ->
-            error_logger:error_msg("Redis connection error during create_bucket for ~p: ~p", [Bucket, Reason]),
+            logger:error("Redis connection error during create_bucket for ~p: ~p", [Bucket, Reason], #{domain => [ldclient]}),
             {ok, [Bucket | Buckets]}
     end.
 
@@ -231,7 +231,7 @@ empty_bucket(true, Bucket, Client, Prefix) ->
             {ok, _} = create_bucket(false, Bucket, Client, Prefix, []),
             ok;
         {error, Reason} ->
-            error_logger:error_msg("Redis connection error during empty_bucket for ~p: ~p", [Bucket, Reason]),
+            logger:error("Redis connection error during empty_bucket for ~p: ~p", [Bucket, Reason], #{domain => [ldclient]}),
             ok
     end.
 
@@ -253,7 +253,7 @@ all_items(true, Bucket, Client, Prefix) ->
                 not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
             pairs(NewValues, Bucket);
         {error, Reason} ->
-            error_logger:error_msg("Redis error listing all items in bucket ~p: ~s", [Bucket, format_error(Reason)]),
+            logger:error("Redis error listing all items in bucket ~p: ~s", [Bucket, format_error(Reason)], #{domain => [ldclient]}),
             []
     end.
 
@@ -296,7 +296,7 @@ lookup_key(true, Key, Bucket, Client, Prefix) ->
                     end
             end;
         {error, Reason} ->
-            error_logger:error_msg("Redis error looking up key ~p in bucket ~p: ~s", [Key, Bucket, format_error(Reason)]),
+            logger:error("Redis error looking up key ~p in bucket ~p: ~s", [Key, Bucket, format_error(Reason)], #{domain => [ldclient]}),
             []
     end.
 
@@ -317,18 +317,18 @@ upsert_items(true, Items, Bucket, Client, Prefix) ->
                     case eredis:q(Client, ["HSET", bucket_name(Prefix, Bucket), K, jsx:encode(V)]) of
                         {ok, _} -> ok;
                         {error, Reason} ->
-                            error_logger:error_msg("Redis connection error during HSET for ~p key ~p: ~p", [Bucket, K, Reason]),
+                            logger:error("Redis connection error during HSET for ~p key ~p: ~p", [Bucket, K, Reason], #{domain => [ldclient]}),
                             ok
                     end
                 end, ok, Items),
             case eredis:q(Client, ["UNWATCH"]) of
                 {ok, <<"OK">>} -> Result;
                 {error, Reason} ->
-                    error_logger:error_msg("Redis connection error during UNWATCH for ~p: ~p", [Bucket, Reason]),
+                    logger:error("Redis connection error during UNWATCH for ~p: ~p", [Bucket, Reason], #{domain => [ldclient]}),
                     ok
             end;
         {error, Reason} ->
-            error_logger:error_msg("Redis connection error during WATCH for ~p: ~p", [Bucket, Reason]),
+            logger:error("Redis connection error during WATCH for ~p: ~p", [Bucket, Reason], #{domain => [ldclient]}),
             ok
     end.
 
@@ -360,7 +360,7 @@ delete_key(true, Key, Bucket, Client, Prefix) ->
     case eredis:q(Client, ["HDEL", bucket_name(Prefix, Bucket), Key]) of
         {ok, _} -> ok;
         {error, Reason} ->
-            error_logger:error_msg("Redis connection error during delete_key for ~p key ~p: ~p", [Bucket, Key, Reason]),
+            logger:error("Redis connection error during delete_key for ~p key ~p: ~p", [Bucket, Key, Reason], #{domain => [ldclient]}),
             ok
     end.
 
@@ -380,7 +380,7 @@ set_init(Client, Prefix) ->
     case eredis:q(Client, ["SET", lists:concat([Prefix, ":$inited"]), ""]) of
         {ok, _} -> ok;
         {error, Reason} ->
-            error_logger:error_msg("Redis connection error during set_init: ~p", [Reason]),
+            logger:error("Redis connection error during set_init: ~p", [Reason], #{domain => [ldclient]}),
             ok
     end.
 
@@ -393,6 +393,6 @@ get_init(Client, Prefix) ->
                 _ -> true
             end;
         {error, Reason} ->
-            error_logger:error_msg("Redis error getting init flag: ~s", [format_error(Reason)]),
+            logger:error("Redis error getting init flag: ~s", [format_error(Reason)], #{domain => [ldclient]}),
             false
     end.

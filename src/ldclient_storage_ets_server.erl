@@ -35,7 +35,7 @@
 %%===================================================================
 
 start_link(WorkerRegName, Tag) ->
-    error_logger:info_msg("Starting ets server with name ~p", [WorkerRegName]),
+    logger:info("Starting ets server with name ~p", [WorkerRegName], #{domain => [ldclient]}),
     gen_server:start_link({local, WorkerRegName}, ?MODULE, [Tag], []).
 
 init([Tag]) ->

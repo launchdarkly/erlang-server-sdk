@@ -92,12 +92,12 @@ open_stream(Uri, HttpOptions, SdkKeyEnv) ->
                     shotgun:parse_event(Bin)
                 catch Code:Reason ->
                     % Exception when processing event, log error, close connection
-                    error_logger:warning_msg("Invalid SSE event error (~p): ~p", [Code, Reason]),
+                    logger:warning("Invalid SSE event error (~p): ~p", [Code, Reason], #{domain => [ldclient]}),
                     shotgun:close(Pid)
                 end;
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
-                    error_logger:warning_msg("Streaming connection ended"),
+                    logger:warning("Streaming connection ended", #{domain => [ldclient]}),
                     shotgun:close(Pid)
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F},
