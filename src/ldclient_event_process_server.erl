@@ -264,7 +264,7 @@ format_event_set_context(<<"index">>, Context, OutputEvent, GlobalPrivateAttribu
         <<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)
     };
 format_event_set_context(<<"custom">>, Context, OutputEvent, GlobalPrivateAttributes) ->
-    OutputEvent#{<<"context">> => ldclient_context_filter:format_context_for_event(GlobalPrivateAttributes, Context)}.
+    OutputEvent#{<<"context">> => ldclient_context_filter:format_context_for_event_with_anonyous_redaction(GlobalPrivateAttributes, Context)}.
 
 -spec maybe_set_metric_value(ldclient_event:event(), map()) -> map().
 maybe_set_metric_value(#{metric_value := MetricValue}, OutputEvent) ->
