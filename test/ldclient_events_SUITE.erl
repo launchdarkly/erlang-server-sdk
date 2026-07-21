@@ -20,6 +20,7 @@
     add_flag_eval_events_with_debug_track_events/1,
     add_identify_events/1,
     add_custom_events/1,
+    add_custom_events_redacts_anonymous_context/1,
     auto_flush/1,
     exceed_capacity/1,
     fail_and_retry/1,
@@ -42,6 +43,7 @@ all() ->
         add_flag_eval_events_with_debug,
         add_identify_events,
         add_custom_events,
+        add_custom_events_redacts_anonymous_context,
         auto_flush,
         exceed_capacity,
         fail_and_retry,
@@ -816,6 +818,70 @@ add_custom_events(_) ->
             <<"creationDate">> := _
         }
     ] = ActualEvents.
+
+add_custom_events_redacts_anonymous_context(_) ->
+    %% Single-kind anonymous context: every optional attribute (built-in name and
+    %% custom attributes) must be redacted from the custom event context.
+    AnonContext =
+        ldclient_context:set(name, <<"the-name">>,
+        ldclient_context:set(anonymous, true,
+        ldclient_context:set(<<"user">>, <<"setup">>, <<"a-setup">>,
+            ldclient_context:new(<<"anon-key">>, <<"user">>)))),
+    Event1 = ldclient_event:new_custom(<<"event-anon">>, AnonContext, #{k1 => <<"v1">>}),
+    %% Multi-kind context: only the anonymous kind (user) is redacted; the
+    %% non-anonymous kind (org) is left intact.
+    MultiContext = ldclient_context:new_multi_from([
+        ldclient_context:set(<<"user">>, <<"setup">>, <<"a-setup">>,
+            ldclient_context:set(anonymous, true,
+                ldclient_context:new(<<"user-key">>, <<"user">>))),
+        ldclient_context:set(<<"org">>, <<"orgAttr">>, <<"orgValue">>,
+            ldclient_context:new(<<"org-key">>, <<"org">>))
+    ]),
+    Event2 = ldclient_event:new_custom(<<"event-multi">>, MultiContext, #{k2 => <<"v2">>}),
+    {ActualEvents, _} = send_await_events([Event1, Event2], #{flush => true}),
+    [
+        #{<<"kind">> := <<"index">>, <<"creationDate">> := _},
+        #{
+            <<"key">> := <<"event-anon">>,
+            <<"kind">> := <<"custom">>,
+            <<"data">> := #{<<"k1">> := <<"v1">>},
+            <<"context">> := #{
+                <<"key">> := <<"anon-key">>,
+                <<"kind">> := <<"user">>,
+                <<"anonymous">> := true,
+                <<"_meta">> := #{<<"redactedAttributes">> := Redacted1}
+            } = SingleContext,
+            <<"creationDate">> := _
+        },
+        #{<<"kind">> := <<"index">>, <<"creationDate">> := _},
+        #{
+            <<"key">> := <<"event-multi">>,
+            <<"kind">> := <<"custom">>,
+            <<"data">> := #{<<"k2">> := <<"v2">>},
+            <<"context">> := #{
+                <<"kind">> := <<"multi">>,
+                <<"user">> := #{
+                    <<"key">> := <<"user-key">>,
+                    <<"anonymous">> := true,
+                    <<"_meta">> := #{<<"redactedAttributes">> := Redacted2}
+                } = MultiUserContext,
+                <<"org">> := #{
+                    <<"key">> := <<"org-key">>,
+                    <<"orgAttr">> := <<"orgValue">>
+                } = MultiOrgContext
+            },
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents,
+    %% Single-kind: name + setup redacted, and nothing else remains besides
+    %% key/kind/anonymous/_meta.
+    [<<"name">>, <<"setup">>] = lists:sort(Redacted1),
+    4 = map_size(SingleContext),
+    %% Multi-kind anonymous user kind: only setup redacted; key/anonymous/_meta remain.
+    [<<"setup">>] = lists:sort(Redacted2),
+    3 = map_size(MultiUserContext),
+    %% Multi-kind non-anonymous org kind is untouched (no _meta, attribute intact).
+    2 = map_size(MultiOrgContext).
 
 auto_flush(_) ->
     Event1 = ldclient_event:new_identify(
