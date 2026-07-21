@@ -2,6 +2,21 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.11.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.10.1...v3.11.0) (2026-06-17)
+
+
+### Features
+
+* Ensure shotgun dependency is at least 1.2.2. ([#189](https://github.com/launchdarkly/erlang-server-sdk/issues/189)) ([b06a5c6](https://github.com/launchdarkly/erlang-server-sdk/commit/b06a5c6ca5948ba5417fc113ae7002ecc971ae8f))
+* Update rebar config, use shotgun ~&gt; 1.2 ([#187](https://github.com/launchdarkly/erlang-server-sdk/issues/187)) ([6c3e626](https://github.com/launchdarkly/erlang-server-sdk/commit/6c3e626fbb14935210e6e8be751e239a095f3d9b))
+
+## [3.10.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.10.0...v3.10.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* Fix apache license format ([#183](https://github.com/launchdarkly/erlang-server-sdk/issues/183)) ([de83758](https://github.com/launchdarkly/erlang-server-sdk/commit/de83758033c19aadfcdb79809eb3129c58d1b01b))
+
 ## [3.10.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.9.0...v3.10.0) (2026-05-28)
 
 
