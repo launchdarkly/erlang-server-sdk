@@ -16,6 +16,7 @@
 
 -type state() :: #{
     conn := pid() | undefined,
+    gun_conn := pid() | undefined,
     backoff := ldclient_backoff:backoff(),
     feature_store := atom(),
     storage_tag := atom(),
@@ -61,6 +62,7 @@ init([Tag]) ->
     process_flag(trap_exit, true),
     State = #{
         conn => undefined,
+        gun_conn => undefined,
         backoff => Backoff,
         feature_store => FeatureStore,
         storage_tag => Tag,
@@ -95,7 +97,7 @@ handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, 
     % Reason from DOWN message could contain connection details with headers/SDK keys
     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
     error_logger:warning_msg("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms~n", [SafeReason, maps:get(current, NewBackoff)]),
-    {noreply, State#{conn := undefined, backoff := NewBackoff}};
+    {noreply, State#{conn := undefined, gun_conn := undefined, backoff := NewBackoff}};
 handle_info({timeout, _TimerRef, listen}, State) ->
     error_logger:info_msg("Reconnecting streaming connection...~n"),
     NewState = do_listen(State),
@@ -108,9 +110,9 @@ handle_info(_Info, State) ->
 terminate(Reason, #{conn := undefined} = _State) ->
     error_logger:info_msg("Terminating, reason: ~p; Pid none~n", [Reason]),
     ok;
-terminate(Reason, #{conn := ShotgunPid} = _State) ->
+terminate(Reason, #{conn := ShotgunPid, gun_conn := GunPid} = _State) ->
     error_logger:info_msg("Terminating streaming connection, reason: ~p; Pid ~p~n", [Reason, ShotgunPid]),
-    ok = shotgun:close(ShotgunPid).
+    force_close(ShotgunPid, GunPid).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -138,9 +140,9 @@ do_listen(#{
             % or an integer status code from the do_listen/5 method.
             error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
             State;
-        {ok, Pid} ->
+        {ok, Pid, GunPid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),
-            State#{conn := Pid, backoff := NewBackoff}
+            State#{conn := Pid, gun_conn := GunPid, backoff := NewBackoff}
         catch Code:_Reason ->
             % Don't pass raw exception reason as it could contain unsafe data
             NewBackoff = do_listen_fail_backoff(Backoff, Code, "unexpected exception"),
@@ -162,7 +164,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid(), pid() | undefined} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     Opts = #{gun_opts => GunOpts},
@@ -173,6 +175,7 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
             {error, temporary, "Connection timeout"};
         {ok, Pid} ->
             _ = monitor(process, Pid),
+            GunPid = gun_connection_pid(Pid),
             F = fun(nofin, _Ref, Bin) ->
                     try
                         process_event(parse_shotgun_event(Bin), FeatureStore, Tag)
@@ -180,24 +183,64 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                         % Exception when processing event - don't log exception details
                         % as they could theoretically contain sensitive data
                         error_logger:warning_msg("Invalid SSE event error (~p)", [Code]),
-                        shotgun:close(Pid)
+                        force_close(Pid, GunPid)
                     end;
                 (fin, _Ref, _Bin) ->
                     % Connection ended, close monitored shotgun client pid, so we can reconnect
                     error_logger:warning_msg("Streaming connection ended"),
-                    shotgun:close(Pid)
+                    force_close(Pid, GunPid)
                 end,
             Options = #{async => true, async_mode => sse, handle_event => F, allow_reconnect => false},
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
-                    shotgun:close(Pid),
+                    force_close(Pid, GunPid),
                     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
                     {error, temporary, SafeReason};
                 {ok, #{status_code := StatusCode}} when StatusCode >= 400 ->
+                    force_close(Pid, GunPid),
                     {error, ldclient_http:is_http_error_code_recoverable(StatusCode), StatusCode};
                 {ok, _Ref} ->
-                    {ok, Pid}
+                    {ok, Pid, GunPid}
             end
+    end.
+
+%% @doc Get the pid of the gun connection owned by a shotgun client.
+%% @private
+%%
+%% shotgun does not expose its underlying gun connection, but tearing the
+%% TCP connection down promptly requires closing the gun connection itself,
+%% so we read the pid out of the shotgun process state. This must not be
+%% called from code running inside the shotgun process (such as the
+%% handle_event fun), where sys:get_state would block on itself.
+%% @end
+-spec gun_connection_pid(ShotgunPid :: pid()) -> pid() | undefined.
+gun_connection_pid(ShotgunPid) ->
+    try sys:get_state(ShotgunPid) of
+        {_StateName, #{pid := GunPid}} when is_pid(GunPid) -> GunPid;
+        _ -> undefined
+    catch
+        _:_ -> undefined
+    end.
+
+%% @doc Close a streaming connection, releasing the TCP socket immediately.
+%% @private
+%%
+%% shotgun:close/1 asks gun for a graceful shutdown, and gun defers a
+%% graceful shutdown until its in-flight streams finish. The SSE stream
+%% never finishes, so that alone leaves the socket established until the
+%% owning processes are garbage collected. Closing the gun connection
+%% directly tears the socket down right away. The shutdown message to the
+%% shotgun client is queued first, so it stops cleanly before it can react
+%% to the gun connection going down.
+%% @end
+-spec force_close(ShotgunPid :: pid(), GunPid :: pid() | undefined) -> ok.
+force_close(ShotgunPid, GunPid) ->
+    ok = shotgun:close(ShotgunPid),
+    case GunPid of
+        undefined -> ok;
+        _ ->
+            _ = gun:close(GunPid),
+            ok
     end.
 
 %% @doc Processes server-sent event received from shotgun
