@@ -1,0 +1,115 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module ldclient_user</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module ldclient_user</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>User data type.
+
+
+<h2><a name="description">Description</a></h2>User data type
+ 
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-attribute">attribute()</a></h3>
+<p><tt>attribute() = binary() | atom()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-custom_attributes">custom_attributes()</a></h3>
+<p><tt>custom_attributes() = #{binary() := any()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-key">key()</a></h3>
+<p><tt>key() = binary() | null</tt></p>
+
+
+<h3 class="typedecl"><a name="type-private_attribute_names">private_attribute_names()</a></h3>
+<p><tt>private_attribute_names() = [binary()]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-user">user()</a></h3>
+<p><tt>user() = #{key := <a href="#type-key">key()</a>, ip =&gt; binary(), country =&gt; binary(), email =&gt; binary(), first_name =&gt; binary(), last_name =&gt; binary(), avatar =&gt; binary(), name =&gt; binary(), anonymous =&gt; boolean(), custom =&gt; <a href="#type-custom_attributes">custom_attributes()</a>, private_attribute_names =&gt; <a href="#type-private_attribute_names">private_attribute_names()</a>}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#event_format-1">event_format/1</a></td><td>Formats a user for use in an event.</td></tr>
+<tr><td valign="top"><a href="#get-2">get/2</a></td><td>Get an attribute value of a user.</td></tr>
+<tr><td valign="top"><a href="#new-1">new/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#new_from_map-1">new_from_map/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#scrub-2">scrub/2</a></td><td>Scrub private attributes from user.</td></tr>
+<tr><td valign="top"><a href="#set-3">set/3</a></td><td>Set an attribute value for a user.</td></tr>
+<tr><td valign="top"><a href="#set_private_attribute_names-2">set_private_attribute_names/2</a></td><td>Sets a list of private attribute names for a user.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="event_format-1">event_format/1</a></h3>
+<div class="spec">
+<p><tt>event_format(User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
+</div><p><p>Formats a user for use in an event.</p>
+ 
+  Returns the user with first_name and last_name attributes changed to firstName and
+  lastName so that LaunchDarkly can properly record user data.</p>
+
+<h3 class="function"><a name="get-2">get/2</a></h3>
+<div class="spec">
+<p><tt>get(Attribute::<a href="#type-attribute">attribute()</a>, User::<a href="#type-user">user()</a>) -&gt; term()</tt><br></p>
+<p> </p>
+</div><p><p>Get an attribute value of a user</p>
+ 
+  Lookup includes custom attributes. Returns <code>null</code> if attribute doesn't exist.</p>
+
+<h3 class="function"><a name="new-1">new/1</a></h3>
+<div class="spec">
+<p><tt>new(Key::<a href="#type-key">key()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="new_from_map-1">new_from_map/1</a></h3>
+<div class="spec">
+<p><tt>new_from_map(Map::map()) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
+</div>
+
+<h3 class="function"><a name="scrub-2">scrub/2</a></h3>
+<div class="spec">
+<p><tt>scrub(User::<a href="#type-user">user()</a>, GlobalPrivateAttributes::<a href="http://www.erlang.org/edoc/doc/ldclient/doc/ldclient_config.html#type-private_attributes">ldclient_config:private_attributes()</a>) -&gt; {<a href="#type-user">user()</a>, <a href="#type-private_attribute_names">private_attribute_names()</a>}</tt><br></p>
+<p> </p>
+</div><p><p>Scrub private attributes from user</p>
+ 
+  Returns the scrubbed user and the list of attributes that were actually
+  scrubbed.</p>
+
+<h3 class="function"><a name="set-3">set/3</a></h3>
+<div class="spec">
+<p><tt>set(Attribute::<a href="#type-attribute">attribute()</a>, Value::any(), User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
+</div><p><p>Set an attribute value for a user</p>
+ 
+  Sets given attribute to given value and returns the new user. This function
+  can handle both built-in and custom user attributes.</p>
+
+<h3 class="function"><a name="set_private_attribute_names-2">set_private_attribute_names/2</a></h3>
+<div class="spec">
+<p><tt>set_private_attribute_names(AttributeNames::[<a href="#type-attribute">attribute()</a>], User::<a href="#type-user">user()</a>) -&gt; <a href="#type-user">user()</a></tt><br></p>
+<p> </p>
+</div><p><p>Sets a list of private attribute names for a user</p>
+ 
+  Any attributes that are on this list will not be sent to and indexed by
+  LaunchDarkly. However, they are still available for flag evaluations
+  performed by the SDK locally. This handles both built-in and custom
+  attributes. The built-in <code>key</code> attribute cannot be made private - it will
+  always be sent.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc</i></p>
+</body>
+</html>
