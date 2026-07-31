@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.11.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.1...v3.11.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* Close streaming connection promptly when client is closed ([#195](https://github.com/launchdarkly/erlang-server-sdk/issues/195)) ([98eb562](https://github.com/launchdarkly/erlang-server-sdk/commit/98eb562a0d22ab2192de55546ce6fc15de4549c6))
+
 ## [3.11.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.0...v3.11.1) (2026-07-21)
 
 
