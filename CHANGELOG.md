@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.11.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.0...v3.11.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* Redact anonymous context attributes in custom events ([#191](https://github.com/launchdarkly/erlang-server-sdk/issues/191)) ([56d2fb4](https://github.com/launchdarkly/erlang-server-sdk/commit/56d2fb45d09b390c2f4000a964c1d7b5375c8784))
+
 ## [3.11.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.10.1...v3.11.0) (2026-06-17)
 
 
