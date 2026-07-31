@@ -32,6 +32,13 @@
 %% Maximum backoff delay of 30 seconds.
 -define(MAX_BACKOFF_DELAY, 30000).
 
+%% How long gun may wait for in-flight streams to finish when the streaming
+%% connection is closed (gun's closing_timeout, which defaults to 15 seconds).
+%% The SSE stream never finishes on its own, so without a small bound here the
+%% TCP socket would stay open for the full default timeout after the client is
+%% closed.
+-define(STREAM_CLOSING_TIMEOUT_MS, 100).
+
 %%===================================================================
 %% Supervision
 %%===================================================================
@@ -165,7 +172,9 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 -spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
-    Opts = #{gun_opts => GunOpts},
+    HttpOpts = maps:get(http_opts, GunOpts, #{}),
+    StreamGunOpts = GunOpts#{http_opts => HttpOpts#{closing_timeout => ?STREAM_CLOSING_TIMEOUT_MS}},
+    Opts = #{gun_opts => StreamGunOpts},
     case shotgun:open(Host, Port, Scheme, Opts) of
         {error, gun_open_failed} ->
             {error, temporary, "Could not open connection to host"};
@@ -194,6 +203,10 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
                     {error, temporary, SafeReason};
                 {ok, #{status_code := StatusCode}} when StatusCode >= 400 ->
+                    % Close the connection: nothing else does on this path, so the
+                    % shotgun client and its connection would otherwise be left
+                    % running during retry backoff.
+                    shotgun:close(Pid),
                     {error, ldclient_http:is_http_error_code_recoverable(StatusCode), StatusCode};
                 {ok, _Ref} ->
                     {ok, Pid}
