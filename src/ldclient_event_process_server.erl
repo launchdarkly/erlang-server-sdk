@@ -70,7 +70,7 @@ get_last_server_time(Tag) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    error_logger:info_msg("Starting event processor for ~p with name ~p", [Tag, ServerName]),
+    logger:info("Starting event processor for ~p with name ~p", [Tag, ServerName], #{domain => [ldclient]}),
     gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -126,7 +126,7 @@ handle_cast({send_events, Events, SummaryEvent},
            erlang:send_after(1000, self(), {send, OutputEvents, PayloadId}),
            State;
        {error, permanent, Reason} ->
-           error_logger:error_msg("Permanent error sending events ~p", [Reason]),
+           logger:error("Permanent error sending events ~p", [Reason], #{domain => [ldclient]}),
            State
     end,
     {noreply, NewState};

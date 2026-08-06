@@ -94,7 +94,7 @@ flush(Tag) when is_atom(Tag) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    error_logger:info_msg("Starting event storage server for ~p with name ~p", [Tag, ServerName]),
+    logger:info("Starting event storage server for ~p with name ~p", [Tag, ServerName], #{domain => [ldclient]}),
     gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
@@ -152,7 +152,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
 terminate(Reason, #{timer_ref := TimerRef} = _State) ->
-    error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
+    logger:info("Terminating event service, reason: ~p", [Reason], #{domain => [ldclient]}),
     _ = erlang:cancel_timer(TimerRef),
     ok;
 terminate(_Reason, _State) ->
@@ -195,7 +195,7 @@ add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = E
 add_raw_event(Event, Events, Capacity) when length(Events) < Capacity ->
     [Event|Events];
 add_raw_event(_, Events, _) ->
-    error_logger:warning_msg("Exceeded event queue capacity. Increase capacity to avoid dropping events."),
+    logger:warning("Exceeded event queue capacity. Increase capacity to avoid dropping events.", #{domain => [ldclient]}),
     Events.
 
 -spec add_feature_request_event(ldclient_event:event(), summary_event()) ->

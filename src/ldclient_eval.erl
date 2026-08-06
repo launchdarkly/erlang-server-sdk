@@ -86,7 +86,7 @@ flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, offline, _) ->
 flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, _, not_initialized) ->
     {{null, DefaultValue, {error, client_not_ready}}, []};
 flag_key_for_context(Tag, FlagKey, Context, DefaultValue, online, store_initialized) ->
-    error_logger:warning_msg("Variation called before LaunchDarkly client initialization completed - using last known values from feature store."),
+    logger:warning("Variation called before LaunchDarkly client initialization completed - using last known values from feature store.", #{domain => [ldclient]}),
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     FlagRecs = FeatureStore:get(Tag, features, FlagKey),
     flag_recs_for_context(FlagKey, FlagRecs, Context, FeatureStore, Tag, DefaultValue);
@@ -145,7 +145,7 @@ all_flags_state(_Context, _Options, _Tag, offline, _) ->
 all_flags_state(_Context, _Options, _Tag, _, not_initialized) ->
     #{<<"$valid">> => false, <<"$flagsState">> => #{}};
 all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, store_initialized) ->
-    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    logger:warning("Called allFlagsState before client initialization; using last known values from data store.", #{domain => [ldclient]}),
     all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, initialized);
 all_flags_state(Context, #{with_reasons := WithReason} = Options, Tag, _, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
@@ -246,7 +246,7 @@ all_flags_eval(_Context, _Tag, offline, _) ->
 all_flags_eval(_Context, _Tag, _, not_initialized) ->
     #{flag_values => #{}};
 all_flags_eval(Context, Tag, Offline, store_initialized) ->
-    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    logger:warning("Called allFlagsState before client initialization; using last known values from data store.", #{domain => [ldclient]}),
     all_flags_eval(Context, Tag, Offline, initialized);
 all_flags_eval(Context, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
@@ -309,13 +309,13 @@ get_initialization_state(Tag, false) ->
 ) -> result().
 flag_recs_for_context(FlagKey, [], Context, _FeatureStore, _Tag, DefaultValue) ->
     % Flag not found
-    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
+    logger:warning("Unknown feature flag ~p; returning default value", [FlagKey], #{domain => [ldclient]}),
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
 flag_recs_for_context(FlagKey, [{FlagKey, #{deleted := true}} | _], Context, _FeatureStore, _Tag, DefaultValue) ->
     % Flag found, but it's deleted
-    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
+    logger:warning("Unknown feature flag ~p; returning default value", [FlagKey], #{domain => [ldclient]}),
     Reason = {error, flag_not_found},
     Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
     {{null, DefaultValue, Reason}, Events};
@@ -394,8 +394,8 @@ check_prerequisites(
 ) ->
     case lists:member(PrerequisiteKey, VisitedFlags) of
         true ->
-            error_logger:error_msg("Prerequisite of ~p causing a circular reference."
-            " This is probably a temporary condition due to an incomplete update.", [FlagKey]),
+            logger:error("Prerequisite of ~p causing a circular reference."
+            " This is probably a temporary condition due to an incomplete update.", [FlagKey], #{domain => [ldclient]}),
             flag_for_context_prerequisites({malformed_flag, {error, malformed_flag}},
                 Flag, Context, FeatureStore, Tag, DefaultValue, Events);
         false ->
@@ -420,7 +420,7 @@ check_prerequisites(
 check_prerequisite_recs([], PrerequisiteKey, _Variation, _Prerequisites, #{key := FlagKey} = Flag,
     Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
     % Short circuit if prerequisite flag is not found
-    error_logger:error_msg("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey]),
+    logger:error("Could not retrieve prerequisite flag ~p when evaluating ~p", [PrerequisiteKey, FlagKey], #{domain => [ldclient]}),
     flag_for_context_prerequisites({fail, {prerequisite_failed, [PrerequisiteKey]}}, Flag, Context,
         FeatureStore, Tag, DefaultValue, Events);
 check_prerequisite_recs([{PrerequisiteKey, PrerequisiteFlag} | _], PrerequisiteKey, Variation, Prerequisites, Flag,
@@ -526,7 +526,7 @@ check_rules([Rule | Rest], Flag, Context, FeatureStore, Tag, DefaultValue, Event
     check_rule_result({Result, Rule, Index}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events).
 
 check_rule_result({malformed_flag, _Rule, _Index}, _Rest, #{key := FlagKey} = _Flag, _Context, _FeatureStore, _Tag, DefaultValue, _Events) ->
-    error_logger:warning_msg("Data inconsistency in feature flag ~p: clause was malformed", [FlagKey]),
+    logger:warning("Data inconsistency in feature flag ~p: clause was malformed", [FlagKey], #{domain => [ldclient]}),
     Reason = {error, malformed_flag},
     {{null, DefaultValue, Reason}, []};
 check_rule_result({no_match, _Rule, Index}, Rest, Flag, Context, FeatureStore, Tag, DefaultValue, Events) ->
@@ -546,19 +546,19 @@ flag_for_context_variation_or_rollout(Variation, Reason, Flag, _Context, Default
 flag_for_context_variation_or_rollout(Rollout, Reason, #{key := FlagKey} = Flag, Context, DefaultValue, Events) when is_map(Rollout) ->
     case ldclient_rollout:rollout_context(Rollout, Flag, Context) of
         malformed_flag ->
-            error_logger:warning_msg("Data inconsistency in feature flag ~p: rollout was malformed", [FlagKey]),
+            logger:warning("Data inconsistency in feature flag ~p: rollout was malformed", [FlagKey], #{domain => [ldclient]}),
             {{null, DefaultValue, {error, malformed_flag}}, []};
         {Result, InExperiment} ->
             UpdatedReason = experimentize_reason(InExperiment, Reason),
             flag_for_context_rollout_result(Result, UpdatedReason, Flag, DefaultValue, Events)
     end;
 flag_for_context_variation_or_rollout(null, _Reason, #{key := FlagKey}, _Context, DefaultValue, Events) ->
-    error_logger:warning_msg("Data inconsistency in feature flag ~p: rule object with no variation or rollout", [FlagKey]),
+    logger:warning("Data inconsistency in feature flag ~p: rule object with no variation or rollout", [FlagKey], #{domain => [ldclient]}),
     Reason = {error, malformed_flag},
     {{null, DefaultValue, Reason}, Events}.
 
 flag_for_context_rollout_result(null, _Reason, #{key := FlagKey}, DefaultValue, Events) ->
-    error_logger:warning_msg("Data inconsistency in feature flag ~p: variation/rollout object with no variation or rollout", [FlagKey]),
+    logger:warning("Data inconsistency in feature flag ~p: variation/rollout object with no variation or rollout", [FlagKey], #{domain => [ldclient]}),
     Reason = {error, malformed_flag},
     {{null, DefaultValue, Reason}, Events};
 
