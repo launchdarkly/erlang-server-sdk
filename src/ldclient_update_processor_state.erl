@@ -16,6 +16,8 @@
 -export([delete_storage_initialized_state/1]).
 -export([set_storage_initialized_state/2]).
 -export([get_storage_initialized_state/1]).
+-export([mark_warning_logged/2]).
+-export([delete_warning_states/1]).
 
 -define(UPDATE_TABLE, ldclient_update_processor_initialization).
 
@@ -89,6 +91,21 @@ set_storage_initialized_state(Tag, Value) ->
 get_storage_initialized_state(Tag) ->
     [{_Tag, Initialized}] = ets:lookup(?UPDATE_TABLE, get_storage_name(Tag)),
     Initialized.
+
+%% @doc Record that a warning is logged for a given Tag
+%%
+%% Returns true on the first call for a Tag and Warning pair. Later calls return false.
+%% @end
+-spec mark_warning_logged(Tag :: atom(), Warning :: atom()) -> boolean().
+mark_warning_logged(Tag, Warning) ->
+    ets:insert_new(?UPDATE_TABLE, {{Tag, Warning}, true}).
+
+%% @doc Delete all warning records for a given Tag
+%%
+%% @end
+-spec delete_warning_states(Tag :: atom()) -> true.
+delete_warning_states(Tag) ->
+    ets:match_delete(?UPDATE_TABLE, {{Tag, '_'}, '_'}).
 
 -spec get_storage_name(Tag :: atom()) -> atom().
 get_storage_name(Tag) ->
