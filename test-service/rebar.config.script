@@ -1,0 +1,13 @@
+%% gun 2.6.0 and cowlib 2.20.0 require OTP 27: gun calls proc_lib:set_label/1
+%% and cowlib uses maybe_expr. Constrain both on older releases, keeping the
+%% unparseable version ranges of rebar.config's overrides replaced.
+case list_to_integer(erlang:system_info(otp_release)) < 27 of
+    true ->
+        lists:keystore(overrides, 1, CONFIG, {overrides, [
+            {override, cowboy, [{deps, [{cowlib, "~> 2.19.0"}, ranch]}]},
+            {override, gun, [{deps, [{cowlib, "~> 2.19.0"}]}]},
+            {override, shotgun, [{deps, [{gun, "~> 2.5.0"}]}]}
+        ]});
+    false ->
+        CONFIG
+end.
