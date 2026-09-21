@@ -37,7 +37,7 @@ child_spec(Id, Args) ->
 ) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(SupName, UpdateSupName, UpdateWorkerModule, EventSupName, Tag) ->
-    error_logger:info_msg("Starting instance supervisor for ~p with name ~p", [Tag, SupName]),
+    logger:info("Starting instance supervisor for ~p with name ~p", [Tag, SupName], #{domain => [ldclient]}),
     supervisor:start_link({local, SupName}, ?MODULE, [UpdateSupName, UpdateWorkerModule, EventSupName, Tag]).
 
 -spec init(Args :: term()) ->

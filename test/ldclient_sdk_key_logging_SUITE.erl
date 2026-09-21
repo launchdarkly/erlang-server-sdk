@@ -17,6 +17,9 @@
     streaming_connection_error_does_not_log_sdk_key/1
 ]).
 
+%% logger handler callback
+-export([log/2]).
+
 %%====================================================================
 %% ct functions
 %%====================================================================
@@ -37,14 +40,14 @@ end_per_suite(_) ->
     ok = application:stop(ldclient).
 
 init_per_testcase(_, Config) ->
-    % Install a custom error_logger handler to capture logs
-    error_logger:tty(false),
-    error_logger:add_report_handler(?MODULE, self()),
+    % Install a custom logger handler to capture logs
+    HandlerId = ldclient_sdk_key_test_handler,
+    ok = logger:add_handler(HandlerId, ?MODULE, #{config => #{parent => self()}}),
     Config.
 
 end_per_testcase(_, _Config) ->
-    error_logger:delete_report_handler(?MODULE),
-    error_logger:tty(true),
+    HandlerId = ldclient_sdk_key_test_handler,
+    ok = logger:remove_handler(HandlerId),
     ok.
 
 %%====================================================================
@@ -178,38 +181,14 @@ flush_messages() ->
     end.
 
 %%====================================================================
-%% error_logger handler callbacks
+%% logger handler callback
 %%====================================================================
 
-init(Parent) ->
-    {ok, Parent}.
-
-handle_event({error, _GL, {_Pid, Format, Data}}, Parent) ->
-    Parent ! {error_log, Format, Data},
-    {ok, Parent};
-handle_event({error_report, _GL, {_Pid, _Type, Report}}, Parent) ->
-    Parent ! {error_report, Report},
-    {ok, Parent};
-handle_event({warning_msg, _GL, {_Pid, Format, Data}}, Parent) ->
-    Parent ! {warning_log, Format, Data},
-    {ok, Parent};
-handle_event({warning_report, _GL, {_Pid, _Type, Report}}, Parent) ->
-    Parent ! {warning_report, Report},
-    {ok, Parent};
-handle_event({info_msg, _GL, {_Pid, Format, Data}}, Parent) ->
-    Parent ! {info_log, Format, Data},
-    {ok, Parent};
-handle_event(_Event, Parent) ->
-    {ok, Parent}.
-
-handle_call(_Request, State) ->
-    {ok, ok, State}.
-
-handle_info(_Info, State) ->
-    {ok, State}.
-
-terminate(_Reason, _State) ->
+log(#{level := Level, msg := Msg}, #{config := #{parent := Parent}}) ->
+    FormattedMsg = case Msg of
+        {string, S} -> S;
+        {report, Report} -> io_lib:format("~p", [Report]);
+        {Format, Args} -> io_lib:format(Format, Args)
+    end,
+    Parent ! {log, Level, FormattedMsg},
     ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
