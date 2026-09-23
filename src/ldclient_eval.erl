@@ -86,7 +86,7 @@ flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, offline, _) ->
 flag_key_for_context(_Tag, _FlagKey, _Context, DefaultValue, _, not_initialized) ->
     {{null, DefaultValue, {error, client_not_ready}}, []};
 flag_key_for_context(Tag, FlagKey, Context, DefaultValue, online, store_initialized) ->
-    error_logger:warning_msg("Variation called before LaunchDarkly client initialization completed - using last known values from feature store."),
+    warn_once(Tag, variation_uses_store_data, "Variation called before LaunchDarkly client initialization completed - using last known values from feature store. This message is logged once."),
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     FlagRecs = FeatureStore:get(Tag, features, FlagKey),
     flag_recs_for_context(FlagKey, FlagRecs, Context, FeatureStore, Tag, DefaultValue);
@@ -145,7 +145,7 @@ all_flags_state(_Context, _Options, _Tag, offline, _) ->
 all_flags_state(_Context, _Options, _Tag, _, not_initialized) ->
     #{<<"$valid">> => false, <<"$flagsState">> => #{}};
 all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, store_initialized) ->
-    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    warn_all_flags_use_store_data(Tag),
     all_flags_state(Context, #{with_reasons := WithReason} = _Options, Tag, Offline, initialized);
 all_flags_state(Context, #{with_reasons := WithReason} = Options, Tag, _, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
@@ -246,7 +246,7 @@ all_flags_eval(_Context, _Tag, offline, _) ->
 all_flags_eval(_Context, _Tag, _, not_initialized) ->
     #{flag_values => #{}};
 all_flags_eval(Context, Tag, Offline, store_initialized) ->
-    error_logger:warning_msg("Called allFlagsState before client initialization; using last known values from data store."),
+    warn_all_flags_use_store_data(Tag),
     all_flags_eval(Context, Tag, Offline, initialized);
 all_flags_eval(Context, Tag, online, initialized) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
@@ -263,6 +263,18 @@ all_flags_eval(Context, Tag, online, initialized) ->
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+%% Logs a warning the first time it is requested for a Tag. Later requests are silent.
+-spec warn_once(Tag :: atom(), Warning :: atom(), Message :: string()) -> ok.
+warn_once(Tag, Warning, Message) ->
+    case ldclient_update_processor_state:mark_warning_logged(Tag, Warning) of
+        true -> error_logger:warning_msg(Message);
+        false -> ok
+    end.
+
+-spec warn_all_flags_use_store_data(Tag :: atom()) -> ok.
+warn_all_flags_use_store_data(Tag) ->
+    warn_once(Tag, all_flags_use_store_data, "Called allFlagsState before client initialization; using last known values from data store. This message is logged once.").
 
 -spec get_state(Tag :: atom()) -> atom().
 get_state(Tag) -> get_state(Tag, ldclient:is_offline(Tag)).

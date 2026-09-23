@@ -106,6 +106,7 @@ stop(Tag) when is_atom(Tag) ->
     ok = supervisor:delete_child(ldclient_sup, SupName),
     ldclient_update_processor_state:delete_initialized_state(Tag),
     ldclient_update_processor_state:delete_storage_initialized_state(Tag),
+    ldclient_update_processor_state:delete_warning_states(Tag),
     ldclient_config:unregister(Tag).
 
 %% @doc Stop all client instances
