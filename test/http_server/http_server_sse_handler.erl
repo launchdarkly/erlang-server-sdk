@@ -24,7 +24,6 @@ init(Req0, Opts) ->
     ok = maybe_start_heartbeats(Authorization),
     {cowboy_loop, Req, Opts}.
 
-%% A bare SSE comment line: the shape of the streaming service's keep-alive.
 info(heartbeat, Req, State) ->
     ok = cowboy_req:stream_body(<<":\n">>, nofin, Req),
     _ = erlang:send_after(?HEARTBEAT_INTERVAL_MS, self(), heartbeat),
@@ -34,8 +33,6 @@ info(_Msg, Req, State) ->
 
 %% test helpers
 
-%% Forget how many times the SDK has connected with this key, so a test that
-%% depends on "first connection" vs "reconnection" payloads starts clean.
 reset_connections(SdkKey) ->
     _ = persistent_term:erase({?MODULE, connections, SdkKey}),
     ok.
@@ -48,8 +45,7 @@ count_connection(SdkKey) ->
     persistent_term:put(Key, Connection),
     Connection.
 
-%% The read-timeout tests register themselves so they can observe each time
-%% the SDK connects.
+%% The read-timeout tests register themselves to observe each connection.
 notify_connected(SdkKey) when SdkKey =:= <<"sdk-read-timeout">>; SdkKey =:= <<"sdk-heartbeat">> ->
     case whereis(read_timeout_test) of
         undefined -> ok;
@@ -62,9 +58,7 @@ maybe_start_heartbeats(<<"sdk-heartbeat">>) ->
     ok;
 maybe_start_heartbeats(_SdkKey) -> ok.
 
-%% "sdk-read-timeout": the initial put, then silence. A reconnection is served
-%% an updated flag so a test can tell that the new connection was applied.
-%% "sdk-heartbeat": the initial put, then only heartbeat comments.
+%% "sdk-read-timeout": a reconnection is served the updated flag. "sdk-heartbeat": heartbeats only.
 sse_data(<<"sdk-read-timeout">>, 1) -> sse_simple_flag();
 sse_data(<<"sdk-read-timeout">>, _Reconnection) -> sse_updated_flag();
 sse_data(<<"sdk-heartbeat">>, _Connection) -> sse_simple_flag();
@@ -97,7 +91,6 @@ sse_simple_flag() ->
         "}",
     "}">>.
 
-%% The simple flag one version later, falling through to the other variation.
 sse_updated_flag() ->
     FlagBin = updated_flag(),
     <<"{",

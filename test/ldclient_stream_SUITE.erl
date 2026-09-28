@@ -196,11 +196,8 @@ parse_shotgun_event_optional_spaces(_) ->
 
 split_sse_events(_) ->
     {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<>>),
-    % A heartbeat comment never completes an event, and a complete comment
-    % line is discarded rather than buffered forever on a quiet connection.
     {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<":\n">>),
     {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<":\n:\n:\n">>),
-    % A partial comment line and non-comment lines in the tail are kept.
     {[], <<":">>} = ldclient_update_stream_server:split_sse_events(<<":\n:">>),
     {[], <<"event: put\ndata: {">>} = ldclient_update_stream_server:split_sse_events(<<":\nevent: put\n:\ndata: {">>),
     {[<<"event: put\ndata: {}">>], <<>>} =
@@ -214,7 +211,6 @@ stream_chunk_processes_complete_events_and_buffers_the_rest(_) ->
     Conn = spawn(fun() -> receive stop -> ok end end),
     State = stream_state(Conn),
     PutEvent = put_event_bin(),
-    % The put arrives split across two chunks, followed by the start of another event.
     {Head, Tail} = split_binary(PutEvent, 10),
     {noreply, State1} = ldclient_update_stream_server:handle_info({stream_chunk, Conn, nofin, Head}, State),
     [] = ldclient_storage_ets:all(default, features),
@@ -237,7 +233,6 @@ heartbeat_comment_restarts_read_timer_without_events(_) ->
     [] = ldclient_storage_ets:all(default, features),
     <<>> = maps:get(sse_buffer, State1),
     true = is_reference(maps:get(read_timer, State1)),
-    % The next event carries the buffered comment; it is ignored by the parser.
     {noreply, State2} = ldclient_update_stream_server:handle_info(
         {stream_chunk, Conn, nofin, <<(put_event_bin())/binary, "\n\n">>}, State1),
     [{_Key, _Flag}] = ldclient_storage_ets:all(default, features),
@@ -279,8 +274,6 @@ stale_read_timeout_is_ignored(_) ->
     ok = meck:new(shotgun, [passthrough]),
     ok = meck:expect(shotgun, close, fun(_Pid) -> ok end),
     try
-        % A timer cancelled after its message was already queued must not close
-        % the connection that replaced it.
         {noreply, State} = ldclient_update_stream_server:handle_info({timeout, make_ref(), read_timeout}, State),
         false = meck:called(shotgun, close, '_')
     after

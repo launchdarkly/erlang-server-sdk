@@ -113,10 +113,7 @@ stream_sse_timeout(_) ->
     ok.
 
 stream_sse_read_timeout_reconnects(_) ->
-    % The server sends the initial put and then nothing, not even a heartbeat:
-    % the shape of a half-open connection. With a 1 s read timeout the SDK must
-    % drop the connection, reconnect on its own, and apply what the new
-    % connection serves (the flag one version later, falling through to false).
+    % Silent after the initial put: the SDK must reconnect and apply the updated flag
     true = register(read_timeout_test, self()),
     ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
     try
@@ -144,9 +141,7 @@ stream_sse_read_timeout_reconnects(_) ->
     ok.
 
 stream_sse_heartbeats_keep_connection_alive(_) ->
-    % The server sends the initial put and then only bare heartbeat comments
-    % (":\n" every 250 ms), never a complete event. Those bytes must count as
-    % activity: with a 1 s read timeout the connection stays up well past it.
+    % Only heartbeat comments after the initial put: they must count as activity
     true = register(read_timeout_test, self()),
     ok = http_server_sse_handler:reset_connections(<<"sdk-heartbeat">>),
     try
@@ -166,8 +161,6 @@ stream_sse_heartbeats_keep_connection_alive(_) ->
     ok.
 
 stream_sse_read_timeout_disabled(_) ->
-    % stream_read_timeout_ms => 0 disables the timeout: a silent connection is
-    % left alone (the previous behaviour), so no reconnection happens.
     true = register(read_timeout_test, self()),
     ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
     try

@@ -23,11 +23,8 @@
     %% Try to use a proper type with Gun 2.0
     gun_options := any(),
     headers := map(),
-    %% Milliseconds without a byte from the stream before the connection is
-    %% considered dead and closed (0 disables). See stream_read_timeout_ms.
     read_timeout_ms := non_neg_integer(),
     read_timer := reference() | undefined,
-    %% Bytes received after the last complete SSE event.
     sse_buffer := binary()
 }.
 
@@ -125,12 +122,9 @@ handle_info({stream_chunk, ShotgunPid, IsFin, Bin}, #{conn := ShotgunPid} = Stat
     end,
     {noreply, NewState};
 handle_info({stream_chunk, _StalePid, _IsFin, _Bin}, State) ->
-    % Data from a connection that has already been replaced.
     {noreply, State};
 handle_info({timeout, TimerRef, read_timeout}, #{read_timer := TimerRef, conn := ShotgunPid, read_timeout_ms := ReadTimeoutMs} = State) ->
-    % Not even a heartbeat comment arrived within the window: the connection is
-    % half-open (the transport never noticed the peer going away). Close it; the
-    % DOWN message reconnects through the usual backoff.
+    % Half-open connection: closing it produces the DOWN message that reconnects with backoff
     error_logger:warning_msg("No data received on streaming connection for ~p ms, reconnecting~n", [ReadTimeoutMs]),
     close_conn(ShotgunPid),
     {noreply, State#{read_timer := undefined}};
@@ -218,11 +212,8 @@ do_listen(Uri, GunOpts, Headers) ->
             {error, temporary, "Connection timeout"};
         {ok, Pid} ->
             _ = monitor(process, Pid),
-            % Raw chunks, not shotgun's parsed SSE events: the stream's heartbeat
-            % is a bare comment line (":\n") that never completes an event, so
-            % it is invisible in sse mode. Every chunk, heartbeat included, has
-            % to reach this server to count as activity for the read timeout.
-            % Event framing happens in handle_stream_chunk/2.
+            % Binary mode: heartbeats are bare comment lines that never complete an SSE event,
+            % so sse mode would hide them from the read timeout. Framing is in handle_stream_chunk/2.
             Server = self(),
             F = fun(IsFin, _Ref, Bin) -> Server ! {stream_chunk, Pid, IsFin, Bin} end,
             Options = #{async => true, async_mode => binary, handle_event => F, allow_reconnect => false},
@@ -242,12 +233,9 @@ do_listen(Uri, GunOpts, Headers) ->
             end
     end.
 
-%% @doc Frame and process the bytes received from the streaming connection
+%% @doc Frame and process bytes received from the streaming connection
 %% @private
 %%
-%% Any bytes at all, including a heartbeat comment, restart the read timeout.
-%% Complete events (terminated by a blank line) are processed; the tail is
-%% buffered until the next chunk.
 %% @end
 -spec handle_stream_chunk(binary(), state()) -> state().
 handle_stream_chunk(Bin, #{
@@ -279,10 +267,8 @@ split_sse_events(Buffer) ->
     [Rest | ReversedEvents] = lists:reverse(binary:split(Buffer, <<"\n\n">>, [global])),
     {lists:reverse(ReversedEvents), drop_complete_comment_lines(Rest)}.
 
-%% Heartbeats are bare comment lines that never terminate an event, so a quiet
-%% connection would otherwise accumulate them in the buffer indefinitely. Drop
-%% every complete comment line from the unterminated tail; the last, possibly
-%% partial, line is kept as is.
+%% Heartbeat comments never complete an event; drop finished comment lines so a quiet
+%% connection does not buffer them forever.
 -spec drop_complete_comment_lines(binary()) -> binary().
 drop_complete_comment_lines(Rest) ->
     [Last | ReversedLines] = lists:reverse(binary:split(Rest, <<"\n">>, [global])),
@@ -297,7 +283,6 @@ is_comment_line(_Line) -> false.
 process_event_bin(EventBin, FeatureStore, Tag) ->
     case parse_shotgun_event(EventBin) of
         #{event := _Event} = Event -> process_event(Event, FeatureStore, Tag);
-        % Comment-only block (keep-alive) or no event field: nothing to apply.
         _NoEvent -> ok
     end.
 
@@ -316,8 +301,7 @@ restart_read_timer(TimerRef, ReadTimeoutMs) ->
     _ = cancel_read_timer(TimerRef),
     start_read_timer(ReadTimeoutMs).
 
-%% Closing a connection that already went away must not take the server down
-%% with it: the DOWN message for it is either already queued or on its way.
+%% The connection may already be gone; its DOWN message handles the reconnect.
 -spec close_conn(pid() | undefined) -> ok.
 close_conn(undefined) -> ok;
 close_conn(ShotgunPid) ->

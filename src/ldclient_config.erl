@@ -130,10 +130,7 @@
 -define(DEFAULT_TESTDATA_TAG, default).
 -define(DEFAULT_DATASOURCE, undefined).
 -define(DEFAULT_STREAM_RETRY_DELAY, 1000).
-%% The streaming service writes a heartbeat comment at least every three
-%% minutes, so five minutes without a single byte means the connection is dead
-%% even when the transport has not noticed (a half-open TCP connection after a
-%% NAT or load balancer dropped it). Same value as the Java and Go SDKs.
+%% Five minutes, as in the Java and Go SDKs; the stream heartbeats at least every three.
 -define(DEFAULT_STREAM_READ_TIMEOUT_MS, 300000).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).

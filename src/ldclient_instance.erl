@@ -45,9 +45,8 @@
     http_options => ldclient_config:http_options(),
     testdata_tag => atom(),
     datasource => atom(),
-    %% Milliseconds the streaming connection may go without receiving any
-    %% bytes (heartbeat comments count) before it is closed and reconnected.
-    %% Default 300000 (five minutes); 0 disables the timeout.
+    %% Milliseconds without bytes (heartbeats included) before the streaming
+    %% connection is closed and reconnected. Default 300000; 0 disables.
     stream_read_timeout_ms => non_neg_integer()
 }.
 %% Options for starting an SDK instance
