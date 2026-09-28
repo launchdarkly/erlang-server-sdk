@@ -7,6 +7,7 @@
 
 init(Req0, Opts) ->
     Authorization = cowboy_req:header(<<"authorization">>, Req0, <<>>),
+    ok = notify_connected(Authorization),
     PutData = sse_data(Authorization),
     Req = cowboy_req:stream_reply(200, #{<<"content-type">> => <<"text/event-stream">>}, Req0),
     cowboy_req:stream_events(#{
@@ -17,7 +18,17 @@ init(Req0, Opts) ->
 
 %% internal
 
+%% The read-timeout test registers itself so it can count how many times the
+%% SDK connects: the server sends the initial put and then stays silent.
+notify_connected(<<"sdk-read-timeout">>) ->
+    case whereis(read_timeout_test) of
+        undefined -> ok;
+        Pid -> Pid ! {stream_connected, self()}, ok
+    end;
+notify_connected(_SdkKey) -> ok.
+
 sse_data(<<"sdk-empty">>) -> sse_empty();
+sse_data(<<"sdk-read-timeout">>) -> sse_simple_flag();
 sse_data(<<"sdk-simple-flag">>) -> sse_simple_flag();
 sse_data(<<"sdk-put-no-path">>) ->sse_put_no_path();
 sse_data(<<"sdk-timeout">>) -> sse_timeout_delayed_reponse();

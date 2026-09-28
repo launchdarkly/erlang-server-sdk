@@ -14,7 +14,8 @@
     stream_sse_empty/1,
     stream_sse_simple_flag/1,
     stream_sse_put_no_path/1,
-    stream_sse_timeout/1
+    stream_sse_timeout/1,
+    stream_sse_read_timeout_reconnects/1
 ]).
 
 %%====================================================================
@@ -26,7 +27,8 @@ all() ->
         stream_sse_empty,
         stream_sse_simple_flag,
         stream_sse_put_no_path,
-        stream_sse_timeout
+        stream_sse_timeout,
+        stream_sse_read_timeout_reconnects
     ].
 
 init_per_suite(Config) ->
@@ -104,4 +106,31 @@ stream_sse_timeout(_) ->
     % Evaluation after SDK is initialized should return an expected flag variation value
     {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
     ok = ldclient:stop_instance(),
+    ok.
+
+stream_sse_read_timeout_reconnects(_) ->
+    % The server sends the initial put and then nothing, not even a heartbeat:
+    % the shape of a half-open connection. With a 1 s read timeout the SDK must
+    % drop the connection and reconnect on its own, and still serve the flag.
+    true = register(read_timeout_test, self()),
+    try
+        Options = (sdk_options())#{stream_read_timeout_ms => 1000},
+        ok = ldclient:start_instance("sdk-read-timeout", Options),
+        First =
+            receive {stream_connected, FirstPid} -> FirstPid
+            after 2000 -> ct:fail(no_initial_connection)
+            end,
+        _Second =
+            receive {stream_connected, SecondPid} when SecondPid =/= First -> SecondPid
+            after 4000 -> ct:fail(no_reconnect_after_read_timeout)
+            end,
+        timer:sleep(500),
+        {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
+        ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
+        [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+        {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+        ok = ldclient:stop_instance()
+    after
+        unregister(read_timeout_test)
+    end,
     ok.
