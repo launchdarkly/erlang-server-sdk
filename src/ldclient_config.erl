@@ -84,6 +84,7 @@
     datasource => poll | stream | file | testdata | undefined,
     http_options => http_options(),
     stream_initial_retry_delay_ms => non_neg_integer(),
+    stream_read_timeout_ms => non_neg_integer(),
     application => app_info(),
     instance_id => binary()
 }.
@@ -129,6 +130,11 @@
 -define(DEFAULT_TESTDATA_TAG, default).
 -define(DEFAULT_DATASOURCE, undefined).
 -define(DEFAULT_STREAM_RETRY_DELAY, 1000).
+%% The streaming service writes a heartbeat comment at least every three
+%% minutes, so five minutes without a single byte means the connection is dead
+%% even when the transport has not noticed (a half-open TCP connection after a
+%% NAT or load balancer dropped it). Same value as the Java and Go SDKs.
+-define(DEFAULT_STREAM_READ_TIMEOUT_MS, 300000).
 
 -define(HTTP_DEFAULT_TLS_OPTIONS, undefined).
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
@@ -201,6 +207,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     TestDataTag = maps:get(testdata_tag, Options, ?DEFAULT_TESTDATA_TAG),
     DataSource = maps:get(datasource, Options, ?DEFAULT_DATASOURCE),
     StreamInitialRetryDelayMs = maps:get(stream_initial_retry_delay_ms, Options, ?DEFAULT_STREAM_RETRY_DELAY),
+    StreamReadTimeoutMs = maps:get(stream_read_timeout_ms, Options, ?DEFAULT_STREAM_READ_TIMEOUT_MS),
     HttpOptions = parse_http_options(maps:get(http_options, Options, undefined)),
     AppInfo = parse_application_info(maps:get(application, Options, ?APPLICATION_DEFAULT_OPTIONS)),
     RedisTls = maps:get(redis_tls, Options, ?DEFAULT_REDIS_TLS),
@@ -246,6 +253,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         testdata_tag => TestDataTag,
         datasource => DataSource,
         stream_initial_retry_delay_ms => StreamInitialRetryDelayMs,
+        stream_read_timeout_ms => StreamReadTimeoutMs,
         application => AppInfo,
         instance_id => InstanceId
     }.

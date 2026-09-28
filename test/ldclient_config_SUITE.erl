@@ -21,7 +21,9 @@
     tls_with_ca_certfile_options/1,
     tls_basic_linux_options/1,
     with_tls_revocation/1,
-    app_info_options/1
+    app_info_options/1,
+    stream_read_timeout_default/1,
+    stream_read_timeout_custom/1
 ]).
 
 %%====================================================================
@@ -40,7 +42,9 @@ all() ->
         tls_with_ca_certfile_options,
         tls_basic_linux_options,
         with_tls_revocation,
-        app_info_options
+        app_info_options,
+        stream_read_timeout_default,
+        stream_read_timeout_custom
     ].
 
 init_per_suite(Config) ->
@@ -219,3 +223,11 @@ app_info_options(_) ->
     #{application := #{version := <<"the-version">>, id := MaxLengthId}} = ldclient_config:parse_options("sdk-key",
         #{application => #{version => <<"the-version">>,
         id => MaxLengthId}}).
+
+stream_read_timeout_default(_) ->
+    Settings = ldclient_config:parse_options("sdk-key", #{}),
+    300000 = maps:get(stream_read_timeout_ms, Settings).
+
+stream_read_timeout_custom(_) ->
+    Settings = ldclient_config:parse_options("sdk-key", #{stream_read_timeout_ms => 0}),
+    0 = maps:get(stream_read_timeout_ms, Settings).
