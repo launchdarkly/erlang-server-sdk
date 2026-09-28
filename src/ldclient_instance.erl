@@ -44,7 +44,11 @@
     file_allow_duplicate_keys => boolean(),
     http_options => ldclient_config:http_options(),
     testdata_tag => atom(),
-    datasource => atom()
+    datasource => atom(),
+    %% Milliseconds the streaming connection may go without receiving any
+    %% bytes (heartbeat comments count) before it is closed and reconnected.
+    %% Default 300000 (five minutes); 0 disables the timeout.
+    stream_read_timeout_ms => non_neg_integer()
 }.
 %% Options for starting an SDK instance
 

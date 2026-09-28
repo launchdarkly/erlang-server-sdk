@@ -15,7 +15,9 @@
     stream_sse_simple_flag/1,
     stream_sse_put_no_path/1,
     stream_sse_timeout/1,
-    stream_sse_read_timeout_reconnects/1
+    stream_sse_read_timeout_reconnects/1,
+    stream_sse_heartbeats_keep_connection_alive/1,
+    stream_sse_read_timeout_disabled/1
 ]).
 
 %%====================================================================
@@ -28,7 +30,9 @@ all() ->
         stream_sse_simple_flag,
         stream_sse_put_no_path,
         stream_sse_timeout,
-        stream_sse_read_timeout_reconnects
+        stream_sse_read_timeout_reconnects,
+        stream_sse_heartbeats_keep_connection_alive,
+        stream_sse_read_timeout_disabled
     ].
 
 init_per_suite(Config) ->
@@ -111,8 +115,10 @@ stream_sse_timeout(_) ->
 stream_sse_read_timeout_reconnects(_) ->
     % The server sends the initial put and then nothing, not even a heartbeat:
     % the shape of a half-open connection. With a 1 s read timeout the SDK must
-    % drop the connection and reconnect on its own, and still serve the flag.
+    % drop the connection, reconnect on its own, and apply what the new
+    % connection serves (the flag one version later, falling through to false).
     true = register(read_timeout_test, self()),
+    ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
     try
         Options = (sdk_options())#{stream_read_timeout_ms => 1000},
         ok = ldclient:start_instance("sdk-read-timeout", Options),
@@ -120,14 +126,59 @@ stream_sse_read_timeout_reconnects(_) ->
             receive {stream_connected, FirstPid} -> FirstPid
             after 2000 -> ct:fail(no_initial_connection)
             end,
+        timer:sleep(300),
+        {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
         _Second =
             receive {stream_connected, SecondPid} when SecondPid =/= First -> SecondPid
             after 4000 -> ct:fail(no_reconnect_after_read_timeout)
             end,
         timer:sleep(500),
-        {FlagSimpleKey, _FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
-        ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
-        [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
+        {FlagSimpleKey, _FlagSimpleBin, _FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
+        [{FlagSimpleKey, UpdatedFlag}] = ldclient_storage_ets:all(default, features),
+        6 = maps:get(version, UpdatedFlag),
+        {1, false, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+        ok = ldclient:stop_instance()
+    after
+        unregister(read_timeout_test)
+    end,
+    ok.
+
+stream_sse_heartbeats_keep_connection_alive(_) ->
+    % The server sends the initial put and then only bare heartbeat comments
+    % (":\n" every 250 ms), never a complete event. Those bytes must count as
+    % activity: with a 1 s read timeout the connection stays up well past it.
+    true = register(read_timeout_test, self()),
+    ok = http_server_sse_handler:reset_connections(<<"sdk-heartbeat">>),
+    try
+        Options = (sdk_options())#{stream_read_timeout_ms => 1000},
+        ok = ldclient:start_instance("sdk-heartbeat", Options),
+        receive {stream_connected, _FirstPid} -> ok
+        after 2000 -> ct:fail(no_initial_connection)
+        end,
+        receive {stream_connected, _SecondPid} -> ct:fail(reconnected_despite_heartbeats)
+        after 3500 -> ok
+        end,
+        {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
+        ok = ldclient:stop_instance()
+    after
+        unregister(read_timeout_test)
+    end,
+    ok.
+
+stream_sse_read_timeout_disabled(_) ->
+    % stream_read_timeout_ms => 0 disables the timeout: a silent connection is
+    % left alone (the previous behaviour), so no reconnection happens.
+    true = register(read_timeout_test, self()),
+    ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
+    try
+        Options = (sdk_options())#{stream_read_timeout_ms => 0},
+        ok = ldclient:start_instance("sdk-read-timeout", Options),
+        receive {stream_connected, _FirstPid} -> ok
+        after 2000 -> ct:fail(no_initial_connection)
+        end,
+        receive {stream_connected, _SecondPid} -> ct:fail(reconnected_with_timeout_disabled)
+        after 3500 -> ok
+        end,
         {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
         ok = ldclient:stop_instance()
     after

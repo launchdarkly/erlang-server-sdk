@@ -23,7 +23,8 @@
     heartbeat_comment_restarts_read_timer_without_events/1,
     stream_chunk_from_replaced_connection_is_ignored/1,
     read_timeout_closes_the_connection/1,
-    stale_read_timeout_is_ignored/1
+    stale_read_timeout_is_ignored/1,
+    read_timeout_disabled_starts_no_timer/1
 ]).
 
 %%====================================================================
@@ -44,7 +45,8 @@ all() ->
         heartbeat_comment_restarts_read_timer_without_events,
         stream_chunk_from_replaced_connection_is_ignored,
         read_timeout_closes_the_connection,
-        stale_read_timeout_is_ignored
+        stale_read_timeout_is_ignored,
+        read_timeout_disabled_starts_no_timer
     ].
 
 init_per_suite(Config) ->
@@ -194,8 +196,13 @@ parse_shotgun_event_optional_spaces(_) ->
 
 split_sse_events(_) ->
     {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<>>),
-    % A heartbeat comment never completes an event; it stays buffered.
-    {[], <<":\n">>} = ldclient_update_stream_server:split_sse_events(<<":\n">>),
+    % A heartbeat comment never completes an event, and a complete comment
+    % line is discarded rather than buffered forever on a quiet connection.
+    {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<":\n">>),
+    {[], <<>>} = ldclient_update_stream_server:split_sse_events(<<":\n:\n:\n">>),
+    % A partial comment line and non-comment lines in the tail are kept.
+    {[], <<":">>} = ldclient_update_stream_server:split_sse_events(<<":\n:">>),
+    {[], <<"event: put\ndata: {">>} = ldclient_update_stream_server:split_sse_events(<<":\nevent: put\n:\ndata: {">>),
     {[<<"event: put\ndata: {}">>], <<>>} =
         ldclient_update_stream_server:split_sse_events(<<"event: put\ndata: {}\n\n">>),
     {[<<":\nevent: put\ndata: {}">>, <<"event: patch\ndata: {}">>], <<"event: del">>} =
@@ -228,7 +235,7 @@ heartbeat_comment_restarts_read_timer_without_events(_) ->
     State = stream_state(Conn),
     {noreply, State1} = ldclient_update_stream_server:handle_info({stream_chunk, Conn, nofin, <<":\n">>}, State),
     [] = ldclient_storage_ets:all(default, features),
-    <<":\n">> = maps:get(sse_buffer, State1),
+    <<>> = maps:get(sse_buffer, State1),
     true = is_reference(maps:get(read_timer, State1)),
     % The next event carries the buffered comment; it is ignored by the parser.
     {noreply, State2} = ldclient_update_stream_server:handle_info(
@@ -280,4 +287,16 @@ stale_read_timeout_is_ignored(_) ->
         meck:unload(shotgun),
         Conn ! stop
     end,
+    ok.
+
+read_timeout_disabled_starts_no_timer(_) ->
+    Conn = spawn(fun() -> receive stop -> ok end end),
+    State = (stream_state(Conn))#{read_timeout_ms => 0},
+    {noreply, State1} = ldclient_update_stream_server:handle_info(
+        {stream_chunk, Conn, nofin, <<(put_event_bin())/binary, "\n\n">>}, State),
+    undefined = maps:get(read_timer, State1),
+    [{_Key, _Flag}] = ldclient_storage_ets:all(default, features),
+    {noreply, State2} = ldclient_update_stream_server:handle_info({stream_chunk, Conn, nofin, <<":\n">>}, State1),
+    undefined = maps:get(read_timer, State2),
+    Conn ! stop,
     ok.

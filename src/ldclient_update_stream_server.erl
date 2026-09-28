@@ -277,7 +277,21 @@ handle_stream_chunk(Bin, #{
 -spec split_sse_events(binary()) -> {[binary()], binary()}.
 split_sse_events(Buffer) ->
     [Rest | ReversedEvents] = lists:reverse(binary:split(Buffer, <<"\n\n">>, [global])),
-    {lists:reverse(ReversedEvents), Rest}.
+    {lists:reverse(ReversedEvents), drop_complete_comment_lines(Rest)}.
+
+%% Heartbeats are bare comment lines that never terminate an event, so a quiet
+%% connection would otherwise accumulate them in the buffer indefinitely. Drop
+%% every complete comment line from the unterminated tail; the last, possibly
+%% partial, line is kept as is.
+-spec drop_complete_comment_lines(binary()) -> binary().
+drop_complete_comment_lines(Rest) ->
+    [Last | ReversedLines] = lists:reverse(binary:split(Rest, <<"\n">>, [global])),
+    Kept = [Line || Line <- lists:reverse(ReversedLines), not is_comment_line(Line)],
+    iolist_to_binary(lists:join(<<"\n">>, Kept ++ [Last])).
+
+-spec is_comment_line(binary()) -> boolean().
+is_comment_line(<<":", _/binary>>) -> true;
+is_comment_line(_Line) -> false.
 
 -spec process_event_bin(binary(), FeatureStore :: atom(), Tag :: atom()) -> ok.
 process_event_bin(EventBin, FeatureStore, Tag) ->
