@@ -18,7 +18,8 @@
     verl,
     uuid,
     eredis,
-    yamerl
+    yamerl,
+    telemetry
    ]},
   {env,[]},
   {modules, []},

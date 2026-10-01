@@ -17,9 +17,13 @@
 -export([add_event/3, flush/1]).
 
 -type state() :: #{
+    tag := atom(),
     events := [ldclient_event:event()],
+    event_count := non_neg_integer(),
+    counters_ref := counters:counters_ref(),
     summary_event := summary_event(),
     capacity := pos_integer(),
+    shed_threshold := pos_integer(),
     flush_interval := pos_integer(),
     timer_ref := reference(),
     offline := boolean(),
@@ -60,6 +64,11 @@
 -export_type([counter_key/0]).
 -export_type([counter_value/0]).
 
+%% Key used to publish the caller-side depth counter for a tag. Callers read
+%% this (instead of calling into the event server) so that load can be shed
+%% before the server's mailbox grows.
+-define(COUNTERS_KEY, ldclient_event_server_counters).
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -68,12 +77,22 @@
 %%
 %% Events are not sent immediately. They are kept in buffer up to configured
 %% size and flushed at configured interval.
+%%
+%% This call never blocks the caller: the event is cast to the event server
+%% unless the buffer is already at the configured shed threshold, in which case
+%% the event is dropped (load shedding) and a telemetry event is emitted.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
 add_event(Tag, Event, Options) when is_atom(Tag) ->
-    ServerName = get_local_reg_name(Tag),
-    gen_server:call(ServerName, {add_event, Event, Tag, Options}).
+    case should_shed(Tag) of
+        true ->
+            telemetry:execute([ldclient, events, shed], #{count => 1}, #{tag => Tag}),
+            ok;
+        false ->
+            ServerName = get_local_reg_name(Tag),
+            gen_server:cast(ServerName, {add_event, Event, Tag, Options})
+    end.
 
 %% @doc Flush buffered events
 %%
@@ -103,15 +122,22 @@ start_link(Tag) ->
 init([Tag]) ->
     FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
     Capacity = ldclient_config:get_value(Tag, events_capacity),
+    ShedThreshold = ldclient_config:get_value(Tag, events_shed_threshold),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     SendEvents = ldclient_config:get_value(Tag, send_events),
+    CountersRef = counters:new(1, [write_concurrency]),
+    persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold}),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
+        tag => Tag,
         events => [],
+        event_count => 0,
+        counters_ref => CountersRef,
         summary_event => #{},
         capacity => Capacity,
+        shed_threshold => ShedThreshold,
         flush_interval => FlushInterval,
         timer_ref => TimerRef,
         offline => OfflineMode,
@@ -131,29 +157,30 @@ handle_call(_Request, _From, #{offline := true} = State) ->
     {reply, ok, State};
 handle_call(_Request, _From, #{send_events := false} = State) ->
     {reply, ok, State};
-handle_call({add_event, Event, Tag, Options}, _From, #{events := Events, summary_event := SummaryEvent, capacity := Capacity} = State) ->
-    {NewEvents, NewSummaryEvent} = add_event(Tag, Event, Options, Events, SummaryEvent, Capacity),
-    {reply, ok, State#{events := NewEvents, summary_event := NewSummaryEvent}};
 handle_call({flush, Tag}, _From, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
     _ = erlang:cancel_timer(TimerRef),
     ok = ldclient_event_process_server:send_events(Tag, Events, SummaryEvent),
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
-    {reply, ok, State#{events := [], summary_event := #{}, timer_ref := NewTimerRef}}.
+    {reply, ok, reset_counters(State#{events := [], summary_event := #{}, timer_ref := NewTimerRef})}.
+handle_cast({add_event, Event, Tag, Options}, #{events := Events, event_count := Count, summary_event := SummaryEvent, capacity := Capacity} = State) ->
+    {NewEvents, NewSummaryEvent, NewCount} = add_event(Tag, Event, Options, Events, SummaryEvent, Count, Capacity),
+    {noreply, update_counters(State#{events := NewEvents, event_count := NewCount, summary_event := NewSummaryEvent})};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({flush, Tag}, #{events := Events, summary_event := SummaryEvent, flush_interval := FlushInterval} = State) ->
     ok = ldclient_event_process_server:send_events(Tag, Events, SummaryEvent),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
-    {noreply, State#{events := [], summary_event := #{}, timer_ref := TimerRef}};
+    {noreply, reset_counters(State#{events := [], summary_event := #{}, timer_ref := TimerRef})};
 handle_info(_Info, State) ->
     {noreply, State}.
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef} = _State) ->
+terminate(Reason, #{timer_ref := TimerRef} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
+    _ = erase_counters(State),
     ok;
 terminate(_Reason, _State) ->
     ok.
@@ -171,32 +198,35 @@ code_change(_OldVsn, State, _Extra) ->
     Options :: options(),
     Events :: [ldclient_event:event()],
     SummaryEvent :: summary_event(),
+    Count :: non_neg_integer(),
     Capacity :: pos_integer()
 ) ->
-    {[ldclient_event:event()], summary_event()}.
-add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Capacity) ->
+    {[ldclient_event:event()], summary_event(), non_neg_integer()}.
+add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, Events, SummaryEvent, Count, Capacity) ->
     AddFull = should_add_full_event(Event),
     AddDebug = should_add_debug_event(Event, Tag),
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
-    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
-    EventsWithFeature = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, EventsWithIndex, Capacity),
-    NewEvents = maybe_add_debug_event(AddDebug, Event, Options, EventsWithFeature, Capacity),
-    {NewEvents, NewSummaryEvent};
-add_event(Tag, #{type := identify, context := Context} = Event, _Options, Events, SummaryEvent, Capacity) ->
+    {EventsWithIndex, Count1} = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity, Count),
+    {EventsWithFeature, Count2} = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, EventsWithIndex, Capacity, Count1),
+    {NewEvents, Count3} = maybe_add_debug_event(AddDebug, Event, Options, EventsWithFeature, Capacity, Count2),
+    {NewEvents, NewSummaryEvent, Count3};
+add_event(Tag, #{type := identify, context := Context} = Event, _Options, Events, SummaryEvent, Count, Capacity) ->
     % Notice the context, but do not conditionally add the index event.
     ldclient_context_cache:notice_context(Tag, Context),
-    {add_raw_event(Event, Events, Capacity), SummaryEvent};
-add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Capacity) ->
-    EventsWithIndex = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity),
-    {add_raw_event(Event, EventsWithIndex, Capacity), SummaryEvent}.
+    {NewEvents, NewCount} = add_raw_event(Event, Events, Capacity, Count),
+    {NewEvents, SummaryEvent, NewCount};
+add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, Events, SummaryEvent, Count, Capacity) ->
+    {EventsWithIndex, Count1} = maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity, Count),
+    {NewEvents, Count2} = add_raw_event(Event, EventsWithIndex, Capacity, Count1),
+    {NewEvents, SummaryEvent, Count2}.
 
--spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer()) ->
-    [ldclient_event:event()].
-add_raw_event(Event, Events, Capacity) when length(Events) < Capacity ->
-    [Event|Events];
-add_raw_event(_, Events, _) ->
+-spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
+    {[ldclient_event:event()], non_neg_integer()}.
+add_raw_event(Event, Events, Capacity, Count) when Count < Capacity ->
+    {[Event|Events], Count + 1};
+add_raw_event(_, Events, _Capacity, Count) ->
     error_logger:warning_msg("Exceeded event queue capacity. Increase capacity to avoid dropping events."),
-    Events.
+    {Events, Count}.
 
 -spec add_feature_request_event(ldclient_event:event(), summary_event()) ->
     summary_event().
@@ -267,30 +297,30 @@ add_feature_request_event(
 should_add_full_event(#{data := #{trackEvents := true}}) -> true;
 should_add_full_event(_) -> false.
 
--spec maybe_add_feature_request_full_fidelity(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
-    [ldclient_event:event()].
-maybe_add_feature_request_full_fidelity(true, Event, #{include_reasons := true}, Events, Capacity) ->
-    add_raw_event(Event, Events, Capacity);
-maybe_add_feature_request_full_fidelity(true, #{data := #{include_reason := true}} = Event, _Options, Events, Capacity) ->
-    add_raw_event(Event, Events, Capacity);
-maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity) ->
-    add_raw_event(ldclient_event:strip_eval_reason(Event), Events, Capacity);
-maybe_add_feature_request_full_fidelity(false, _Event, _Options, Events, _Capacity) ->
-    Events.
+-spec maybe_add_feature_request_full_fidelity(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
+    {[ldclient_event:event()], non_neg_integer()}.
+maybe_add_feature_request_full_fidelity(true, Event, #{include_reasons := true}, Events, Capacity, Count) ->
+    add_raw_event(Event, Events, Capacity, Count);
+maybe_add_feature_request_full_fidelity(true, #{data := #{include_reason := true}} = Event, _Options, Events, Capacity, Count) ->
+    add_raw_event(Event, Events, Capacity, Count);
+maybe_add_feature_request_full_fidelity(true, Event, _Options, Events, Capacity, Count) ->
+    add_raw_event(ldclient_event:strip_eval_reason(Event), Events, Capacity, Count);
+maybe_add_feature_request_full_fidelity(false, _Event, _Options, Events, _Capacity, Count) ->
+    {Events, Count}.
 
--spec maybe_add_index_event(atom(), ldclient_context:context(), non_neg_integer(), [ldclient_event:event()], pos_integer()) ->
-    [ldclient_event:event()].
-maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity) ->
+-spec maybe_add_index_event(atom(), ldclient_context:context(), non_neg_integer(), [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
+    {[ldclient_event:event()], non_neg_integer()}.
+maybe_add_index_event(Tag, Context, Timestamp, Events, Capacity, Count) ->
     case ldclient_context_cache:notice_context(Tag, Context) of
-        true -> Events;
-        false -> add_index_event(Context, Timestamp, Events, Capacity)
+        true -> {Events, Count};
+        false -> add_index_event(Context, Timestamp, Events, Capacity, Count)
     end.
 
--spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer()) ->
-    [ldclient_event:event()].
-add_index_event(Context, Timestamp, Events, Capacity) ->
+-spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), Events :: [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
+    {[ldclient_event:event()], non_neg_integer()}.
+add_index_event(Context, Timestamp, Events, Capacity, Count) ->
     IndexEvent = ldclient_event:new_index(Context, Timestamp),
-    add_raw_event(IndexEvent, Events, Capacity).
+    add_raw_event(IndexEvent, Events, Capacity, Count).
 
 -spec should_add_debug_event(ldclient_event:event(), Tag :: atom()) -> boolean().
 should_add_debug_event(#{data := #{debugEventsUntilDate := null}}, _Tag) -> false;
@@ -299,13 +329,13 @@ should_add_debug_event(#{data := #{debugEventsUntilDate := DebugDate}}, Tag) ->
     Now = erlang:system_time(milli_seconds),
     (DebugDate > Now) and (DebugDate >  LastServerTime).
 
--spec maybe_add_debug_event(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer()) ->
-    [ldclient_event:event()].
-maybe_add_debug_event(false, _, _Options, Events, _) -> Events;
-maybe_add_debug_event(true, #{data := EventData} = FeatureEvent,#{include_reasons := true}, Events, Capacity) ->
-    add_raw_event(FeatureEvent#{data := EventData#{debug => true}}, Events, Capacity);
-maybe_add_debug_event(true, #{data := EventData} = FeatureEvent, _Options, Events, Capacity) ->
-    add_raw_event(ldclient_event:strip_eval_reason(FeatureEvent#{data := EventData#{debug => true}}), Events, Capacity).
+-spec maybe_add_debug_event(boolean(), ldclient_event:event(), options(), [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
+    {[ldclient_event:event()], non_neg_integer()}.
+maybe_add_debug_event(false, _, _Options, Events, _, Count) -> {Events, Count};
+maybe_add_debug_event(true, #{data := EventData} = FeatureEvent,#{include_reasons := true}, Events, Capacity, Count) ->
+    add_raw_event(FeatureEvent#{data := EventData#{debug => true}}, Events, Capacity, Count);
+maybe_add_debug_event(true, #{data := EventData} = FeatureEvent, _Options, Events, Capacity, Count) ->
+    add_raw_event(ldclient_event:strip_eval_reason(FeatureEvent#{data := EventData#{debug => true}}), Events, Capacity, Count).
 
 -spec create_summary_event_key(ldclient_flag:key(), ldclient_flag:variation(), ldclient_flag:version()) ->
     counter_key().
@@ -328,3 +358,36 @@ create_summary_event_value(Value, Default) ->
 -spec get_local_reg_name(Tag :: atom()) -> atom().
 get_local_reg_name(Tag) ->
     list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)).
+
+%% @doc Decide whether an incoming event should be shed before it is cast to the
+%% event server. Reads the shared depth counter published by the event server.
+%% @end
+-spec should_shed(Tag :: atom()) -> boolean().
+should_shed(Tag) ->
+    case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
+        undefined ->
+            false;
+        {Ref, Threshold} ->
+            try
+                counters:get(Ref, 1) >= Threshold
+            catch
+                _:_ ->
+                    %% The counter belongs to a previous incarnation of the
+                    %% server (e.g. after a crash). Do not shed; the event
+                    %% server will publish a fresh counter.
+                    false
+            end
+    end.
+
+-spec update_counters(state()) -> state().
+update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
+    counters:put(Ref, 1, Count),
+    State.
+
+-spec reset_counters(state()) -> state().
+reset_counters(State) ->
+    update_counters(State#{event_count := 0}).
+
+-spec erase_counters(state()) -> ok.
+erase_counters(#{tag := Tag}) ->
+    persistent_term:erase({?COUNTERS_KEY, Tag}).
