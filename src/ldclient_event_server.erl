@@ -93,21 +93,31 @@
 %% Events are not sent immediately. They are kept in buffer up to configured
 %% size and flushed at configured interval.
 %%
-%% This call never blocks the caller: the event is cast to the event server
-%% unless the buffer is already at the configured shed threshold, in which case
-%% the event is dropped (load shedding) and a telemetry event is emitted.
+%% This call never blocks the caller: the event is cast to the event server.
+%% When the buffer is at the configured shed threshold, best-effort events
+%% (identify/custom) are dropped (load shedding) and a telemetry event is
+%% emitted. Feature request events are always passed to the event server so
+%% that summary analytics continue to account for every evaluation even while
+%% full-fidelity events are being dropped; only their full-fidelity payloads
+%% are subject to the buffer capacity.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
+add_event(Tag, #{type := feature_request} = Event, Options) when is_atom(Tag) ->
+    cast_event(Tag, Event, Options);
 add_event(Tag, Event, Options) when is_atom(Tag) ->
     case should_shed(Tag) of
         true ->
             telemetry:execute([ldclient, events, shed], #{count => 1}, #{tag => Tag}),
             ok;
         false ->
-            ServerName = get_local_reg_name(Tag),
-            gen_server:cast(ServerName, {add_event, Event, Tag, Options})
+            cast_event(Tag, Event, Options)
     end.
+
+-spec cast_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) -> ok.
+cast_event(Tag, Event, Options) ->
+    ServerName = get_local_reg_name(Tag),
+    gen_server:cast(ServerName, {add_event, Event, Tag, Options}).
 
 %% @doc Flush buffered events
 %%
@@ -115,7 +125,10 @@ add_event(Tag, Event, Options) when is_atom(Tag) ->
 -spec flush(Tag :: atom) -> ok.
 flush(Tag) when is_atom(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    gen_server:call(ServerName, {flush, Tag}).
+    %% Wait for in-flight batches to finish. The callback (not the call) is
+    %% allowed to take as long as the dispatcher's own HTTP timeout, so do not
+    %% impose the default 5s gen_server call timeout.
+    gen_server:call(ServerName, {flush, Tag}, infinity).
 
 %%===================================================================
 %% Supervision
@@ -208,6 +221,10 @@ handle_call({flush, _Tag}, From, #{flush_waiters := Waiters} = State) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
+handle_cast({add_event, _Event, _Tag, _Options}, #{offline := true} = State) ->
+    {noreply, State};
+handle_cast({add_event, _Event, _Tag, _Options}, #{send_events := false} = State) ->
+    {noreply, State};
 handle_cast({add_event, Event, Tag, Options}, #{buffer := Buffer, event_count := Count, summary_event := SummaryEvent, capacity := Capacity} = State) ->
     {Added, NewSummaryEvent, NewCount} = add_event(Tag, Event, Options, SummaryEvent, Count, Capacity),
     lists:foreach(fun(E) -> ok = ldclient_event_buffer:insert(Buffer, E) end, lists:reverse(Added)),
@@ -460,12 +477,21 @@ erase_counters(#{tag := Tag}) ->
 %%===================================================================
 
 -spec start_flush(state()) -> state().
-start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending} = State) ->
+start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending, tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
     NewPending = case map_size(SummaryEvent) of
         0 -> Pending;
         _ -> Pending ++ [SummaryEvent]
     end,
-    drain(State#{summary_event := #{}, pending_summaries := NewPending, flushing := true}).
+    %% Rearm the flush timer as soon as the window starts so a slow dispatcher
+    %% cannot delay subsequent flushes.
+    _ = erlang:cancel_timer(TimerRef),
+    NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    drain(State#{
+        summary_event := #{},
+        pending_summaries := NewPending,
+        flushing := true,
+        timer_ref := NewTimerRef
+    }).
 
 %% @doc Hand out buffered batches to idle workers until there is no more work or
 %% no worker is available. When everything has been dispatched and all workers
@@ -501,12 +527,9 @@ take_summary([Summary|Rest]) -> {Summary, Rest};
 take_summary([]) -> {undefined, []}.
 
 -spec complete_flush(state()) -> state().
-complete_flush(#{tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef, flush_waiters := Waiters} = State) ->
-    _ = erlang:cancel_timer(TimerRef),
-    NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+complete_flush(#{flush_waiters := Waiters} = State) ->
     lists:foreach(fun(From) -> gen_server:reply(From, ok) end, Waiters),
     set_count(State#{
-        timer_ref := NewTimerRef,
         flush_waiters := [],
         pending_summaries := [],
         summary_event := #{},
@@ -554,14 +577,12 @@ scale_up(State, _Active, Now) ->
     State2.
 
 -spec scale_down(state(), non_neg_integer(), integer()) -> state().
-scale_down(#{tag := Tag, idle_workers := [Worker|_], worker_monitors := Monitors} = State, _Active, Now) ->
-    Ref = find_monitor(Worker, Monitors),
-    case Ref of
-        undefined -> ok;
-        _ -> _ = erlang:demonitor(Ref, [flush]), ok
-    end,
-    _ = ldclient_event_worker_sup:stop_worker(Tag, Worker),
-    State1 = remove_worker(State#{last_scale_ms := Now}, Ref, Worker),
+scale_down(#{idle_workers := [Worker|Idle]} = State, _Active, Now) ->
+    %% Ask the worker to stop, but let it finish any scheduled retries first so
+    %% in-flight events are not lost. It is removed from the pool immediately so
+    %% it receives no new work; the monitor stays until it actually exits.
+    ok = ldclient_event_process_server:decommission(Worker),
+    State1 = State#{idle_workers := Idle, last_scale_ms := Now},
     emit_pool_size(State1, down),
     State1.
 
@@ -576,13 +597,6 @@ emit_pool_size(#{tag := Tag, idle_workers := Idle, busy_workers := Busy}, Direct
         #{workers => length(Idle) + map_size(Busy)},
         #{tag => Tag, direction => Direction}
     ).
-
--spec find_monitor(pid(), #{reference() => pid()}) -> reference() | undefined.
-find_monitor(Pid, Monitors) ->
-    case [Ref || {Ref, Monitored} <- maps:to_list(Monitors), Monitored =:= Pid] of
-        [Ref|_] -> Ref;
-        [] -> undefined
-    end.
 
 -spec start_workers(state(), non_neg_integer()) -> state().
 start_workers(State, 0) ->

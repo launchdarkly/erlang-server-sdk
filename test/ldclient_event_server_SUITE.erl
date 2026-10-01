@@ -16,7 +16,11 @@
     pool_uses_multiple_workers/1,
     autoscales_worker_pool/1,
     retries_transient_failures_with_backoff/1,
-    emits_published_telemetry/1
+    emits_published_telemetry/1,
+    offline_instance_does_not_send/1,
+    preserves_summary_when_shedding/1,
+    permanent_failures_are_not_retried/1,
+    decommission_waits_for_pending_retries/1
 ]).
 
 %%====================================================================
@@ -30,7 +34,11 @@ all() ->
         pool_uses_multiple_workers,
         autoscales_worker_pool,
         retries_transient_failures_with_backoff,
-        emits_published_telemetry
+        emits_published_telemetry,
+        offline_instance_does_not_send,
+        preserves_summary_when_shedding,
+        permanent_failures_are_not_retried,
+        decommission_waits_for_pending_retries
     ].
 
 init_per_suite(Config) ->
@@ -89,6 +97,43 @@ init_per_suite(Config) ->
         events_flush_interval => 60000
     },
     ldclient:start_instance("", publisher, PublisherOptions),
+    OfflineOptions = #{
+        stream => false,
+        offline => true,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("", offline_events, OfflineOptions),
+    SummaryOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 1,
+        events_shed_threshold => 1,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("", summary_shedder, SummaryOptions),
+    PermanentOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_permanent,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("", permanent_failing, PermanentOptions),
+    DecommissionOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("sdk-key-events-fail", decommission_test, DecommissionOptions),
     Config.
 
 end_per_suite(_) ->
@@ -220,7 +265,10 @@ retries_transient_failures_with_backoff(_) ->
         %% and timing are not asserted, only that a retry happens.
         2 = length(collect_payloads(2))
     after
-        telemetry:detach(HandlerId)
+        telemetry:detach(HandlerId),
+        %% This instance fails its sends forever and would keep retrying into
+        %% later tests, so stop it once the assertion is done.
+        _ = ldclient:stop_instance(failing)
     end.
 
 %% Successful dispatches are reported with the number of events delivered, so a
@@ -251,6 +299,96 @@ emits_published_telemetry(_) ->
         end
     after
         telemetry:detach(HandlerId)
+    end.
+
+%% Offline instances must not buffer or send events, even though ingestion is
+%% now a cast handled asynchronously.
+offline_instance_does_not_send(_) ->
+    Tag = offline_events,
+    register_collector(),
+    ok = ldclient_event_server:add_event(Tag, identify_event(<<"offline">>), #{}),
+    ok = ldclient_event_server:flush(Tag),
+    receive
+        {EventsBin, _PayloadId} when is_binary(EventsBin) ->
+            ct:fail("Offline instance sent events")
+    after 500 ->
+        ok
+    end.
+
+%% Shedding must not lose summary analytics: full-fidelity feature events can be
+%% dropped at capacity, but every evaluation still counts toward the summary.
+preserves_summary_when_shedding(_) ->
+    Tag = summary_shedder,
+    register_collector(),
+    {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
+    Flag = ldclient_flag:new(FlagMap),
+    Events = [
+        ldclient_event:new_flag_eval(
+            5,
+            <<"variation-value-5">>,
+            <<"default-value">>,
+            ldclient_context:new_from_user(#{key => Key}),
+            target_match,
+            Flag
+        )
+     || Key <- [<<"s1">>, <<"s2">>, <<"s3">>]
+    ],
+    [ok = ldclient_event_server:add_event(Tag, E, #{include_reasons => true}) || E <- Events],
+    ok = ldclient_event_server:flush(Tag),
+    Payloads = collect_payloads(1),
+    [Summary|_] = [E || E <- hd(Payloads), maps:get(<<"kind">>, E) =:= <<"summary">>],
+    #{<<"features">> := #{<<"abc">> := #{<<"counters">> := [Counter]}}} = Summary,
+    3 = maps:get(<<"count">>, Counter).
+
+%% Permanent failures (for example 401/403) are dropped rather than retried
+%% forever, matching the previous SDK behaviour and avoiding an unbounded
+%% accumulation of retry timers.
+permanent_failures_are_not_retried(_) ->
+    Tag = permanent_failing,
+    HandlerId = {?MODULE, permanent_failures_are_not_retried, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, send_error],
+        fun(_Event, _Measurements, Metadata, _Config) ->
+            Self ! {send_error, maps:get(type, Metadata)}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"perm">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {send_error, permanent} -> ok
+        after 1000 ->
+            ct:fail("Expected a permanent send_error telemetry event")
+        end,
+        _ = collect_payload_with_key(<<"perm">>, 2000),
+        %% No retry of this event should be attempted.
+        ok = wait_for_no_event(<<"perm">>, 1500)
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% A worker that is decommissioned while it has a scheduled retry must not be
+%% killed, or the events it is retrying would be lost.
+decommission_waits_for_pending_retries(_) ->
+    Tag = decommission_test,
+    register_collector(),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"dc">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+        [Worker] = [Pid || {_Id, Pid, _Type, _Modules} <- supervisor:which_children(SupName), is_pid(Pid)],
+        ok = ldclient_event_process_server:decommission(Worker),
+        timer:sleep(100),
+        %% The worker is mid-backoff, so it must still be alive.
+        true = is_process_alive(Worker)
+    after
+        _ = ldclient:stop_instance(Tag)
     end.
 
 %%====================================================================
@@ -323,6 +461,45 @@ collect_payloads(Count, Acc) ->
     after 2000 ->
         ct:fail("Did not receive ~b payloads", [Count])
     end.
+
+%% Wait for a payload containing an event for `Key', ignoring payloads from
+%% other instances/tests.
+collect_payload_with_key(Key, Timeout) ->
+    Deadline = erlang:monotonic_time(millisecond) + Timeout,
+    collect_payload_with_key(Key, Deadline, Timeout).
+
+collect_payload_with_key(Key, Deadline, Timeout) ->
+    Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
+    receive
+        {EventsBin, _PayloadId} when is_binary(EventsBin) ->
+            Payload = jsx:decode(EventsBin, [return_maps]),
+            case lists:any(fun(E) -> event_context_key(E) =:= Key end, Payload) of
+                true -> Payload;
+                false -> collect_payload_with_key(Key, Deadline, Timeout)
+            end
+    after Remaining ->
+        ct:fail("Did not receive a payload for key ~p within ~bms", [Key, Timeout])
+    end.
+
+wait_for_no_event(Key, Timeout) ->
+    Deadline = erlang:monotonic_time(millisecond) + Timeout,
+    wait_for_no_event_loop(Key, Deadline).
+
+wait_for_no_event_loop(Key, Deadline) ->
+    Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
+    receive
+        {EventsBin, _PayloadId} when is_binary(EventsBin) ->
+            Payload = jsx:decode(EventsBin, [return_maps]),
+            case lists:any(fun(E) -> event_context_key(E) =:= Key end, Payload) of
+                true -> ct:fail("Event ~p was retried", [Key]);
+                false -> wait_for_no_event_loop(Key, Deadline)
+            end
+    after Remaining ->
+        ok
+    end.
+
+event_context_key(#{<<"context">> := #{<<"key">> := Key}}) -> Key;
+event_context_key(_) -> undefined.
 
 receive_events() ->
     receive

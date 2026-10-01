@@ -83,8 +83,11 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
 %%       implementing the `ldclient_event_dispatch' behaviour.</li>
 %%   <li>`events_shed_threshold' (`events_capacity') - buffer depth at which
-%%       callers shed (drop) new events instead of enqueueing them, bounding
-%%       memory and the event server mailbox under overload.</li>
+%%       best-effort events (identify/custom) are shed (dropped) by the caller
+%%       instead of being enqueued, bounding memory and the event server mailbox
+%%       under overload. Feature request events are always processed so summary
+%%       analytics continue to count every evaluation; only their full-fidelity
+%%       payloads are subject to `events_capacity'.</li>
 %%   <li>`events_min_workers' (`1') - minimum reporter worker pool size.</li>
 %%   <li>`events_max_workers' (`1') - maximum reporter worker pool size. Set
 %%       above `events_min_workers' to enable autoscaling.</li>

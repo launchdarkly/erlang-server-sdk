@@ -17,6 +17,7 @@
 %% API
 -export([
     send_batch/4,
+    decommission/1,
     get_last_server_time/1,
     ets_table_name/1
 ]).
@@ -28,17 +29,17 @@
     global_private_attributes := ldclient_config:private_attributes(),
     events_uri := string(),
     tag := atom(),
-    dispatcher_state := any()
+    dispatcher_state := any(),
+    pending := non_neg_integer(),
+    decommission := boolean()
 }.
 
 -define(TABLE_PREFIX, "event_process_state").
 
-%% Exponential backoff bounds for retrying transient dispatch failures, and the
-%% pause applied after a permanent failure so a misconfigured SDK does not hammer
-%% the events endpoint.
+%% Exponential backoff bounds for retrying transient dispatch failures. A
+%% permanent failure is not retried.
 -define(RETRY_INITIAL_MS, 1000).
 -define(RETRY_MAX_MS, 60000).
--define(PERMANENT_PAUSE_MS, 60000).
 
 %%===================================================================
 %% API
@@ -54,6 +55,14 @@
     ok.
 send_batch(Worker, Owner, Events, SummaryEvent) ->
     gen_server:cast(Worker, {send_batch, Owner, Events, SummaryEvent}).
+
+%% @doc Ask a worker to stop once it has no outstanding retries. Used when the
+%% pool scales down: a worker holding a scheduled retry must not be killed, or
+%% the events it is retrying would be lost.
+%% @end
+-spec decommission(Worker :: pid()) -> ok.
+decommission(Worker) ->
+    gen_server:cast(Worker, decommission).
 
 -spec get_last_server_time(Tag :: atom()) -> integer().
 get_last_server_time(Tag) ->
@@ -97,7 +106,9 @@ init([Tag]) ->
         global_private_attributes => GlobalPrivateAttributes,
         events_uri => EventsUri,
         tag => Tag,
-        dispatcher_state =>  Dispatcher:init(Tag, SdkKey)
+        dispatcher_state =>  Dispatcher:init(Tag, SdkKey),
+        pending => 0,
+        decommission => false
     },
     {ok, State}.
 
@@ -112,7 +123,8 @@ init([Tag]) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
--spec handle_cast(Request :: term(), State :: state()) -> {noreply, NewState :: state()}.
+-spec handle_cast(Request :: term(), State :: state()) ->
+    {noreply, NewState :: state()} | {stop, normal, NewState :: state()}.
 handle_cast({send_batch, Owner, Events, SummaryEvent},
     #{global_private_attributes := GlobalPrivateAttributes} = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
@@ -120,13 +132,20 @@ handle_cast({send_batch, Owner, Events, SummaryEvent},
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     PayloadId = uuid:get_v4(),
     NewState = do_send(OutputEvents, PayloadId, 0, State),
+    %% Report the worker as available as soon as the batch has been attempted, so
+    %% the pool can keep dispatching; a scheduled retry is tracked separately in
+    %% `pending' and delays decommissioning rather than idling the worker.
     _ = Owner ! {worker_done, self()},
-    {noreply, NewState};
+    maybe_stop(NewState);
+handle_cast(decommission, State) ->
+    maybe_stop(State#{decommission := true});
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents, PayloadId, Attempt}, State) ->
-    {noreply, do_send(OutputEvents, PayloadId, Attempt, State)};
+handle_info({send, OutputEvents, PayloadId, Attempt}, #{pending := Pending} = State) ->
+    %% The scheduled retry timer has fired.
+    NewState = do_send(OutputEvents, PayloadId, Attempt, State#{pending := max(0, Pending - 1)}),
+    maybe_stop(NewState);
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -337,13 +356,21 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
             error_logger:warning_msg("Temporary error sending events (~p); retrying with backoff", [Reason]),
             Next = Attempt + 1,
             _ = erlang:send_after(backoff_delay(Next), self(), {send, OutputEvents, PayloadId, Next}),
-            State;
+            maps:update_with(pending, fun(P) -> P + 1 end, State);
         {error, permanent, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
-            error_logger:error_msg("Permanent error sending events (~p); pausing egress", [Reason]),
-            _ = erlang:send_after(?PERMANENT_PAUSE_MS, self(), {send, OutputEvents, PayloadId, 0}),
+            error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
             State
     end.
+
+%% @doc Stop the worker if it has been decommissioned and has no outstanding
+%% retries left.
+%% @end
+-spec maybe_stop(state()) -> {noreply, state()} | {stop, normal, state()}.
+maybe_stop(#{decommission := true, pending := 0} = State) ->
+    {stop, normal, State};
+maybe_stop(State) ->
+    {noreply, State}.
 
 %% @doc Report how many events were successfully delivered in a batch. Emitted
 %% once per successful dispatch (including successful retries) so it can back a

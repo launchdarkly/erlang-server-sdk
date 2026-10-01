@@ -14,7 +14,7 @@
 -export([start_link/2, init/1]).
 
 %% API
--export([start_worker/1, stop_worker/2, stop_all/1, get_sup_name/1]).
+-export([start_worker/1, stop_all/1, get_sup_name/1]).
 
 %%===================================================================
 %% Supervision
@@ -47,10 +47,6 @@ init([_Tag]) ->
 -spec start_worker(Tag :: atom()) -> {ok, pid()} | {error, term()}.
 start_worker(Tag) ->
     supervisor:start_child(get_sup_name(Tag), [Tag]).
-
--spec stop_worker(Tag :: atom(), pid()) -> ok | {error, term()}.
-stop_worker(Tag, Pid) ->
-    supervisor:terminate_child(get_sup_name(Tag), Pid).
 
 %% @doc Terminate all workers for a tag. Used when the event server restarts so
 %% that stale workers do not linger.
