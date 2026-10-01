@@ -29,6 +29,7 @@
     flush_interval := pos_integer(),
     timer_ref := reference(),
     flushing := boolean(),
+    flush_remaining := non_neg_integer(),
     idle_workers := [pid()],
     busy_workers := #{pid() => true},
     min_workers := pos_integer(),
@@ -183,6 +184,7 @@ init([Tag]) ->
         flush_interval => FlushInterval,
         timer_ref => TimerRef,
         flushing => false,
+        flush_remaining => 0,
         idle_workers => [],
         busy_workers => #{},
         min_workers => MinWorkers,
@@ -477,7 +479,7 @@ erase_counters(#{tag := Tag}) ->
 %%===================================================================
 
 -spec start_flush(state()) -> state().
-start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending, tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
+start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending, tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef, event_count := Count} = State) ->
     NewPending = case map_size(SummaryEvent) of
         0 -> Pending;
         _ -> Pending ++ [SummaryEvent]
@@ -486,26 +488,31 @@ start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending, tag :
     %% cannot delay subsequent flushes.
     _ = erlang:cancel_timer(TimerRef),
     NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
+    %% Only the events buffered now belong to this flush window. Events that
+    %% arrive while the window is being dispatched are left for the next flush,
+    %% so an explicit flush cannot be extended indefinitely by ongoing
+    %% evaluations.
     drain(State#{
         summary_event := #{},
         pending_summaries := NewPending,
         flushing := true,
+        flush_remaining := Count,
         timer_ref := NewTimerRef
     }).
 
 %% @doc Hand out buffered batches to idle workers until there is no more work or
-%% no worker is available. When everything has been dispatched and all workers
-%% are idle, the flush window is complete.
+%% no worker is available. When the events captured at the start of the window
+%% and their summary have been dispatched, the flush window is complete.
 %% @end
 -spec drain(state()) -> state().
-drain(#{event_count := 0, pending_summaries := [], busy_workers := Busy} = State) when map_size(Busy) =:= 0 ->
+drain(#{flush_remaining := 0, pending_summaries := []} = State) ->
     complete_flush(State);
-drain(#{idle_workers := [Worker|Idle], event_count := Count} = State) when Count > 0 ->
+drain(#{idle_workers := [Worker|Idle], flush_remaining := Remaining} = State) when Remaining > 0 ->
     {Batch, State1} = pop_batch(State),
     {Summary, NewPending} = take_summary(maps:get(pending_summaries, State1)),
     State2 = dispatch(Worker, Batch, Summary, State1#{idle_workers := Idle, pending_summaries := NewPending}),
     drain(State2);
-drain(#{idle_workers := [Worker|Idle], event_count := 0, pending_summaries := [Summary|Rest]} = State) ->
+drain(#{idle_workers := [Worker|Idle], flush_remaining := 0, pending_summaries := [Summary|Rest]} = State) ->
     State1 = dispatch(Worker, [], Summary, State#{idle_workers := Idle, pending_summaries := Rest}),
     drain(State1);
 drain(State) ->
@@ -513,9 +520,9 @@ drain(State) ->
     State.
 
 -spec pop_batch(state()) -> {[ldclient_event:event()], state()}.
-pop_batch(#{buffer := Buffer, batch_size := BatchSize, event_count := Count} = State) ->
+pop_batch(#{buffer := Buffer, batch_size := BatchSize, event_count := Count, flush_remaining := Remaining} = State) ->
     Batch = ldclient_event_buffer:pop_batch(Buffer, BatchSize),
-    {Batch, set_count(State, Count - length(Batch))}.
+    {Batch, set_count(State#{flush_remaining := max(0, Remaining - length(Batch))}, Count - length(Batch))}.
 
 -spec dispatch(pid(), [ldclient_event:event()], summary_event() | undefined, state()) -> state().
 dispatch(Worker, Batch, Summary, #{busy_workers := Busy} = State) ->
@@ -526,15 +533,20 @@ dispatch(Worker, Batch, Summary, #{busy_workers := Busy} = State) ->
 take_summary([Summary|Rest]) -> {Summary, Rest};
 take_summary([]) -> {undefined, []}.
 
+%% @doc Close a flush window. Events buffered since the window started are left
+%% in place (and their summary counts are kept in `summary_event') for the next
+%% window, so completing a flush never blocks on or discards ongoing
+%% evaluations.
+%% @end
 -spec complete_flush(state()) -> state().
 complete_flush(#{flush_waiters := Waiters} = State) ->
     lists:foreach(fun(From) -> gen_server:reply(From, ok) end, Waiters),
-    set_count(State#{
+    State#{
         flush_waiters := [],
         pending_summaries := [],
-        summary_event := #{},
-        flushing := false
-    }, 0).
+        flushing := false,
+        flush_remaining := 0
+    }.
 
 -spec maybe_scale(state()) -> state().
 maybe_scale(#{scale_cooldown_ms := Cooldown, last_scale_ms := Last} = State) ->

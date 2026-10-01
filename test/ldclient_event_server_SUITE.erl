@@ -20,7 +20,8 @@
     offline_instance_does_not_send/1,
     preserves_summary_when_shedding/1,
     permanent_failures_are_not_retried/1,
-    decommission_waits_for_pending_retries/1
+    decommission_waits_for_pending_retries/1,
+    flush_not_extended_by_new_events/1
 ]).
 
 %%====================================================================
@@ -38,7 +39,8 @@ all() ->
         offline_instance_does_not_send,
         preserves_summary_when_shedding,
         permanent_failures_are_not_retried,
-        decommission_waits_for_pending_retries
+        decommission_waits_for_pending_retries,
+        flush_not_extended_by_new_events
     ].
 
 init_per_suite(Config) ->
@@ -134,6 +136,16 @@ init_per_suite(Config) ->
         events_flush_interval => 60000
     },
     ldclient:start_instance("sdk-key-events-fail", decommission_test, DecommissionOptions),
+    SlowFlushOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_slow,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_batch_size => 1
+    },
+    ldclient:start_instance("", slow_flush, SlowFlushOptions),
     Config.
 
 end_per_suite(_) ->
@@ -386,10 +398,38 @@ decommission_waits_for_pending_retries(_) ->
         ok = ldclient_event_process_server:decommission(Worker),
         timer:sleep(100),
         %% The worker is mid-backoff, so it must still be alive.
-        true = is_process_alive(Worker)
+        true = is_process_alive(Worker),
+        %% Once the in-flight retry attempt resolves it must exit, even though
+        %% the endpoint keeps failing.
+        wait_for_dead(Worker, 3000)
     after
         _ = ldclient:stop_instance(Tag)
     end.
+
+%% A flush only covers the events buffered when it started. Events that arrive
+%% while it is dispatching must not extend it, or a flush under sustained
+%% evaluations could block indefinitely.
+flush_not_extended_by_new_events(_) ->
+    Tag = slow_flush,
+    register_collector(),
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- [<<"f1">>, <<"f2">>, <<"f3">>]],
+    Self = self(),
+    _Flusher = spawn(fun() ->
+        ok = ldclient_event_server:flush(Tag),
+        Self ! flush_done
+    end),
+    wait_until_flushing(Tag),
+    %% These arrive after the flush started and belong to the next window.
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- [<<"f4">>, <<"f5">>, <<"f6">>]],
+    receive
+        flush_done -> ok
+    after 5000 ->
+        ct:fail("Flush was extended by events that arrived after it started")
+    end,
+    Payloads = collect_payloads(3),
+    GotKeys = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
+    [<<"f1">>, <<"f2">>, <<"f3">>] = GotKeys,
+    ok = wait_for_no_event(<<"f4">>, 500).
 
 %%====================================================================
 %% Helpers
@@ -413,6 +453,21 @@ wait_for_event_count(ServerName, Expected, Retries) ->
             wait_for_event_count(ServerName, Expected, Retries - 1)
     end.
 
+wait_until_flushing(Tag) ->
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
+    wait_until_flushing(ServerName, 200).
+
+wait_until_flushing(_ServerName, 0) ->
+    ct:fail("Event server never entered a flush window");
+wait_until_flushing(ServerName, Retries) ->
+    case sys:get_state(ServerName) of
+        #{flushing := true} ->
+            ok;
+        _ ->
+            timer:sleep(5),
+            wait_until_flushing(ServerName, Retries - 1)
+    end.
+
 wait_for_worker_count(_SupName, _Expected, 0) ->
     ct:fail("Worker pool did not reach the expected size");
 wait_for_worker_count(SupName, Expected, Retries) ->
@@ -422,6 +477,17 @@ wait_for_worker_count(SupName, Expected, Retries) ->
         _ ->
             timer:sleep(10),
             wait_for_worker_count(SupName, Expected, Retries - 1)
+    end.
+
+wait_for_dead(_Pid, 0) ->
+    ct:fail("Worker did not exit");
+wait_for_dead(Pid, Retries) ->
+    case is_process_alive(Pid) of
+        false ->
+            ok;
+        true ->
+            timer:sleep(25),
+            wait_for_dead(Pid, Retries - 1)
     end.
 
 collect_scales(Acc) ->

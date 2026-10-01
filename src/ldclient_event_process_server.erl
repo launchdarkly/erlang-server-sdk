@@ -136,16 +136,19 @@ handle_cast({send_batch, Owner, Events, SummaryEvent},
     %% the pool can keep dispatching; a scheduled retry is tracked separately in
     %% `pending' and delays decommissioning rather than idling the worker.
     _ = Owner ! {worker_done, self()},
-    maybe_stop(NewState);
+    stop_after_attempt(NewState);
 handle_cast(decommission, State) ->
-    maybe_stop(State#{decommission := true});
+    %% Stop immediately if there is no retry in flight; otherwise stop after the
+    %% in-flight retry attempt resolves, so a sustained outage cannot keep a
+    %% decommissioned worker alive forever.
+    stop_if_idle_decommissioned(State#{decommission := true});
 handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({send, OutputEvents, PayloadId, Attempt}, #{pending := Pending} = State) ->
     %% The scheduled retry timer has fired.
     NewState = do_send(OutputEvents, PayloadId, Attempt, State#{pending := max(0, Pending - 1)}),
-    maybe_stop(NewState);
+    stop_after_attempt(NewState);
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -363,13 +366,22 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
             State
     end.
 
-%% @doc Stop the worker if it has been decommissioned and has no outstanding
-%% retries left.
+%% @doc Stop a decommissioned worker that has nothing in flight.
 %% @end
--spec maybe_stop(state()) -> {noreply, state()} | {stop, normal, state()}.
-maybe_stop(#{decommission := true, pending := 0} = State) ->
+-spec stop_if_idle_decommissioned(state()) -> {noreply, state()} | {stop, normal, state()}.
+stop_if_idle_decommissioned(#{decommission := true, pending := 0} = State) ->
     {stop, normal, State};
-maybe_stop(State) ->
+stop_if_idle_decommissioned(State) ->
+    {noreply, State}.
+
+%% @doc Stop a decommissioned worker once the current attempt has resolved. This
+%% bounds the lifetime of a scaled-down worker even if the endpoint keeps
+%% failing and every retry reschedules.
+%% @end
+-spec stop_after_attempt(state()) -> {noreply, state()} | {stop, normal, state()}.
+stop_after_attempt(#{decommission := true} = State) ->
+    {stop, normal, State};
+stop_after_attempt(State) ->
     {noreply, State}.
 
 %% @doc Report how many events were successfully delivered in a batch. Emitted
