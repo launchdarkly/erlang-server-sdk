@@ -12,7 +12,8 @@
 %% Tests
 -export([
     add_event_is_cast/1,
-    sheds_when_buffer_at_threshold/1
+    sheds_when_buffer_at_threshold/1,
+    pool_uses_multiple_workers/1
 ]).
 
 %%====================================================================
@@ -22,7 +23,8 @@
 all() ->
     [
         add_event_is_cast,
-        sheds_when_buffer_at_threshold
+        sheds_when_buffer_at_threshold,
+        pool_uses_multiple_workers
     ].
 
 init_per_suite(Config) ->
@@ -36,6 +38,17 @@ init_per_suite(Config) ->
         events_flush_interval => 60000
     },
     ldclient:start_instance("", shedder, Options),
+    PoolOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_min_workers => 3,
+        events_batch_size => 1
+    },
+    ldclient:start_instance("", pooler, PoolOptions),
     Config.
 
 end_per_suite(_) ->
@@ -45,6 +58,7 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(_, Config) ->
+    _ = catch unregister(ldclient_test_events),
     Config.
 
 %%====================================================================
@@ -90,6 +104,22 @@ sheds_when_buffer_at_threshold(_) ->
         telemetry:detach(HandlerId)
     end.
 
+%% The pool dispatches batches across multiple workers concurrently. With a
+%% batch size of 1 and three workers, a flush of three events fans out into
+%% three independent payloads (delivery order is not guaranteed).
+pool_uses_multiple_workers(_) ->
+    Tag = pooler,
+    SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+    3 = length(supervisor:which_children(SupName)),
+    register_collector(),
+    Keys = [<<"a">>, <<"b">>, <<"c">>],
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
+    wait_for_event_count(Tag, 3),
+    ok = ldclient_event_server:flush(Tag),
+    Payloads = collect_payloads(3),
+    GotKeys = lists:sort([K || Payload <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- Payload]),
+    Keys = GotKeys.
+
 %%====================================================================
 %% Helpers
 %%====================================================================
@@ -116,6 +146,32 @@ register_event_forwarding_process() ->
     TestPid = self(),
     ErPid = spawn(fun() -> receive ErEvents -> TestPid ! ErEvents end end),
     true = register(ldclient_test_events, ErPid).
+
+register_collector() ->
+    TestPid = self(),
+    _ = catch unregister(ldclient_test_events),
+    Collector = spawn(fun() -> collector_loop(TestPid) end),
+    true = register(ldclient_test_events, Collector).
+
+collector_loop(TestPid) ->
+    receive
+        Msg ->
+            TestPid ! Msg,
+            collector_loop(TestPid)
+    end.
+
+collect_payloads(Count) ->
+    collect_payloads(Count, []).
+
+collect_payloads(0, Acc) ->
+    Acc;
+collect_payloads(Count, Acc) ->
+    receive
+        {EventsBin, _PayloadId} ->
+            collect_payloads(Count - 1, [jsx:decode(EventsBin, [return_maps])|Acc])
+    after 2000 ->
+        ct:fail("Did not receive ~b payloads", [Count])
+    end.
 
 receive_events() ->
     receive

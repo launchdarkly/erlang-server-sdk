@@ -60,6 +60,9 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     events_shed_threshold => pos_integer(),
+    events_min_workers => pos_integer(),
+    events_max_workers => pos_integer(),
+    events_batch_size => pos_integer(),
     context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
@@ -103,6 +106,9 @@
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
+-define(DEFAULT_EVENTS_MIN_WORKERS, 1).
+-define(DEFAULT_EVENTS_MAX_WORKERS, 1).
+-define(DEFAULT_EVENTS_BATCH_SIZE, 100).
 -define(DEFAULT_CONTEXT_KEYS_CAPACITY, 1000).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
@@ -177,6 +183,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     EventsShedThreshold = maps:get(events_shed_threshold, Options, EventsCapacity),
+    EventsMinWorkers = maps:get(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
+    EventsMaxWorkers = maps:get(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
+    EventsBatchSize = maps:get(events_batch_size, Options, ?DEFAULT_EVENTS_BATCH_SIZE),
     ContextKeysCapacity = maps:get(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
@@ -224,6 +233,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
         events_shed_threshold => EventsShedThreshold,
+        events_min_workers => EventsMinWorkers,
+        events_max_workers => EventsMaxWorkers,
+        events_batch_size => EventsBatchSize,
         context_keys_capacity => ContextKeysCapacity,
         private_attributes => parse_private_attributes(PrivateAttributes),
         stream => Stream,

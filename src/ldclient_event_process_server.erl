@@ -16,8 +16,9 @@
 
 %% API
 -export([
-    send_events/3,
-    get_last_server_time/1
+    send_batch/4,
+    get_last_server_time/1,
+    ets_table_name/1
 ]).
 
 %% Types
@@ -36,14 +37,16 @@
 %% API
 %%===================================================================
 
-%% @doc Send events to LaunchDarkly event server
+%% @doc Ask a reporter worker to format and dispatch a batch of events.
 %%
+%% `Owner' is notified with `{worker_done, self()}' once the batch has been
+%% handed to the dispatcher (or scheduled for retry). `SummaryEvent' is either
+%% a summary event map or `undefined'.
 %% @end
--spec send_events(Tag :: atom(), Events :: [ldclient_event:event()], SummaryEvent :: ldclient_event_server:summary_event()) ->
+-spec send_batch(Worker :: pid(), Owner :: pid(), Events :: [ldclient_event:event()], SummaryEvent :: ldclient_event_server:summary_event() | undefined) ->
     ok.
-send_events(Tag, Events, SummaryEvent) ->
-    ServerName = get_local_reg_name(Tag),
-    gen_server:cast(ServerName, {send_events, Events, SummaryEvent}).
+send_batch(Worker, Owner, Events, SummaryEvent) ->
+    gen_server:cast(Worker, {send_batch, Owner, Events, SummaryEvent}).
 
 -spec get_last_server_time(Tag :: atom()) -> integer().
 get_last_server_time(Tag) ->
@@ -63,21 +66,20 @@ get_last_server_time(Tag) ->
 %% Supervision
 %%===================================================================
 
-%% @doc Starts the server
+%% @doc Starts a reporter worker.
 %%
+%% Workers are unregistered: multiple workers exist per tag and the event
+%% server addresses them directly by pid.
 %% @end
 -spec start_link(Tag :: atom()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Tag) ->
-    ServerName = get_local_reg_name(Tag),
-    error_logger:info_msg("Starting event processor for ~p with name ~p", [Tag, ServerName]),
-    gen_server:start_link({local, ServerName}, ?MODULE, [Tag], []).
+    gen_server:start_link(?MODULE, [Tag], []).
 
 -spec init(Args :: term()) ->
     {ok, State :: state()} | {ok, State :: state(), timeout() | hibernate} |
     {stop, Reason :: term()} | ignore.
 init([Tag]) ->
-    _Tid = ets:new(ets_table_name(Tag), [set, named_table, {read_concurrency, true}]),
     SdkKey = ldclient_config:get_value(Tag, sdk_key),
     Dispatcher = ldclient_config:get_value(Tag, events_dispatcher),
     GlobalPrivateAttributes = ldclient_config:get_value(Tag, private_attributes),
@@ -104,7 +106,7 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 -spec handle_cast(Request :: term(), State :: state()) -> {noreply, NewState :: state()}.
-handle_cast({send_events, Events, SummaryEvent},
+handle_cast({send_batch, Owner, Events, SummaryEvent},
     #{
         dispatcher := Dispatcher,
         global_private_attributes := GlobalPrivateAttributes,
@@ -129,6 +131,7 @@ handle_cast({send_events, Events, SummaryEvent},
            error_logger:error_msg("Permanent error sending events ~p", [Reason]),
            State
     end,
+    _ = Owner ! {worker_done, self()},
     {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -168,7 +171,7 @@ format_status(Other) ->
 -spec format_events([ldclient_event:event()], ldclient_config:private_attributes()) -> list().
 format_events(Events, GlobalPrivateAttributes) ->
     {FormattedEvents, _} = lists:foldl(fun format_event/2, {[], GlobalPrivateAttributes}, Events),
-    FormattedEvents.
+    lists:reverse(FormattedEvents).
 
 -spec format_event(ldclient_event:event(), {list(), ldclient_config:private_attributes()}) ->
     {FormattedEvents :: list(), GlobalPrivateAttributes :: ldclient_config:private_attributes()}.
@@ -272,7 +275,8 @@ maybe_set_metric_value(#{metric_value := MetricValue}, OutputEvent) ->
 maybe_set_metric_value(_, OutputEvent) ->
     OutputEvent.
 
--spec format_summary_event(ldclient_event_server:summary_event()) -> map().
+-spec format_summary_event(ldclient_event_server:summary_event() | undefined) -> map().
+format_summary_event(undefined) -> #{};
 format_summary_event(SummaryEvent) when map_size(SummaryEvent) == 0 -> #{};
 format_summary_event(#{start_date := StartDate, end_date := EndDate, counters := Counters, context_kinds := ContextKinds}) ->
     #{
@@ -336,10 +340,6 @@ send(_, _, [], _, _) ->
 send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) ->
     JsonEvents = jsx:encode(OutputEvents),
     Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri).
-
--spec get_local_reg_name(Tag :: atom()) -> atom().
-get_local_reg_name(Tag) ->
-    list_to_atom("ldclient_event_process_server_" ++ atom_to_list(Tag)).
 
 -spec ets_table_name(Tag :: atom()) -> atom().
 ets_table_name(Tag) -> list_to_atom(?TABLE_PREFIX ++ atom_to_list(Tag)).
