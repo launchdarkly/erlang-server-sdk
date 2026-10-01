@@ -14,7 +14,8 @@
     add_event_is_cast/1,
     sheds_when_buffer_at_threshold/1,
     pool_uses_multiple_workers/1,
-    autoscales_worker_pool/1
+    autoscales_worker_pool/1,
+    retries_transient_failures_with_backoff/1
 ]).
 
 %%====================================================================
@@ -26,7 +27,8 @@ all() ->
         add_event_is_cast,
         sheds_when_buffer_at_threshold,
         pool_uses_multiple_workers,
-        autoscales_worker_pool
+        autoscales_worker_pool,
+        retries_transient_failures_with_backoff
     ].
 
 init_per_suite(Config) ->
@@ -67,6 +69,15 @@ init_per_suite(Config) ->
         events_scale_cooldown_ms => 0
     },
     ldclient:start_instance("", scaler, ScalerOptions),
+    FailingOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("sdk-key-events-fail", failing, FailingOptions),
     Config.
 
 end_per_suite(_) ->
@@ -165,6 +176,37 @@ autoscales_worker_pool(_) ->
         Directions = collect_scales([]),
         true = lists:member(up, Directions),
         true = lists:member(down, Directions)
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% Transient dispatch failures are retried with backoff and reported through
+%% telemetry rather than at a fixed interval with no visibility.
+retries_transient_failures_with_backoff(_) ->
+    Tag = failing,
+    HandlerId = {?MODULE, retries_transient_failures_with_backoff, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, send_error],
+        fun(_Event, _Measurements, Metadata, _Config) ->
+            Self ! {send_error, maps:get(type, Metadata)}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"retry">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {send_error, temporary} -> ok
+        after 1000 ->
+            ct:fail("Expected a temporary send_error telemetry event")
+        end,
+        %% The first attempt and the retry are both dispatched; delivery order
+        %% and timing are not asserted, only that a retry happens.
+        2 = length(collect_payloads(2))
     after
         telemetry:detach(HandlerId)
     end.

@@ -33,6 +33,13 @@
 
 -define(TABLE_PREFIX, "event_process_state").
 
+%% Exponential backoff bounds for retrying transient dispatch failures, and the
+%% pause applied after a permanent failure so a misconfigured SDK does not hammer
+%% the events endpoint.
+-define(RETRY_INITIAL_MS, 1000).
+-define(RETRY_MAX_MS, 60000).
+-define(PERMANENT_PAUSE_MS, 60000).
+
 %%===================================================================
 %% API
 %%===================================================================
@@ -107,43 +114,19 @@ handle_call(_Request, _From, State) ->
 
 -spec handle_cast(Request :: term(), State :: state()) -> {noreply, NewState :: state()}.
 handle_cast({send_batch, Owner, Events, SummaryEvent},
-    #{
-        dispatcher := Dispatcher,
-        global_private_attributes := GlobalPrivateAttributes,
-        events_uri := Uri,
-        dispatcher_state := DispatcherState,
-        tag := Tag
-    } = State) ->
+    #{global_private_attributes := GlobalPrivateAttributes} = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     PayloadId = uuid:get_v4(),
-    NewState = case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
-       ok ->
-           State;
-       {ok, Date} ->
-           ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
-           State;
-       {error, temporary, _Reason} ->
-           erlang:send_after(1000, self(), {send, OutputEvents, PayloadId}),
-           State;
-       {error, permanent, Reason} ->
-           error_logger:error_msg("Permanent error sending events ~p", [Reason]),
-           State
-    end,
+    NewState = do_send(OutputEvents, PayloadId, 0, State),
     _ = Owner ! {worker_done, self()},
     {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents, PayloadId}, State) ->
-    #{
-        dispatcher := Dispatcher,
-        events_uri := Uri,
-        dispatcher_state := DispatcherState
-    } = State,
-    _ = send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri),
-    {noreply, State};
+handle_info({send, OutputEvents, PayloadId, Attempt}, State) ->
+    {noreply, do_send(OutputEvents, PayloadId, Attempt, State)};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -332,6 +315,40 @@ maybe_add_version(Version, Counter) -> Counter#{version => Version}.
 combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> [];
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
+
+-spec do_send(list(), uuid:uuid(), non_neg_integer(), state()) -> state().
+do_send(OutputEvents, PayloadId, Attempt, State) ->
+    #{
+        dispatcher := Dispatcher,
+        events_uri := Uri,
+        dispatcher_state := DispatcherState,
+        tag := Tag
+    } = State,
+    case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
+        ok ->
+            State;
+        {ok, Date} ->
+            ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
+            State;
+        {error, temporary, Reason} ->
+            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
+            error_logger:warning_msg("Temporary error sending events (~p); retrying with backoff", [Reason]),
+            Next = Attempt + 1,
+            _ = erlang:send_after(backoff_delay(Next), self(), {send, OutputEvents, PayloadId, Next}),
+            State;
+        {error, permanent, Reason} ->
+            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
+            error_logger:error_msg("Permanent error sending events (~p); pausing egress", [Reason]),
+            _ = erlang:send_after(?PERMANENT_PAUSE_MS, self(), {send, OutputEvents, PayloadId, 0}),
+            State
+    end.
+
+-spec backoff_delay(pos_integer()) -> non_neg_integer().
+backoff_delay(Attempt) ->
+    Exponent = min(Attempt - 1, 16),
+    Base = min(?RETRY_MAX_MS, ?RETRY_INITIAL_MS bsl Exponent),
+    Jitter = 0.5 * Base,
+    trunc(Base - (rand:uniform() * Jitter)).
 
 -spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string()) ->
     ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
