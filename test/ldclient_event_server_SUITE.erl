@@ -21,7 +21,8 @@
     preserves_summary_when_shedding/1,
     permanent_failures_are_not_retried/1,
     decommission_waits_for_pending_retries/1,
-    flush_not_extended_by_new_events/1
+    flush_not_extended_by_new_events/1,
+    flush_does_not_overshoot_window/1
 ]).
 
 %%====================================================================
@@ -40,7 +41,8 @@ all() ->
         preserves_summary_when_shedding,
         permanent_failures_are_not_retried,
         decommission_waits_for_pending_retries,
-        flush_not_extended_by_new_events
+        flush_not_extended_by_new_events,
+        flush_does_not_overshoot_window
     ].
 
 init_per_suite(Config) ->
@@ -146,6 +148,16 @@ init_per_suite(Config) ->
         events_batch_size => 1
     },
     ldclient:start_instance("", slow_flush, SlowFlushOptions),
+    SlowBatchOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_slow,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_batch_size => 2
+    },
+    ldclient:start_instance("", slow_flush_batch, SlowBatchOptions),
     Config.
 
 end_per_suite(_) ->
@@ -430,6 +442,32 @@ flush_not_extended_by_new_events(_) ->
     GotKeys = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
     [<<"f1">>, <<"f2">>, <<"f3">>] = GotKeys,
     ok = wait_for_no_event(<<"f4">>, 500).
+
+%% A flush must not pull more than the events captured at the start of the
+%% window, even when a batch would otherwise span into events that arrived
+%% after the window began.
+flush_does_not_overshoot_window(_) ->
+    Tag = slow_flush_batch,
+    register_collector(),
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- [<<"g1">>, <<"g2">>, <<"g3">>]],
+    Self = self(),
+    _Flusher = spawn(fun() ->
+        ok = ldclient_event_server:flush(Tag),
+        Self ! flush_done
+    end),
+    wait_until_flushing(Tag),
+    %% These arrive after the window started; the second batch would otherwise
+    %% be filled from here.
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- [<<"g4">>, <<"g5">>]],
+    receive
+        flush_done -> ok
+    after 5000 ->
+        ct:fail("Flush did not complete")
+    end,
+    Payloads = collect_payloads(2),
+    GotKeys = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
+    [<<"g1">>, <<"g2">>, <<"g3">>] = GotKeys,
+    ok = wait_for_no_event(<<"g4">>, 500).
 
 %%====================================================================
 %% Helpers

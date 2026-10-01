@@ -521,7 +521,11 @@ drain(State) ->
 
 -spec pop_batch(state()) -> {[ldclient_event:event()], state()}.
 pop_batch(#{buffer := Buffer, batch_size := BatchSize, event_count := Count, flush_remaining := Remaining} = State) ->
-    Batch = ldclient_event_buffer:pop_batch(Buffer, BatchSize),
+    %% Never pop more than the events that belong to the current flush window.
+    %% Events inserted after the window started sit at the tail of the buffer and
+    %% must be left for the next window.
+    Take = min(BatchSize, Remaining),
+    Batch = ldclient_event_buffer:pop_batch(Buffer, Take),
     {Batch, set_count(State#{flush_remaining := max(0, Remaining - length(Batch))}, Count - length(Batch))}.
 
 -spec dispatch(pid(), [ldclient_event:event()], summary_event() | undefined, state()) -> state().
