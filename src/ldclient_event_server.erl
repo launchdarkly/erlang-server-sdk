@@ -448,7 +448,7 @@ update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
 set_count(State, Count) ->
     update_counters(State#{event_count := Count}).
 
--spec erase_counters(state()) -> ok.
+-spec erase_counters(state()) -> boolean().
 erase_counters(#{tag := Tag}) ->
     persistent_term:erase({?COUNTERS_KEY, Tag}).
 
@@ -576,9 +576,6 @@ start_workers(State, Remaining) ->
 start_worker(#{tag := Tag, idle_workers := Idle, worker_monitors := Monitors} = State) ->
     case ldclient_event_worker_sup:start_worker(Tag) of
         {ok, Pid} ->
-            Ref = erlang:monitor(process, Pid),
-            State#{idle_workers := [Pid|Idle], worker_monitors := Monitors#{Ref => Pid}};
-        {ok, Pid, _Info} ->
             Ref = erlang:monitor(process, Pid),
             State#{idle_workers := [Pid|Idle], worker_monitors := Monitors#{Ref => Pid}};
         {error, Reason} ->

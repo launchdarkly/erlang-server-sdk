@@ -36,7 +36,7 @@ insert(Buffer, Event) ->
 pop_batch(Buffer, Max) ->
     pop_batch(Buffer, Max, []).
 
--spec delete(buffer()) -> ok.
+-spec delete(buffer()) -> true.
 delete(Buffer) ->
     ets:delete(Buffer).
 

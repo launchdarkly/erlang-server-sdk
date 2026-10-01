@@ -27,7 +27,7 @@ start_link(SupName, Tag) ->
     supervisor:start_link({local, SupName}, ?MODULE, [Tag]).
 
 -spec init(Args :: term()) ->
-    {ok, {{supervisor:strategy(), non_neg_integer(), pos_integer()}, [supervisor:child_spec()]}}.
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([_Tag]) ->
     SupFlags = #{strategy => simple_one_for_one, intensity => 1, period => 5},
     Child = #{
