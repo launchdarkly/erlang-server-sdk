@@ -60,13 +60,21 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     events_shed_threshold => pos_integer(),
+    %% Buffer depth at which callers shed new events instead of enqueueing them.
     events_min_workers => pos_integer(),
+    %% Minimum size of the reporter worker pool.
     events_max_workers => pos_integer(),
+    %% Maximum size of the reporter worker pool (autoscaling upper bound).
     events_batch_size => pos_integer(),
+    %% Maximum number of events dispatched per worker request.
     events_scale_up_threshold => non_neg_integer(),
+    %% Buffer depth at which the worker pool scales up.
     events_scale_down_threshold => non_neg_integer(),
+    %% Buffer depth at or below which the worker pool scales down.
     events_scale_interval_ms => pos_integer(),
+    %% How often the worker pool samples the buffer depth.
     events_scale_cooldown_ms => non_neg_integer(),
+    %% Minimum time between worker pool scaling decisions.
     context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),

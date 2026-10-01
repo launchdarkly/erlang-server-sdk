@@ -67,6 +67,55 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% @doc Start client with custom name and options
 %%
 %% Specify both custom client name and options when starting the client.
+%%
+%% == Analytics events ==
+%%
+%% Event ingestion is non-blocking: flag evaluations hand events to the SDK
+%% without waiting on the analytics pipeline. Buffered events are dispatched by
+%% a pool of reporter workers that can autoscale with the buffer depth. The
+%% following options tune this pipeline (defaults shown in parentheses):
+%%
+%% <ul>
+%%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
+%%       held in the buffer before new events are dropped.</li>
+%%   <li>`events_flush_interval' (`30000') - how often, in milliseconds,
+%%       buffered events are handed to the reporter pool.</li>
+%%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
+%%       implementing the `ldclient_event_dispatch' behaviour.</li>
+%%   <li>`events_shed_threshold' (`events_capacity') - buffer depth at which
+%%       callers shed (drop) new events instead of enqueueing them, bounding
+%%       memory and the event server mailbox under overload.</li>
+%%   <li>`events_min_workers' (`1') - minimum reporter worker pool size.</li>
+%%   <li>`events_max_workers' (`1') - maximum reporter worker pool size. Set
+%%       above `events_min_workers' to enable autoscaling.</li>
+%%   <li>`events_batch_size' (`100') - maximum number of events a worker sends
+%%       per request.</li>
+%%   <li>`events_scale_up_threshold' (half of `events_capacity') - buffer depth
+%%       at which the pool commissions another worker.</li>
+%%   <li>`events_scale_down_threshold' (`0') - buffer depth at or below which
+%%       the pool decommissions an idle worker.</li>
+%%   <li>`events_scale_interval_ms' (`1000') - how often the pool samples the
+%%       buffer depth.</li>
+%%   <li>`events_scale_cooldown_ms' (`1000') - minimum time between scaling
+%%       decisions, to avoid thrashing.</li>
+%% </ul>
+%%
+%% == Telemetry ==
+%%
+%% The SDK emits `telemetry' events (beam-telemetry) from the analytics
+%% pipeline:
+%%
+%% <ul>
+%%   <li>`[ldclient, events, shed]' - emitted when an event is dropped due to
+%%       load shedding. Metadata contains the instance `tag'.</li>
+%%   <li>`[ldclient, events, pool_scale]' - emitted when the reporter pool
+%%       changes size. Measurements contain `workers'; metadata contains the
+%%       instance `tag' and the `direction' (`up' or `down').</li>
+%%   <li>`[ldclient, events, send_error]' - emitted when a batch fails to send.
+%%       Measurements contain `count'; metadata contains the instance `tag' and
+%%       the failure `type' (`temporary' or `permanent').</li>
+%% </ul>
+%%
 %% @end
 -spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->
     ok | {error, atom(), term()}.

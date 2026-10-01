@@ -19,8 +19,37 @@
     feature_store => atom(),
     events_uri => string(),
     events_capacity => pos_integer(),
+    %% Maximum number of full-fidelity events held in the in-memory buffer
+    %% before new events are dropped. Defaults to 10000.
     events_flush_interval => pos_integer(),
+    %% How often, in milliseconds, buffered events are handed to the reporter
+    %% pool. Defaults to 30000.
     events_dispatcher => atom(),
+    %% Module implementing the `ldclient_event_dispatch' behaviour used to
+    %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
+    events_shed_threshold => pos_integer(),
+    %% Buffer depth at which callers drop new events (load shedding) instead of
+    %% enqueueing them, so the event server cannot grow unbounded under
+    %% overload. Defaults to `events_capacity'.
+    events_min_workers => pos_integer(),
+    %% Minimum number of reporter workers in the egress pool. Defaults to 1.
+    events_max_workers => pos_integer(),
+    %% Maximum number of reporter workers the pool may autoscale to. Set above
+    %% `events_min_workers' to enable autoscaling. Defaults to 1.
+    events_batch_size => pos_integer(),
+    %% Maximum number of events a single worker sends per request. Defaults to 100.
+    events_scale_up_threshold => non_neg_integer(),
+    %% Buffered event count at which the pool commissions an additional worker.
+    %% Defaults to half of `events_capacity'.
+    events_scale_down_threshold => non_neg_integer(),
+    %% Buffered event count at or below which the pool decommissions an idle
+    %% worker. Defaults to 0.
+    events_scale_interval_ms => pos_integer(),
+    %% How often, in milliseconds, the pool samples the buffer depth to make a
+    %% scaling decision. Defaults to 1000.
+    events_scale_cooldown_ms => non_neg_integer(),
+    %% Minimum time, in milliseconds, between two scaling decisions, to avoid
+    %% thrashing. Defaults to 1000.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
