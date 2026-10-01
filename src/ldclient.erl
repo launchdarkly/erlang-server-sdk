@@ -107,13 +107,21 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%
 %% <ul>
 %%   <li>`[ldclient, events, shed]' - emitted when an event is dropped due to
-%%       load shedding. Metadata contains the instance `tag'.</li>
-%%   <li>`[ldclient, events, pool_scale]' - emitted when the reporter pool
-%%       changes size. Measurements contain `workers'; metadata contains the
-%%       instance `tag' and the `direction' (`up' or `down').</li>
+%%       load shedding. Measurement `count' (number of events shed, currently
+%%       always `1'); metadata contains the instance `tag'. Suitable for a
+%%       counter metric.</li>
+%%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
+%%       delivered. Measurement `count' (number of events in the batch);
+%%       metadata contains the instance `tag'. Suitable for a counter metric.</li>
 %%   <li>`[ldclient, events, send_error]' - emitted when a batch fails to send.
-%%       Measurements contain `count'; metadata contains the instance `tag' and
-%%       the failure `type' (`temporary' or `permanent').</li>
+%%       Measurement `count' (currently always `1'); metadata contains the
+%%       instance `tag' and the failure `type' (`temporary' or `permanent').
+%%       Suitable for a counter metric.</li>
+%%   <li>`[ldclient, events, pool_size]' - emitted whenever the reporter pool
+%%       size changes, and once at startup. Measurement `workers' is the
+%%       absolute pool size; metadata contains the instance `tag' and the
+%%       `direction' of the change (`initial', `up' or `down'). Suitable for a
+%%       gauge metric.</li>
 %% </ul>
 %%
 %% @end

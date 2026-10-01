@@ -187,7 +187,9 @@ init([Tag]) ->
     },
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
-    {ok, start_workers(State, MinWorkers)}.
+    InitialState = start_workers(State, MinWorkers),
+    ok = emit_pool_size(InitialState, initial),
+    {ok, InitialState}.
 
 %%===================================================================
 %% Behavior callbacks
@@ -227,6 +229,7 @@ handle_info({worker_done, Pid}, #{busy_workers := Busy, idle_workers := Idle, fl
     end;
 handle_info({'DOWN', Ref, process, Pid, _Reason}, State) ->
     State1 = ensure_workers(remove_worker(State, Ref, Pid)),
+    ok = emit_pool_size(State1, down),
     case maps:get(flushing, State1) of
         true -> {noreply, drain(State1)};
         false -> {noreply, State1}
@@ -541,23 +544,38 @@ scale(
     end.
 
 -spec scale_up(state(), non_neg_integer(), integer()) -> state().
-scale_up(#{tag := Tag} = State, Active, Now) ->
-    telemetry:execute([ldclient, events, pool_scale], #{workers => Active + 1}, #{tag => Tag, direction => up}),
+scale_up(State, _Active, Now) ->
     State1 = start_worker(State#{last_scale_ms := Now}),
-    case maps:get(flushing, State1) of
+    State2 = case maps:get(flushing, State1) of
         true -> drain(State1);
         false -> State1
-    end.
+    end,
+    emit_pool_size(State2, up),
+    State2.
 
 -spec scale_down(state(), non_neg_integer(), integer()) -> state().
-scale_down(#{tag := Tag, idle_workers := [Worker|_], worker_monitors := Monitors} = State, Active, Now) ->
-    case find_monitor(Worker, Monitors) of
+scale_down(#{tag := Tag, idle_workers := [Worker|_], worker_monitors := Monitors} = State, _Active, Now) ->
+    Ref = find_monitor(Worker, Monitors),
+    case Ref of
         undefined -> ok;
-        Ref -> _ = erlang:demonitor(Ref, [flush]), ok
+        _ -> _ = erlang:demonitor(Ref, [flush]), ok
     end,
     _ = ldclient_event_worker_sup:stop_worker(Tag, Worker),
-    telemetry:execute([ldclient, events, pool_scale], #{workers => Active - 1}, #{tag => Tag, direction => down}),
-    remove_worker(State#{last_scale_ms := Now}, find_monitor(Worker, Monitors), Worker).
+    State1 = remove_worker(State#{last_scale_ms := Now}, Ref, Worker),
+    emit_pool_size(State1, down),
+    State1.
+
+%% @doc Emit the current pool size. `direction' describes the transition that
+%% produced this sample (`initial', `up', `down'), while `workers' is the
+%% absolute value suitable for a gauge metric.
+%% @end
+-spec emit_pool_size(state(), initial | up | down) -> ok.
+emit_pool_size(#{tag := Tag, idle_workers := Idle, busy_workers := Busy}, Direction) ->
+    telemetry:execute(
+        [ldclient, events, pool_size],
+        #{workers => length(Idle) + map_size(Busy)},
+        #{tag => Tag, direction => Direction}
+    ).
 
 -spec find_monitor(pid(), #{reference() => pid()}) -> reference() | undefined.
 find_monitor(Pid, Monitors) ->

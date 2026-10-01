@@ -326,9 +326,11 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
     } = State,
     case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
         ok ->
+            emit_published(Tag, OutputEvents),
             State;
         {ok, Date} ->
             ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
+            emit_published(Tag, OutputEvents),
             State;
         {error, temporary, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
@@ -342,6 +344,20 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
             _ = erlang:send_after(?PERMANENT_PAUSE_MS, self(), {send, OutputEvents, PayloadId, 0}),
             State
     end.
+
+%% @doc Report how many events were successfully delivered in a batch. Emitted
+%% once per successful dispatch (including successful retries) so it can back a
+%% "published events" counter metric.
+%% @end
+-spec emit_published(atom(), list()) -> ok.
+emit_published(_Tag, []) ->
+    ok;
+emit_published(Tag, OutputEvents) ->
+    telemetry:execute(
+        [ldclient, events, published],
+        #{count => length(OutputEvents)},
+        #{tag => Tag}
+    ).
 
 -spec backoff_delay(pos_integer()) -> non_neg_integer().
 backoff_delay(Attempt) ->
