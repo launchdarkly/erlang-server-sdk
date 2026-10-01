@@ -63,6 +63,10 @@
     events_min_workers => pos_integer(),
     events_max_workers => pos_integer(),
     events_batch_size => pos_integer(),
+    events_scale_up_threshold => non_neg_integer(),
+    events_scale_down_threshold => non_neg_integer(),
+    events_scale_interval_ms => pos_integer(),
+    events_scale_cooldown_ms => non_neg_integer(),
     context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
@@ -109,6 +113,9 @@
 -define(DEFAULT_EVENTS_MIN_WORKERS, 1).
 -define(DEFAULT_EVENTS_MAX_WORKERS, 1).
 -define(DEFAULT_EVENTS_BATCH_SIZE, 100).
+-define(DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD, 0).
+-define(DEFAULT_EVENTS_SCALE_INTERVAL, 1000).
+-define(DEFAULT_EVENTS_SCALE_COOLDOWN, 1000).
 -define(DEFAULT_CONTEXT_KEYS_CAPACITY, 1000).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
@@ -186,6 +193,10 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsMinWorkers = maps:get(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
     EventsMaxWorkers = maps:get(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
     EventsBatchSize = maps:get(events_batch_size, Options, ?DEFAULT_EVENTS_BATCH_SIZE),
+    EventsScaleUpThreshold = maps:get(events_scale_up_threshold, Options, lists:max([1, EventsCapacity div 2])),
+    EventsScaleDownThreshold = maps:get(events_scale_down_threshold, Options, ?DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD),
+    EventsScaleInterval = maps:get(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
+    EventsScaleCooldown = maps:get(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
     ContextKeysCapacity = maps:get(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
@@ -236,6 +247,10 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_min_workers => EventsMinWorkers,
         events_max_workers => EventsMaxWorkers,
         events_batch_size => EventsBatchSize,
+        events_scale_up_threshold => EventsScaleUpThreshold,
+        events_scale_down_threshold => EventsScaleDownThreshold,
+        events_scale_interval_ms => EventsScaleInterval,
+        events_scale_cooldown_ms => EventsScaleCooldown,
         context_keys_capacity => ContextKeysCapacity,
         private_attributes => parse_private_attributes(PrivateAttributes),
         stream => Stream,

@@ -31,7 +31,14 @@
     flushing := boolean(),
     idle_workers := [pid()],
     busy_workers := #{pid() => true},
-    desired_workers := pos_integer(),
+    min_workers := pos_integer(),
+    max_workers := pos_integer(),
+    scale_up_threshold := non_neg_integer(),
+    scale_down_threshold := non_neg_integer(),
+    scale_interval_ms := pos_integer(),
+    scale_cooldown_ms := non_neg_integer(),
+    scale_timer_ref := reference(),
+    last_scale_ms := integer(),
     worker_monitors := #{reference() => pid()},
     flush_waiters := [from()],
     offline := boolean(),
@@ -132,7 +139,12 @@ init([Tag]) ->
     Capacity = ldclient_config:get_value(Tag, events_capacity),
     ShedThreshold = ldclient_config:get_value(Tag, events_shed_threshold),
     BatchSize = ldclient_config:get_value(Tag, events_batch_size),
-    DesiredWorkers = ldclient_config:get_value(Tag, events_min_workers),
+    MinWorkers = ldclient_config:get_value(Tag, events_min_workers),
+    MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
+    ScaleUpThreshold = ldclient_config:get_value(Tag, events_scale_up_threshold),
+    ScaleDownThreshold = ldclient_config:get_value(Tag, events_scale_down_threshold),
+    ScaleInterval = ldclient_config:get_value(Tag, events_scale_interval_ms),
+    ScaleCooldown = ldclient_config:get_value(Tag, events_scale_cooldown_ms),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     SendEvents = ldclient_config:get_value(Tag, send_events),
@@ -160,7 +172,14 @@ init([Tag]) ->
         flushing => false,
         idle_workers => [],
         busy_workers => #{},
-        desired_workers => DesiredWorkers,
+        min_workers => MinWorkers,
+        max_workers => MaxWorkers,
+        scale_up_threshold => ScaleUpThreshold,
+        scale_down_threshold => ScaleDownThreshold,
+        scale_interval_ms => ScaleInterval,
+        scale_cooldown_ms => ScaleCooldown,
+        scale_timer_ref => erlang:send_after(ScaleInterval, self(), scale),
+        last_scale_ms => erlang:monotonic_time(millisecond),
         worker_monitors => #{},
         flush_waiters => [],
         offline => OfflineMode,
@@ -168,7 +187,7 @@ init([Tag]) ->
     },
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
-    {ok, start_workers(State)}.
+    {ok, start_workers(State, MinWorkers)}.
 
 %%===================================================================
 %% Behavior callbacks
@@ -196,6 +215,10 @@ handle_cast(_Request, State) ->
 
 handle_info({flush, _Tag}, State) ->
     {noreply, start_flush(State)};
+handle_info(scale, #{scale_interval_ms := Interval} = State) ->
+    State1 = maybe_scale(State),
+    Ref = erlang:send_after(Interval, self(), scale),
+    {noreply, State1#{scale_timer_ref := Ref}};
 handle_info({worker_done, Pid}, #{busy_workers := Busy, idle_workers := Idle, flushing := Flushing} = State) ->
     State1 = State#{busy_workers := maps:remove(Pid, Busy), idle_workers := [Pid|Idle]},
     case Flushing of
@@ -213,9 +236,10 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef, buffer := Buffer} = State) ->
+terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
+    _ = erlang:cancel_timer(ScaleTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
     _ = erase_counters(State),
     ok;
@@ -486,9 +510,61 @@ complete_flush(#{tag := Tag, flush_interval := FlushInterval, timer_ref := Timer
         flushing := false
     }, 0).
 
--spec start_workers(state()) -> state().
-start_workers(#{desired_workers := Desired} = State) ->
-    start_workers(State, Desired).
+-spec maybe_scale(state()) -> state().
+maybe_scale(#{scale_cooldown_ms := Cooldown, last_scale_ms := Last} = State) ->
+    Now = erlang:monotonic_time(millisecond),
+    case Cooldown =< (Now - Last) of
+        true -> scale(State, Now);
+        false -> State
+    end.
+
+-spec scale(state(), integer()) -> state().
+scale(
+    #{
+        event_count := Depth,
+        idle_workers := Idle,
+        busy_workers := Busy,
+        min_workers := Min,
+        max_workers := Max,
+        scale_up_threshold := UpThreshold,
+        scale_down_threshold := DownThreshold
+    } = State,
+    Now
+) ->
+    Active = length(Idle) + map_size(Busy),
+    ShouldScaleUp = (Depth >= UpThreshold) andalso (Active < Max),
+    ShouldScaleDown = (Depth =< DownThreshold) andalso (Active > Min) andalso (Idle =/= []),
+    case {ShouldScaleUp, ShouldScaleDown} of
+        {true, _} -> scale_up(State, Active, Now);
+        {false, true} -> scale_down(State, Active, Now);
+        _ -> State
+    end.
+
+-spec scale_up(state(), non_neg_integer(), integer()) -> state().
+scale_up(#{tag := Tag} = State, Active, Now) ->
+    telemetry:execute([ldclient, events, pool_scale], #{workers => Active + 1}, #{tag => Tag, direction => up}),
+    State1 = start_worker(State#{last_scale_ms := Now}),
+    case maps:get(flushing, State1) of
+        true -> drain(State1);
+        false -> State1
+    end.
+
+-spec scale_down(state(), non_neg_integer(), integer()) -> state().
+scale_down(#{tag := Tag, idle_workers := [Worker|_], worker_monitors := Monitors} = State, Active, Now) ->
+    case find_monitor(Worker, Monitors) of
+        undefined -> ok;
+        Ref -> _ = erlang:demonitor(Ref, [flush]), ok
+    end,
+    _ = ldclient_event_worker_sup:stop_worker(Tag, Worker),
+    telemetry:execute([ldclient, events, pool_scale], #{workers => Active - 1}, #{tag => Tag, direction => down}),
+    remove_worker(State#{last_scale_ms := Now}, find_monitor(Worker, Monitors), Worker).
+
+-spec find_monitor(pid(), #{reference() => pid()}) -> reference() | undefined.
+find_monitor(Pid, Monitors) ->
+    case [Ref || {Ref, Monitored} <- maps:to_list(Monitors), Monitored =:= Pid] of
+        [Ref|_] -> Ref;
+        [] -> undefined
+    end.
 
 -spec start_workers(state(), non_neg_integer()) -> state().
 start_workers(State, 0) ->
@@ -511,10 +587,10 @@ start_worker(#{tag := Tag, idle_workers := Idle, worker_monitors := Monitors} = 
     end.
 
 -spec ensure_workers(state()) -> state().
-ensure_workers(#{desired_workers := Desired, idle_workers := Idle, busy_workers := Busy} = State) ->
+ensure_workers(#{min_workers := Min, idle_workers := Idle, busy_workers := Busy} = State) ->
     Active = length(Idle) + map_size(Busy),
-    case Desired > Active of
-        true -> start_workers(State, Desired - Active);
+    case Min > Active of
+        true -> start_workers(State, Min - Active);
         false -> State
     end.
 

@@ -13,7 +13,8 @@
 -export([
     add_event_is_cast/1,
     sheds_when_buffer_at_threshold/1,
-    pool_uses_multiple_workers/1
+    pool_uses_multiple_workers/1,
+    autoscales_worker_pool/1
 ]).
 
 %%====================================================================
@@ -24,7 +25,8 @@ all() ->
     [
         add_event_is_cast,
         sheds_when_buffer_at_threshold,
-        pool_uses_multiple_workers
+        pool_uses_multiple_workers,
+        autoscales_worker_pool
     ].
 
 init_per_suite(Config) ->
@@ -49,6 +51,22 @@ init_per_suite(Config) ->
         events_batch_size => 1
     },
     ldclient:start_instance("", pooler, PoolOptions),
+    ScalerOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 3,
+        events_batch_size => 100,
+        events_scale_up_threshold => 1,
+        events_scale_down_threshold => 0,
+        events_scale_interval_ms => 50,
+        events_scale_cooldown_ms => 0
+    },
+    ldclient:start_instance("", scaler, ScalerOptions),
     Config.
 
 end_per_suite(_) ->
@@ -120,6 +138,37 @@ pool_uses_multiple_workers(_) ->
     GotKeys = lists:sort([K || Payload <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- Payload]),
     Keys = GotKeys.
 
+%% The pool scales workers up as the buffer depth grows and back down once it
+%% is drained, staying within [min_workers, max_workers].
+autoscales_worker_pool(_) ->
+    Tag = scaler,
+    SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+    HandlerId = {?MODULE, autoscales_worker_pool, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, pool_scale],
+        fun(_Event, _Measurements, Metadata, _Config) ->
+            Self ! {pool_scale, maps:get(direction, Metadata)}
+        end,        undefined
+    ),
+    register_collector(),
+    try
+        1 = length(supervisor:which_children(SupName)),
+        Keys = [<<"k1">>, <<"k2">>, <<"k3">>, <<"k4">>, <<"k5">>],
+        [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
+        wait_for_event_count(Tag, 5),
+        wait_for_worker_count(SupName, 3, 100),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payloads(1),
+        wait_for_worker_count(SupName, 1, 100),
+        Directions = collect_scales([]),
+        true = lists:member(up, Directions),
+        true = lists:member(down, Directions)
+    after
+        telemetry:detach(HandlerId)
+    end.
+
 %%====================================================================
 %% Helpers
 %%====================================================================
@@ -140,6 +189,24 @@ wait_for_event_count(ServerName, Expected, Retries) ->
         _ ->
             timer:sleep(10),
             wait_for_event_count(ServerName, Expected, Retries - 1)
+    end.
+
+wait_for_worker_count(_SupName, _Expected, 0) ->
+    ct:fail("Worker pool did not reach the expected size");
+wait_for_worker_count(SupName, Expected, Retries) ->
+    case length(supervisor:which_children(SupName)) of
+        Expected ->
+            ok;
+        _ ->
+            timer:sleep(10),
+            wait_for_worker_count(SupName, Expected, Retries - 1)
+    end.
+
+collect_scales(Acc) ->
+    receive
+        {pool_scale, Direction} -> collect_scales([Direction|Acc])
+    after 50 ->
+        Acc
     end.
 
 register_event_forwarding_process() ->
@@ -167,7 +234,7 @@ collect_payloads(0, Acc) ->
     Acc;
 collect_payloads(Count, Acc) ->
     receive
-        {EventsBin, _PayloadId} ->
+        {EventsBin, _PayloadId} when is_binary(EventsBin) ->
             collect_payloads(Count - 1, [jsx:decode(EventsBin, [return_maps])|Acc])
     after 2000 ->
         ct:fail("Did not receive ~b payloads", [Count])
