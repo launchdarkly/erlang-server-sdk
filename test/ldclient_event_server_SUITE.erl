@@ -15,7 +15,7 @@
     sheds_when_buffer_at_threshold/1,
     pool_uses_multiple_workers/1,
     autoscales_worker_pool/1,
-    retries_transient_failures_with_backoff/1,
+    retries_transient_failures_once/1,
     emits_published_telemetry/1,
     offline_instance_does_not_send/1,
     preserves_summary_when_shedding/1,
@@ -35,7 +35,7 @@ all() ->
         sheds_when_buffer_at_threshold,
         pool_uses_multiple_workers,
         autoscales_worker_pool,
-        retries_transient_failures_with_backoff,
+        retries_transient_failures_once,
         emits_published_telemetry,
         offline_instance_does_not_send,
         preserves_summary_when_shedding,
@@ -261,11 +261,11 @@ autoscales_worker_pool(_) ->
         telemetry:detach(HandlerId)
     end.
 
-%% Transient dispatch failures are retried with backoff and reported through
-%% telemetry rather than at a fixed interval with no visibility.
-retries_transient_failures_with_backoff(_) ->
+%% Transient dispatch failures are retried exactly once and reported through
+%% telemetry.
+retries_transient_failures_once(_) ->
     Tag = failing,
-    HandlerId = {?MODULE, retries_transient_failures_with_backoff, self()},
+    HandlerId = {?MODULE, retries_transient_failures_once, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,

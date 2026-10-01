@@ -36,10 +36,9 @@
 
 -define(TABLE_PREFIX, "event_process_state").
 
-%% Exponential backoff bounds for retrying transient dispatch failures. A
-%% permanent failure is not retried.
--define(RETRY_INITIAL_MS, 1000).
--define(RETRY_MAX_MS, 60000).
+%% A transient dispatch failure is retried exactly once (matching the SDK's
+%% existing contract); a permanent failure is not retried.
+-define(RETRY_DELAY_MS, 1000).
 
 %%===================================================================
 %% API
@@ -354,12 +353,15 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
             ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
             emit_published(Tag, OutputEvents),
             State;
+        {error, temporary, Reason} when Attempt =:= 0 ->
+            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
+            error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
+            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, OutputEvents, PayloadId, 1}),
+            maps:update_with(pending, fun(P) -> P + 1 end, State);
         {error, temporary, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
-            error_logger:warning_msg("Temporary error sending events (~p); retrying with backoff", [Reason]),
-            Next = Attempt + 1,
-            _ = erlang:send_after(backoff_delay(Next), self(), {send, OutputEvents, PayloadId, Next}),
-            maps:update_with(pending, fun(P) -> P + 1 end, State);
+            error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
+            State;
         {error, permanent, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
@@ -397,13 +399,6 @@ emit_published(Tag, OutputEvents) ->
         #{count => length(OutputEvents)},
         #{tag => Tag}
     ).
-
--spec backoff_delay(pos_integer()) -> non_neg_integer().
-backoff_delay(Attempt) ->
-    Exponent = min(Attempt - 1, 16),
-    Base = min(?RETRY_MAX_MS, ?RETRY_INITIAL_MS bsl Exponent),
-    Jitter = 0.5 * Base,
-    trunc(Base - (rand:uniform() * Jitter)).
 
 -spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string()) ->
     ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
