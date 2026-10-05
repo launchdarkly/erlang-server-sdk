@@ -73,6 +73,7 @@ format_shotgun_error_atom(_) ->
     "timeout opening connection" = ldclient_key_redaction:format_shotgun_error(gun_open_timeout),
     "connection refused" = ldclient_key_redaction:format_shotgun_error(econnrefused),
     "read timeout" = ldclient_key_redaction:format_shotgun_error({shutdown, read_timeout}),
+    "invalid stream read timeout" = ldclient_key_redaction:format_shotgun_error({invalid_read_timeout, -1}),
     "connection shutdown" = ldclient_key_redaction:format_shotgun_error({shutdown, econnreset}).
 
 format_shotgun_error_integer(_) ->
