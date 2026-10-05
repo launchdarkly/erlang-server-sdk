@@ -71,7 +71,9 @@ format_shotgun_error_atom(_) ->
     "connection timeout" = ldclient_key_redaction:format_shotgun_error(timeout),
     "connection failed to open" = ldclient_key_redaction:format_shotgun_error(gun_open_failed),
     "timeout opening connection" = ldclient_key_redaction:format_shotgun_error(gun_open_timeout),
-    "connection refused" = ldclient_key_redaction:format_shotgun_error(econnrefused).
+    "connection refused" = ldclient_key_redaction:format_shotgun_error(econnrefused),
+    "read timeout" = ldclient_key_redaction:format_shotgun_error({shutdown, read_timeout}),
+    "connection shutdown" = ldclient_key_redaction:format_shotgun_error({shutdown, econnreset}).
 
 format_shotgun_error_integer(_) ->
     % HTTP status codes should be formatted as integers

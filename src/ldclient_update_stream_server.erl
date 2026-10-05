@@ -23,9 +23,7 @@
     %% Try to use a proper type with Gun 2.0
     gun_options := any(),
     headers := map(),
-    read_timeout_ms := non_neg_integer(),
-    read_timer := reference() | undefined,
-    sse_buffer := binary()
+    read_timeout_ms := non_neg_integer()
 }.
 
 -ifdef(TEST).
@@ -78,9 +76,7 @@ init([Tag]) ->
         stream_uri => StreamUri,
         gun_options => GunOptions,
         headers => Headers,
-        read_timeout_ms => ReadTimeoutMs,
-        read_timer => undefined,
-        sse_buffer => <<>>
+        read_timeout_ms => ReadTimeoutMs
     },
     self() ! {listen},
     {ok, State}.
@@ -103,31 +99,13 @@ handle_info({listen}, #{stream_uri := Uri} = State) ->
     error_logger:info_msg("Starting streaming connection to URL: ~p", [Uri]),
     NewState = do_listen(State),
     {noreply, NewState};
-handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff, read_timer := ReadTimer} = State) ->
+handle_info({'DOWN', _Mref, process, ShotgunPid, Reason}, #{conn := ShotgunPid, backoff := Backoff} = State) ->
     NewBackoff = ldclient_backoff:fail(Backoff),
     _ = ldclient_backoff:fire(NewBackoff),
     % Reason from DOWN message could contain connection details with headers/SDK keys
     SafeReason = ldclient_key_redaction:format_shotgun_error(Reason),
     error_logger:warning_msg("Got DOWN message from shotgun pid with reason: ~s, will retry in ~p ms~n", [SafeReason, maps:get(current, NewBackoff)]),
-    {noreply, State#{conn := undefined, backoff := NewBackoff, read_timer := cancel_read_timer(ReadTimer), sse_buffer := <<>>}};
-handle_info({stream_chunk, ShotgunPid, IsFin, Bin}, #{conn := ShotgunPid} = State) ->
-    NewState = handle_stream_chunk(Bin, State),
-    case IsFin of
-        fin ->
-            % Connection ended, close monitored shotgun client pid, so we can reconnect
-            error_logger:warning_msg("Streaming connection ended"),
-            close_conn(ShotgunPid);
-        nofin ->
-            ok
-    end,
-    {noreply, NewState};
-handle_info({stream_chunk, _StalePid, _IsFin, _Bin}, State) ->
-    {noreply, State};
-handle_info({timeout, TimerRef, read_timeout}, #{read_timer := TimerRef, conn := ShotgunPid, read_timeout_ms := ReadTimeoutMs} = State) ->
-    % Half-open connection: closing it produces the DOWN message that reconnects with backoff
-    error_logger:warning_msg("No data received on streaming connection for ~p ms, reconnecting~n", [ReadTimeoutMs]),
-    close_conn(ShotgunPid),
-    {noreply, State#{read_timer := undefined}};
+    {noreply, State#{conn := undefined, backoff := NewBackoff}};
 handle_info({timeout, _TimerRef, listen}, State) ->
     error_logger:info_msg("Reconnecting streaming connection...~n"),
     NewState = do_listen(State),
@@ -153,31 +131,27 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_listen(state()) -> state().
 do_listen(#{
+    feature_store := FeatureStore,
+    storage_tag := Tag,
     stream_uri := Uri,
     backoff := Backoff,
     gun_options := GunOptions,
     headers := Headers,
-    read_timer := ReadTimer,
     read_timeout_ms := ReadTimeoutMs
     } = State
 ) ->
-    try do_listen(Uri, GunOptions, Headers) of
+    try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers, ReadTimeoutMs) of
         {error, temporary, Reason} ->
             NewBackoff = do_listen_fail_backoff(Backoff, temporary, Reason),
             State#{backoff := NewBackoff};
         {error, permanent, Reason} ->
             % Reason here is already safe: either a sanitized string from format_shotgun_error
-            % or an integer status code from the do_listen/5 method.
+            % or an integer status code from the do_listen/6 method.
             error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
             State;
         {ok, Pid} ->
             NewBackoff = ldclient_backoff:succeed(Backoff),
-            State#{
-                conn := Pid,
-                backoff := NewBackoff,
-                read_timer := restart_read_timer(ReadTimer, ReadTimeoutMs),
-                sse_buffer := <<>>
-            }
+            State#{conn := Pid, backoff := NewBackoff}
         catch Code:_Reason ->
             % Don't pass raw exception reason as it could contain unsafe data
             NewBackoff = do_listen_fail_backoff(Backoff, Code, "unexpected exception"),
@@ -199,8 +173,8 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
-do_listen(Uri, GunOpts, Headers) ->
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}], ReadTimeoutMs :: non_neg_integer()) -> {ok, pid()} | {error, atom(), term()}.
+do_listen(Uri, FeatureStore, Tag, GunOpts, Headers, ReadTimeoutMs) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     HttpOpts = maps:get(http_opts, GunOpts, #{}),
     StreamGunOpts = GunOpts#{http_opts => HttpOpts#{closing_timeout => ?STREAM_CLOSING_TIMEOUT_MS}},
@@ -212,11 +186,28 @@ do_listen(Uri, GunOpts, Headers) ->
             {error, temporary, "Connection timeout"};
         {ok, Pid} ->
             _ = monitor(process, Pid),
-            % Binary mode: heartbeats are bare comment lines that never complete an SSE event,
-            % so sse mode would hide them from the read timeout. Framing is in handle_stream_chunk/2.
-            Server = self(),
-            F = fun(IsFin, _Ref, Bin) -> Server ! {stream_chunk, Pid, IsFin, Bin} end,
-            Options = #{async => true, async_mode => binary, handle_event => F, allow_reconnect => false},
+            F = fun(nofin, _Ref, Bin) ->
+                    try
+                        process_event(parse_shotgun_event(Bin), FeatureStore, Tag)
+                    catch Code:_Reason ->
+                        % Exception when processing event - don't log exception details
+                        % as they could theoretically contain sensitive data
+                        error_logger:warning_msg("Invalid SSE event error (~p)", [Code]),
+                        shotgun:close(Pid)
+                    end;
+                (fin, _Ref, _Bin) ->
+                    % Connection ended, close monitored shotgun client pid, so we can reconnect
+                    error_logger:warning_msg("Streaming connection ended"),
+                    shotgun:close(Pid)
+                end,
+            % On a read timeout shotgun exits with {shutdown, read_timeout}; the DOWN handler reconnects
+            Options = #{
+                async => true,
+                async_mode => sse,
+                handle_event => F,
+                allow_reconnect => false,
+                read_timeout => shotgun_read_timeout(ReadTimeoutMs)
+            },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     shotgun:close(Pid),
@@ -233,80 +224,10 @@ do_listen(Uri, GunOpts, Headers) ->
             end
     end.
 
-%% @doc Frame and process bytes received from the streaming connection
-%% @private
-%%
-%% @end
--spec handle_stream_chunk(binary(), state()) -> state().
-handle_stream_chunk(Bin, #{
-    sse_buffer := Buffer,
-    feature_store := FeatureStore,
-    storage_tag := Tag,
-    conn := ShotgunPid,
-    read_timer := ReadTimer,
-    read_timeout_ms := ReadTimeoutMs
-} = State) ->
-    NewTimer = restart_read_timer(ReadTimer, ReadTimeoutMs),
-    {Events, Rest} = split_sse_events(<<Buffer/binary, Bin/binary>>),
-    try
-        lists:foreach(fun(EventBin) -> process_event_bin(EventBin, FeatureStore, Tag) end, Events)
-    catch Code:_Reason ->
-        % Exception when processing event - don't log exception details
-        % as they could theoretically contain sensitive data
-        error_logger:warning_msg("Invalid SSE event error (~p)", [Code]),
-        close_conn(ShotgunPid)
-    end,
-    State#{sse_buffer := Rest, read_timer := NewTimer}.
-
-%% @doc Split a buffer into complete SSE events and the unterminated tail
-%% @private
-%%
-%% @end
--spec split_sse_events(binary()) -> {[binary()], binary()}.
-split_sse_events(Buffer) ->
-    [Rest | ReversedEvents] = lists:reverse(binary:split(Buffer, <<"\n\n">>, [global])),
-    {lists:reverse(ReversedEvents), drop_complete_comment_lines(Rest)}.
-
-%% Heartbeat comments never complete an event; drop finished comment lines so a quiet
-%% connection does not buffer them forever.
--spec drop_complete_comment_lines(binary()) -> binary().
-drop_complete_comment_lines(Rest) ->
-    [Last | ReversedLines] = lists:reverse(binary:split(Rest, <<"\n">>, [global])),
-    Kept = [Line || Line <- lists:reverse(ReversedLines), not is_comment_line(Line)],
-    iolist_to_binary(lists:join(<<"\n">>, Kept ++ [Last])).
-
--spec is_comment_line(binary()) -> boolean().
-is_comment_line(<<":", _/binary>>) -> true;
-is_comment_line(_Line) -> false.
-
--spec process_event_bin(binary(), FeatureStore :: atom(), Tag :: atom()) -> ok.
-process_event_bin(EventBin, FeatureStore, Tag) ->
-    case parse_shotgun_event(EventBin) of
-        #{event := _Event} = Event -> process_event(Event, FeatureStore, Tag);
-        _NoEvent -> ok
-    end.
-
--spec start_read_timer(non_neg_integer()) -> reference() | undefined.
-start_read_timer(0) -> undefined;
-start_read_timer(ReadTimeoutMs) -> erlang:start_timer(ReadTimeoutMs, self(), read_timeout).
-
--spec cancel_read_timer(reference() | undefined) -> undefined.
-cancel_read_timer(undefined) -> undefined;
-cancel_read_timer(TimerRef) ->
-    _ = erlang:cancel_timer(TimerRef),
-    undefined.
-
--spec restart_read_timer(reference() | undefined, non_neg_integer()) -> reference() | undefined.
-restart_read_timer(TimerRef, ReadTimeoutMs) ->
-    _ = cancel_read_timer(TimerRef),
-    start_read_timer(ReadTimeoutMs).
-
-%% The connection may already be gone; its DOWN message handles the reconnect.
--spec close_conn(pid() | undefined) -> ok.
-close_conn(undefined) -> ok;
-close_conn(ShotgunPid) ->
-    _ = (catch shotgun:close(ShotgunPid)),
-    ok.
+%% shotgun rejects a read_timeout of 0, which disables the timeout here.
+-spec shotgun_read_timeout(non_neg_integer()) -> timeout().
+shotgun_read_timeout(0) -> infinity;
+shotgun_read_timeout(ReadTimeoutMs) -> ReadTimeoutMs.
 
 %% @doc Processes server-sent event received from shotgun
 %% @private
