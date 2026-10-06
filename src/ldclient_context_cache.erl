@@ -9,86 +9,39 @@
 %% message round-trip into another process, which was a serialization point on
 %% the event intake path.
 %%
-%% When the current generation reaches the configured capacity, the previous
-%% generation is dropped and the current one is demoted, so memory stays bounded
-%% at roughly twice `context_keys_capacity' while still remembering contexts
-%% from the last generation.
+%% Rotation is enforced on insert: as soon as the current generation reaches
+%% `context_keys_capacity' the previous generation is dropped and the current
+%% one is demoted, so memory stays bounded at roughly twice the configured
+%% capacity. The cache is owned by the event server, which is the only caller,
+%% so the rotation is a local operation with no coordination.
 %% @private
 %% @end
 %%-------------------------------------------------------------------
 -module(ldclient_context_cache).
 
 %% API
--export([new/1, notice_context/2, maybe_rotate/2, delete/1]).
+-export([new/0, notice_context/3, size/1, delete/1]).
 
--define(CACHE_KEY, ldclient_context_cache).
+-export_type([cache/0]).
+
+-opaque cache() :: {Current :: ets:tid(), Previous :: ets:tid()}.
 
 %%===================================================================
 %% API
 %%===================================================================
 
-%% @doc Create the two cache generations for a tag and publish them so the
-%% intake process can reach them without a message round-trip.
+-spec new() -> cache().
+new() ->
+    {new_table(), new_table()}.
+
+%% @doc Add the context to the set of contexts we've noticed. Returns whether it
+%% was already known to us (and therefore no index event is needed) together
+%% with the (possibly rotated) cache.
 %% @end
--spec new(Tag :: atom()) -> ok.
-new(Tag) ->
-    persistent_term:put({?CACHE_KEY, Tag}, {new_table(), new_table()}),
-    ok.
-
-%% @doc Add the context to the set of contexts we've noticed, returning true if
-%% it was already known to us (and therefore no index event is needed).
-%% @end
--spec notice_context(Tag :: atom(), Context :: ldclient_context:context()) -> boolean().
-notice_context(Tag, Context) ->
-    case cache(Tag) of
-        undefined ->
-            %% No cache (server not started); treat as new.
-            false;
-        {Current, Previous} ->
-            do_notice_context({Current, Previous}, Context)
-    end.
-
-%% @doc Demote the current generation when it reaches capacity, dropping the
-%% oldest generation.
-%% @end
--spec maybe_rotate(Tag :: atom(), Capacity :: pos_integer()) -> ok.
-maybe_rotate(Tag, Capacity) ->
-    case cache(Tag) of
-        undefined ->
-            ok;
-        {Current, Previous} ->
-            case ets:info(Current, size) >= Capacity of
-                true ->
-                    _ = ets:delete(Previous),
-                    persistent_term:put({?CACHE_KEY, Tag}, {new_table(), Current});
-                false ->
-                    ok
-            end
-    end.
-
--spec delete(Tag :: atom()) -> ok.
-delete(Tag) ->
-    case cache(Tag) of
-        undefined ->
-            ok;
-        {Current, Previous} ->
-            _ = ets:delete(Current),
-            _ = ets:delete(Previous),
-            _ = persistent_term:erase({?CACHE_KEY, Tag}),
-            ok
-    end.
-
-%%===================================================================
-%% Internal functions
-%%===================================================================
-
--spec cache(Tag :: atom()) -> {ets:tid(), ets:tid()} | undefined.
-cache(Tag) ->
-    persistent_term:get({?CACHE_KEY, Tag}, undefined).
-
--spec do_notice_context({ets:tid(), ets:tid()}, ldclient_context:context()) -> boolean().
-do_notice_context({Current, Previous}, Context) ->
-    case ldclient_context:get_canonical_key(Context) of
+-spec notice_context(cache(), ldclient_context:context(), pos_integer()) ->
+    {boolean(), cache()}.
+notice_context(Cache = {Current, Previous}, Context, Capacity) ->
+    Seen = case ldclient_context:get_canonical_key(Context) of
         <<>> ->
             %% Do not add to the cache. Returning true also means we should not
             %% send an index for this invalid context.
@@ -104,6 +57,36 @@ do_notice_context({Current, Previous}, Context) ->
                     %% context is new to us.
                     not ets:insert_new(Current, {Key, true})
             end
+    end,
+    {Seen, maybe_rotate(Cache, Capacity)}.
+
+-spec delete(cache()) -> ok.
+delete({Current, Previous}) ->
+    _ = ets:delete(Current),
+    _ = ets:delete(Previous),
+    ok.
+
+%% @doc Total number of cached contexts across both generations.
+%% @end
+-spec size(cache()) -> non_neg_integer().
+size({Current, Previous}) ->
+    ets:info(Current, size) + ets:info(Previous, size).
+
+%%===================================================================
+%% Internal functions
+%%===================================================================
+
+%% @doc Demote the current generation when it reaches capacity, dropping the
+%% oldest generation.
+%% @end
+-spec maybe_rotate(cache(), pos_integer()) -> cache().
+maybe_rotate({Current, Previous} = Cache, Capacity) ->
+    case ets:info(Current, size) >= Capacity of
+        true ->
+            _ = ets:delete(Previous),
+            {new_table(), Current};
+        false ->
+            Cache
     end.
 
 -spec new_table() -> ets:tid().

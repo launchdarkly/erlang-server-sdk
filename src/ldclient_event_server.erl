@@ -21,6 +21,7 @@
     buffer := ldclient_event_buffer:buffer(),
     event_count := non_neg_integer(),
     counters_ref := counters:counters_ref(),
+    context_cache := ldclient_context_cache:cache(),
     context_keys_capacity := pos_integer(),
     summary_event := summary_event(),
     pending_summaries := [summary_event()],
@@ -218,6 +219,7 @@ init([Tag]) ->
         buffer => Buffer,
         event_count => 0,
         counters_ref => CountersRef,
+        context_cache => ldclient_context_cache:new(),
         summary_event => #{},
         pending_summaries => [],
         capacity => Capacity,
@@ -247,7 +249,6 @@ init([Tag]) ->
     ok = ldclient_event_worker_sup:stop_all(Tag),
     InitialState = start_workers(State, MinWorkers),
     ok = emit_pool_size(InitialState, initial),
-    ok = ldclient_context_cache:new(Tag),
     {ok, InitialState}.
 
 %%===================================================================
@@ -271,19 +272,18 @@ handle_cast({add_event, _Event, _Tag, _Options}, #{offline := true} = State) ->
     {noreply, release_inflight(State)};
 handle_cast({add_event, _Event, _Tag, _Options}, #{send_events := false} = State) ->
     {noreply, release_inflight(State)};
-handle_cast({add_event, Event, Tag, Options}, #{buffer := Buffer, event_count := Count, summary_event := SummaryEvent, capacity := Capacity} = State) ->
+handle_cast({add_event, Event, Tag, Options}, #{buffer := Buffer, event_count := Count, summary_event := SummaryEvent, capacity := Capacity, context_cache := ContextCache, context_keys_capacity := ContextKeysCapacity} = State) ->
     State1 = release_inflight(State),
-    {Added, NewSummaryEvent, NewCount} = add_event(Tag, Event, Options, SummaryEvent, Count, Capacity),
+    {Added, NewSummaryEvent, NewCount, NewContextCache} = add_event(Tag, Event, Options, SummaryEvent, Count, Capacity, ContextCache, ContextKeysCapacity),
     lists:foreach(fun(E) -> ok = ldclient_event_buffer:insert(Buffer, E) end, lists:reverse(Added)),
-    {noreply, set_count(State1#{summary_event := NewSummaryEvent}, NewCount)};
+    {noreply, set_count(State1#{summary_event := NewSummaryEvent, context_cache := NewContextCache}, NewCount)};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({flush, _Tag}, State) ->
     {noreply, start_flush(State)};
-handle_info(scale, #{scale_interval_ms := Interval, tag := Tag, context_keys_capacity := ContextKeysCapacity} = State) ->
+handle_info(scale, #{scale_interval_ms := Interval} = State) ->
     State1 = maybe_scale(State),
-    ok = ldclient_context_cache:maybe_rotate(Tag, ContextKeysCapacity),
     Ref = erlang:send_after(Interval, self(), scale),
     {noreply, State1#{scale_timer_ref := Ref}};
 handle_info({worker_done, Pid}, #{busy_workers := Busy, idle_workers := Idle, flushing := Flushing} = State) ->
@@ -304,12 +304,12 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{tag := Tag, timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
+terminate(Reason, #{context_cache := ContextCache, timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
     _ = erlang:cancel_timer(ScaleTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
-    _ = ldclient_context_cache:delete(Tag),
+    _ = ldclient_context_cache:delete(ContextCache),
     _ = erase_counters(State),
     ok;
 terminate(_Reason, _State) ->
@@ -328,26 +328,28 @@ code_change(_OldVsn, State, _Extra) ->
     Options :: options(),
     SummaryEvent :: summary_event(),
     Count :: non_neg_integer(),
-    Capacity :: pos_integer()
+    Capacity :: pos_integer(),
+    ContextCache :: ldclient_context_cache:cache(),
+    ContextKeysCapacity :: pos_integer()
 ) ->
-    {[ldclient_event:event()], summary_event(), non_neg_integer()}.
-add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, SummaryEvent, Count, Capacity) ->
+    {[ldclient_event:event()], summary_event(), non_neg_integer(), ldclient_context_cache:cache()}.
+add_event(Tag, #{type := feature_request, context := Context, timestamp := Timestamp} = Event, Options, SummaryEvent, Count, Capacity, ContextCache, ContextKeysCapacity) ->
     AddFull = should_add_full_event(Event),
     AddDebug = should_add_debug_event(Event, Tag),
     NewSummaryEvent = add_feature_request_event(Event, SummaryEvent),
-    {Added1, Count1} = maybe_add_index_event(Tag, Context, Timestamp, Capacity, Count),
+    {Added1, Count1, Cache1} = maybe_add_index_event(Context, Timestamp, Capacity, Count, ContextCache, ContextKeysCapacity),
     {Added2, Count2} = maybe_add_feature_request_full_fidelity(AddFull, Event, Options, Added1, Capacity, Count1),
     {Added3, Count3} = maybe_add_debug_event(AddDebug, Event, Options, Added2, Capacity, Count2),
-    {Added3, NewSummaryEvent, Count3};
-add_event(Tag, #{type := identify, context := Context} = Event, _Options, SummaryEvent, Count, Capacity) ->
+    {Added3, NewSummaryEvent, Count3, Cache1};
+add_event(_Tag, #{type := identify, context := Context} = Event, _Options, SummaryEvent, Count, Capacity, ContextCache, ContextKeysCapacity) ->
     % Notice the context, but do not conditionally add the index event.
-    ldclient_context_cache:notice_context(Tag, Context),
+    {_Seen, NewCache} = ldclient_context_cache:notice_context(ContextCache, Context, ContextKeysCapacity),
     {Added, NewCount} = add_raw_event(Event, [], Capacity, Count),
-    {Added, SummaryEvent, NewCount};
-add_event(Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, SummaryEvent, Count, Capacity) ->
-    {Added1, Count1} = maybe_add_index_event(Tag, Context, Timestamp, Capacity, Count),
+    {Added, SummaryEvent, NewCount, NewCache};
+add_event(_Tag, #{type := custom, context := Context, timestamp := Timestamp} = Event, _Options, SummaryEvent, Count, Capacity, ContextCache, ContextKeysCapacity) ->
+    {Added1, Count1, Cache1} = maybe_add_index_event(Context, Timestamp, Capacity, Count, ContextCache, ContextKeysCapacity),
     {Added2, Count2} = add_raw_event(Event, Added1, Capacity, Count1),
-    {Added2, SummaryEvent, Count2}.
+    {Added2, SummaryEvent, Count2, Cache1}.
 
 -spec add_raw_event(ldclient_event:event(), [ldclient_event:event()], pos_integer(), non_neg_integer()) ->
     {[ldclient_event:event()], non_neg_integer()}.
@@ -437,19 +439,20 @@ maybe_add_feature_request_full_fidelity(true, Event, _Options, Added, Capacity, 
 maybe_add_feature_request_full_fidelity(false, _Event, _Options, Added, _Capacity, Count) ->
     {Added, Count}.
 
--spec maybe_add_index_event(atom(), ldclient_context:context(), non_neg_integer(), pos_integer(), non_neg_integer()) ->
-    {[ldclient_event:event()], non_neg_integer()}.
-maybe_add_index_event(Tag, Context, Timestamp, Capacity, Count) ->
-    case ldclient_context_cache:notice_context(Tag, Context) of
-        true -> {[], Count};
-        false -> add_index_event(Context, Timestamp, Capacity, Count)
+-spec maybe_add_index_event(ldclient_context:context(), non_neg_integer(), pos_integer(), non_neg_integer(), ldclient_context_cache:cache(), pos_integer()) ->
+    {[ldclient_event:event()], non_neg_integer(), ldclient_context_cache:cache()}.
+maybe_add_index_event(Context, Timestamp, Capacity, Count, ContextCache, ContextKeysCapacity) ->
+    case ldclient_context_cache:notice_context(ContextCache, Context, ContextKeysCapacity) of
+        {true, NewCache} -> {[], Count, NewCache};
+        {false, NewCache} -> add_index_event(Context, Timestamp, Capacity, Count, NewCache)
     end.
 
--spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), pos_integer(), non_neg_integer()) ->
-    {[ldclient_event:event()], non_neg_integer()}.
-add_index_event(Context, Timestamp, Capacity, Count) ->
+-spec add_index_event(Context :: ldclient_context:context(), Timestamp :: non_neg_integer(), pos_integer(), non_neg_integer(), ldclient_context_cache:cache()) ->
+    {[ldclient_event:event()], non_neg_integer(), ldclient_context_cache:cache()}.
+add_index_event(Context, Timestamp, Capacity, Count, ContextCache) ->
     IndexEvent = ldclient_event:new_index(Context, Timestamp),
-    add_raw_event(IndexEvent, [], Capacity, Count).
+    {Added, NewCount} = add_raw_event(IndexEvent, [], Capacity, Count),
+    {Added, NewCount, ContextCache}.
 
 -spec should_add_debug_event(ldclient_event:event(), Tag :: atom()) -> boolean().
 should_add_debug_event(#{data := #{debugEventsUntilDate := null}}, _Tag) -> false;
