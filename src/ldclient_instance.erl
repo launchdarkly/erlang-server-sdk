@@ -28,12 +28,16 @@
     %% Module implementing the `ldclient_event_dispatch' behaviour used to
     %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
     events_shed_threshold => pos_integer(),
-    %% Buffer depth at which best-effort events (identify/custom) are dropped by
-    %% the caller (load shedding) instead of enqueued, so the event server
-    %% cannot grow unbounded under overload. Feature requests are always
-    %% processed so summary analytics keep counting every evaluation; only their
-    %% full-fidelity payloads are subject to `events_capacity'.
-    %% Defaults to `events_capacity'.
+    %% Outstanding work (events cast but not yet processed, plus events already
+    %% buffered) above which best-effort events (identify/custom) are dropped by
+    %% the caller instead of enqueued, bounding the event server mailbox and
+    %% memory under overload. Defaults to `events_capacity'.
+    events_shed_all => boolean(),
+    %% When `true', feature request events are also eligible for caller-side
+    %% shedding at `events_shed_threshold'. This is an opt-in emergency memory
+    %% valve: it prevents unbounded mailbox growth under an evaluation flood, at
+    %% the cost of under-counting summary analytics while shedding. Defaults to
+    %% `false' so summary analytics keep counting every evaluation.
     events_min_workers => pos_integer(),
     %% Minimum number of reporter workers in the egress pool. Defaults to 1.
     events_max_workers => pos_integer(),

@@ -83,8 +83,14 @@
 
 %% Key used to publish the caller-side depth counter for a tag. Callers read
 %% this (instead of calling into the event server) so that load can be shed
-%% before the server's mailbox grows.
+%% before the server's mailbox grows. The value is
+%% `{CountersRef, ShedThreshold, ShedAll}'.
 -define(COUNTERS_KEY, ldclient_event_server_counters).
+
+%% Counter slots: buffered events held in the ETS buffer, and events the callers
+%% have cast but the server has not processed yet (mailbox depth).
+-define(BUFFERED_INDEX, 1).
+-define(INFLIGHT_INDEX, 2).
 
 %%===================================================================
 %% API
@@ -96,23 +102,22 @@
 %% size and flushed at configured interval.
 %%
 %% This call never blocks the caller: the event is cast to the event server.
-%% When the buffer is at the configured shed threshold, best-effort events
-%% (identify/custom) are dropped (load shedding) and a telemetry event is
-%% emitted. Feature request events are always passed to the event server so
-%% that summary analytics continue to account for every evaluation even while
-%% full-fidelity events are being dropped; only their full-fidelity payloads
-%% are subject to the buffer capacity.
+%% Before casting, the caller reserves a slot against a shared "outstanding"
+%% counter (mailbox depth + buffered events). Best-effort events
+%% (identify/custom) are shed once the outstanding count exceeds
+%% `events_shed_threshold'. Feature request events are normally always passed
+%% to the event server so summary analytics keep counting every evaluation; when
+%% `events_shed_all' is enabled they are shed under the same bound as an
+%% emergency memory valve.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
-add_event(Tag, #{type := feature_request} = Event, Options) when is_atom(Tag) ->
-    cast_event(Tag, Event, Options);
 add_event(Tag, Event, Options) when is_atom(Tag) ->
-    case should_shed(Tag) of
-        true ->
+    case reserve(Tag, Event) of
+        shed ->
             telemetry:execute([ldclient, events, shed], #{count => 1}, #{tag => Tag}),
             ok;
-        false ->
+        keep ->
             cast_event(Tag, Event, Options)
     end.
 
@@ -120,6 +125,41 @@ add_event(Tag, Event, Options) when is_atom(Tag) ->
 cast_event(Tag, Event, Options) ->
     ServerName = get_local_reg_name(Tag),
     gen_server:cast(ServerName, {add_event, Event, Tag, Options}).
+
+%% @doc Reserve a slot for an event, shedding when the total outstanding work
+%% (events in the server mailbox plus events already buffered) exceeds the
+%% configured threshold. Feature requests are only eligible for shedding when
+%% `events_shed_all' is enabled.
+%% @end
+-spec reserve(Tag :: atom(), Event :: ldclient_event:event()) -> keep | shed.
+reserve(Tag, Event) ->
+    case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
+        undefined ->
+            keep;
+        {Ref, Threshold, ShedAll} ->
+            try
+                counters:add(Ref, ?INFLIGHT_INDEX, 1),
+                Outstanding = counters:get(Ref, ?BUFFERED_INDEX) + counters:get(Ref, ?INFLIGHT_INDEX),
+                ShouldShed = (Outstanding > Threshold) andalso (ShedAll orelse not is_feature_request(Event)),
+                case ShouldShed of
+                    true ->
+                        counters:sub(Ref, ?INFLIGHT_INDEX, 1),
+                        shed;
+                    false ->
+                        keep
+                end
+            catch
+                _:_ ->
+                    %% The counter belongs to a previous incarnation of the
+                    %% server. Do not shed and do not reserve; the server will
+                    %% clamp its in-flight count.
+                    keep
+            end
+    end.
+
+-spec is_feature_request(ldclient_event:event()) -> boolean().
+is_feature_request(#{type := feature_request}) -> true;
+is_feature_request(_) -> false.
 
 %% @doc Flush buffered events
 %%
@@ -153,6 +193,7 @@ init([Tag]) ->
     FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
     Capacity = ldclient_config:get_value(Tag, events_capacity),
     ShedThreshold = ldclient_config:get_value(Tag, events_shed_threshold),
+    ShedAll = ldclient_config:get_value(Tag, events_shed_all),
     BatchSize = ldclient_config:get_value(Tag, events_batch_size),
     MinWorkers = ldclient_config:get_value(Tag, events_min_workers),
     MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
@@ -168,8 +209,8 @@ init([Tag]) ->
         ldclient_event_process_server:ets_table_name(Tag),
         [set, named_table, public, {read_concurrency, true}]
     ),
-    CountersRef = counters:new(1, [write_concurrency]),
-    persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold}),
+    CountersRef = counters:new(2, [write_concurrency]),
+    persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, ShedAll}),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -227,13 +268,14 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({add_event, _Event, _Tag, _Options}, #{offline := true} = State) ->
-    {noreply, State};
+    {noreply, release_inflight(State)};
 handle_cast({add_event, _Event, _Tag, _Options}, #{send_events := false} = State) ->
-    {noreply, State};
+    {noreply, release_inflight(State)};
 handle_cast({add_event, Event, Tag, Options}, #{buffer := Buffer, event_count := Count, summary_event := SummaryEvent, capacity := Capacity} = State) ->
+    State1 = release_inflight(State),
     {Added, NewSummaryEvent, NewCount} = add_event(Tag, Event, Options, SummaryEvent, Count, Capacity),
     lists:foreach(fun(E) -> ok = ldclient_event_buffer:insert(Buffer, E) end, lists:reverse(Added)),
-    {noreply, set_count(State#{summary_event := NewSummaryEvent}, NewCount)};
+    {noreply, set_count(State1#{summary_event := NewSummaryEvent}, NewCount)};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -446,34 +488,26 @@ create_summary_event_value(Value, Default) ->
 get_local_reg_name(Tag) ->
     list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)).
 
-%% @doc Decide whether an incoming event should be shed before it is cast to the
-%% event server. Reads the shared depth counter published by the event server.
-%% @end
--spec should_shed(Tag :: atom()) -> boolean().
-should_shed(Tag) ->
-    case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
-        undefined ->
-            false;
-        {Ref, Threshold} ->
-            try
-                counters:get(Ref, 1) >= Threshold
-            catch
-                _:_ ->
-                    %% The counter belongs to a previous incarnation of the
-                    %% server (e.g. after a crash). Do not shed; the event
-                    %% server will publish a fresh counter.
-                    false
-            end
-    end.
-
 -spec update_counters(state()) -> state().
 update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
-    counters:put(Ref, 1, Count),
+    counters:put(Ref, ?BUFFERED_INDEX, Count),
     State.
 
 -spec set_count(state(), non_neg_integer()) -> state().
 set_count(State, Count) ->
     update_counters(State#{event_count := Count}).
+
+%% @doc Release a caller-side reservation once the server has processed the
+%% cast. Clamped so a reservation made against a stale counter (after a server
+%% restart) cannot underflow.
+%% @end
+-spec release_inflight(state()) -> state().
+release_inflight(#{counters_ref := Ref} = State) ->
+    case counters:get(Ref, ?INFLIGHT_INDEX) of
+        N when N > 0 -> counters:sub(Ref, ?INFLIGHT_INDEX, 1);
+        _ -> ok
+    end,
+    State.
 
 -spec erase_counters(state()) -> boolean().
 erase_counters(#{tag := Tag}) ->

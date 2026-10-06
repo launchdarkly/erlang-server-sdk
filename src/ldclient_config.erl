@@ -60,7 +60,10 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     events_shed_threshold => pos_integer(),
-    %% Buffer depth at which callers shed new events instead of enqueueing them.
+    %% Outstanding work (mailbox + buffered) at which callers shed best-effort events.
+    events_shed_all => boolean(),
+    %% When true, feature request events are also eligible for shedding under
+    %% `events_shed_threshold' (emergency memory valve; trades summary accuracy).
     events_min_workers => pos_integer(),
     %% Minimum size of the reporter worker pool.
     events_max_workers => pos_integer(),
@@ -121,6 +124,7 @@
 -define(DEFAULT_EVENTS_MIN_WORKERS, 1).
 -define(DEFAULT_EVENTS_MAX_WORKERS, 1).
 -define(DEFAULT_EVENTS_BATCH_SIZE, 100).
+-define(DEFAULT_EVENTS_SHED_ALL, false).
 -define(DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD, 0).
 -define(DEFAULT_EVENTS_SCALE_INTERVAL, 1000).
 -define(DEFAULT_EVENTS_SCALE_COOLDOWN, 1000).
@@ -198,6 +202,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     EventsShedThreshold = maps:get(events_shed_threshold, Options, EventsCapacity),
+    EventsShedAll = maps:get(events_shed_all, Options, ?DEFAULT_EVENTS_SHED_ALL),
     EventsMinWorkers = maps:get(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
     EventsMaxWorkers = maps:get(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
     EventsBatchSize = maps:get(events_batch_size, Options, ?DEFAULT_EVENTS_BATCH_SIZE),
@@ -252,6 +257,7 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
         events_shed_threshold => EventsShedThreshold,
+        events_shed_all => EventsShedAll,
         events_min_workers => EventsMinWorkers,
         events_max_workers => EventsMaxWorkers,
         events_batch_size => EventsBatchSize,

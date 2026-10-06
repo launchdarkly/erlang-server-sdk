@@ -22,7 +22,8 @@
     permanent_failures_are_not_retried/1,
     decommission_waits_for_pending_retries/1,
     flush_not_extended_by_new_events/1,
-    flush_does_not_overshoot_window/1
+    flush_does_not_overshoot_window/1,
+    sheds_all_event_types_when_enabled/1
 ]).
 
 %%====================================================================
@@ -42,7 +43,8 @@ all() ->
         permanent_failures_are_not_retried,
         decommission_waits_for_pending_retries,
         flush_not_extended_by_new_events,
-        flush_does_not_overshoot_window
+        flush_does_not_overshoot_window,
+        sheds_all_event_types_when_enabled
     ].
 
 init_per_suite(Config) ->
@@ -158,6 +160,18 @@ init_per_suite(Config) ->
         events_batch_size => 2
     },
     ldclient:start_instance("", slow_flush_batch, SlowBatchOptions),
+    ShedAllOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1,
+        events_shed_all => true,
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
+    },
+    ldclient:start_instance("", shed_all, ShedAllOptions),
     Config.
 
 end_per_suite(_) ->
@@ -468,6 +482,48 @@ flush_does_not_overshoot_window(_) ->
     GotKeys = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
     [<<"g1">>, <<"g2">>, <<"g3">>] = GotKeys,
     ok = wait_for_no_event(<<"g4">>, 500).
+
+%% With events_shed_all enabled, feature request events are shed too, bounding
+%% the mailbox at the cost of summary accuracy (the emergency memory valve).
+sheds_all_event_types_when_enabled(_) ->
+    Tag = shed_all,
+    HandlerId = {?MODULE, sheds_all_event_types_when_enabled, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, shed],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {shed, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
+    Flag = ldclient_flag:new(FlagMap),
+    try
+        E1 = ldclient_event:new_flag_eval(
+            5, <<"v5">>, <<"def">>, ldclient_context:new_from_user(#{key => <<"sa1">>}), target_match, Flag
+        ),
+        ok = ldclient_event_server:add_event(Tag, E1, #{include_reasons => true}),
+        wait_for_event_count(Tag, 2),
+        E2 = ldclient_event:new_flag_eval(
+            5, <<"v5">>, <<"def">>, ldclient_context:new_from_user(#{key => <<"sa2">>}), target_match, Flag
+        ),
+        ok = ldclient_event_server:add_event(Tag, E2, #{include_reasons => true}),
+        receive
+            {shed, #{count := 1}, #{tag := Tag}} -> ok
+        after 1000 ->
+            ct:fail("Expected a feature request to be shed when events_shed_all is enabled")
+        end,
+        ok = ldclient_event_server:flush(Tag),
+        Payload = collect_payload_with_key(<<"sa1">>, 2000),
+        [Summary|_] = [E || E <- Payload, maps:get(<<"kind">>, E) =:= <<"summary">>],
+        #{<<"features">> := #{<<"abc">> := #{<<"counters">> := [Counter]}}} = Summary,
+        %% Only the first evaluation was counted; the shed one was not.
+        1 = maps:get(<<"count">>, Counter)
+    after
+        telemetry:detach(HandlerId)
+    end.
 
 %%====================================================================
 %% Helpers
