@@ -39,10 +39,10 @@
     %% the cost of under-counting summary analytics while shedding. Defaults to
     %% `false' so summary analytics keep counting every evaluation.
     events_min_workers => pos_integer(),
-    %% Minimum number of reporter workers in the egress pool. Defaults to 1.
+    %% Minimum number of reporter workers in the egress pool. Defaults to 5.
     events_max_workers => pos_integer(),
     %% Maximum number of reporter workers the pool may autoscale to. Set above
-    %% `events_min_workers' to enable autoscaling. Defaults to 1.
+    %% `events_min_workers' to enable autoscaling. Defaults to 10.
     events_batch_size => pos_integer(),
     %% Maximum number of events a single worker sends per request. Defaults to 100.
     events_scale_up_threshold => non_neg_integer(),

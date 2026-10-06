@@ -95,9 +95,9 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       are always processed so summary analytics continue to count every
 %%       evaluation; only their full-fidelity payloads are subject to
 %%       `events_capacity'.</li>
-%%   <li>`events_min_workers' (`1') - minimum reporter worker pool size.</li>
-%%   <li>`events_max_workers' (`1') - maximum reporter worker pool size. Set
-%%       above `events_min_workers' to enable autoscaling.</li>
+%%   <li>`events_min_workers' (`5') - minimum reporter worker pool size.</li>
+%%   <li>`events_max_workers' (`10') - maximum reporter worker pool size;
+%%       autoscaling is enabled by default between the two.</li>
 %%   <li>`events_batch_size' (`100') - maximum number of events a worker sends
 %%       per request.</li>
 %%   <li>`events_scale_up_threshold' (half of `events_capacity') - buffer depth

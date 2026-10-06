@@ -23,6 +23,7 @@
     decommission_waits_for_pending_retries/1,
     flush_not_extended_by_new_events/1,
     flush_does_not_overshoot_window/1,
+    default_pool_bounds/1,
     sheds_all_event_types_when_enabled/1
 ]).
 
@@ -44,6 +45,7 @@ all() ->
         decommission_waits_for_pending_retries,
         flush_not_extended_by_new_events,
         flush_does_not_overshoot_window,
+        default_pool_bounds,
         sheds_all_event_types_when_enabled
     ].
 
@@ -91,7 +93,9 @@ init_per_suite(Config) ->
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
         events_shed_threshold => 1000,
-        events_flush_interval => 60000
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
     },
     ldclient:start_instance("sdk-key-events-fail", failing, FailingOptions),
     PublisherOptions = #{
@@ -137,7 +141,9 @@ init_per_suite(Config) ->
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
         events_shed_threshold => 1000,
-        events_flush_interval => 60000
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
     },
     ldclient:start_instance("sdk-key-events-fail", decommission_test, DecommissionOptions),
     SlowFlushOptions = #{
@@ -147,7 +153,9 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_batch_size => 1
+        events_batch_size => 1,
+        events_min_workers => 1,
+        events_max_workers => 1
     },
     ldclient:start_instance("", slow_flush, SlowFlushOptions),
     SlowBatchOptions = #{
@@ -157,9 +165,20 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_batch_size => 2
+        events_batch_size => 2,
+        events_min_workers => 1,
+        events_max_workers => 1
     },
     ldclient:start_instance("", slow_flush_batch, SlowBatchOptions),
+    DefaultsOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("", defaults, DefaultsOptions),
     ShedAllOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -482,6 +501,14 @@ flush_does_not_overshoot_window(_) ->
     GotKeys = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
     [<<"g1">>, <<"g2">>, <<"g3">>] = GotKeys,
     ok = wait_for_no_event(<<"g4">>, 500).
+
+%% The default reporter pool matches the other server SDKs: 5 flush workers at
+%% rest, autoscaling horizontally up to 10.
+default_pool_bounds(_) ->
+    SupName = ldclient_event_worker_sup:get_sup_name(defaults),
+    5 = length(supervisor:which_children(SupName)),
+    5 = ldclient_config:get_value(defaults, events_min_workers),
+    10 = ldclient_config:get_value(defaults, events_max_workers).
 
 %% With events_shed_all enabled, feature request events are shed too, bounding
 %% the mailbox at the cost of summary accuracy (the emergency memory valve).
