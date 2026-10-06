@@ -87,6 +87,8 @@ format_shotgun_error(ehostunreach) ->
     "host unreachable";
 format_shotgun_error(nxdomain) ->
     "domain name not found";
+format_shotgun_error({shutdown, read_timeout}) ->
+    "read timeout";
 format_shotgun_error({shutdown, _}) ->
     "connection shutdown";
 format_shotgun_error(normal) ->

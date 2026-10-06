@@ -160,3 +160,4 @@ parse_shotgun_event_optional_spaces(_) ->
     EventBin = <<"event: put\ndata: foo">>,
     ExpectedEvent = #{event => <<"put">>, data => <<"foo\n">>},
     ExpectedEvent = ldclient_update_stream_server:parse_shotgun_event(EventBin).
+

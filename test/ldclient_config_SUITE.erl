@@ -219,3 +219,4 @@ app_info_options(_) ->
     #{application := #{version := <<"the-version">>, id := MaxLengthId}} = ldclient_config:parse_options("sdk-key",
         #{application => #{version => <<"the-version">>,
         id => MaxLengthId}}).
+
