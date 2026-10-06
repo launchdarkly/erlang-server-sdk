@@ -317,12 +317,13 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
+terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer, tag := Tag} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
     _ = erlang:cancel_timer(ScaleTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
     _ = ldclient_context_cache:delete(maps:get(context_cache, State)),
+    _ = stop_dispatcher(Tag),
     case Reason of
         normal -> _ = erase_counters(State);
         shutdown -> _ = erase_counters(State);
@@ -582,6 +583,22 @@ resync_inflight(#{counters_ref := Ref} = State, Mode) ->
         false -> ok
     end,
     State.
+
+%% @doc Let the dispatcher release what it set up for this instance (an httpc
+%% profile, for example). The callback is optional.
+%% @end
+-spec stop_dispatcher(Tag :: atom()) -> ok.
+stop_dispatcher(Tag) ->
+    try
+        Dispatcher = ldclient_config:get_value(Tag, events_dispatcher),
+        _ = code:ensure_loaded(Dispatcher),
+        case erlang:function_exported(Dispatcher, stop, 1) of
+            true -> Dispatcher:stop(Tag);
+            false -> ok
+        end
+    catch _:_ ->
+        ok
+    end.
 
 %% @doc Make callers shed everything until a new incarnation publishes counters.
 %% @end

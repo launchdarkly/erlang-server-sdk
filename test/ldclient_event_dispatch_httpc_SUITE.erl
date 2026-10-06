@@ -19,7 +19,9 @@
     handles_incorrect_date_types/1,
     handles_no_date_present/1,
     handle_date_in_headers/1,
-    request_timeout_is_a_temporary_failure/1
+    request_timeout_is_a_temporary_failure/1,
+    requests_from_several_workers_run_in_parallel/1,
+    stop_releases_the_instance_profile/1
 ]).
 
 all() ->
@@ -32,14 +34,19 @@ all() ->
         handles_incorrect_date_types,
         handles_no_date_present,
         handle_date_in_headers,
-        request_timeout_is_a_temporary_failure
+        request_timeout_is_a_temporary_failure,
+        requests_from_several_workers_run_in_parallel,
+        stop_releases_the_instance_profile
     ].
 
 init_per_suite(Config) ->
+    %% Config registration needs the application's instance registry; make the
+    %% suite independent of whichever suite ran before it.
+    {ok, _} = application:ensure_all_started(ldclient),
     Config.
 
 end_per_suite(_) ->
-    ok.
+    ok = application:stop(ldclient).
 
 init_per_testcase(_, Config) ->
     {ok, _} = bookish_spork:start_server(),
@@ -123,7 +130,7 @@ handle_date_in_headers(_) ->
     PayloadId = uuid:get_v4(),
     State = ldclient_event_dispatch_httpc:init(tls, "sdk-key"),
     meck:new(httpc, [unstick]),
-    meck:expect(httpc, request, fun(_, _, _, _) -> {ok, {{0, 200, ""}, [{"date", "Mon, 07 Nov 2022 18:43:12 GMT"}], ""}} end),
+    meck:expect(httpc, request, fun(_, _, _, _, _) -> {ok, {{0, 200, ""}, [{"date", "Mon, 07 Nov 2022 18:43:12 GMT"}], ""}} end),
     {ok, 1667846592000} = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, "mock-doesn't-care").
 
 handles_correct_rfc1123_dates(_) ->
@@ -142,3 +149,73 @@ handles_incorrect_date_types(_) ->
 handles_no_date_present(_) ->
     0 = ldclient_event_dispatch_httpc:get_server_time([{"whatever", "value"}]),
     0 = ldclient_event_dispatch_httpc:get_server_time([]).
+
+%% On the default httpc profile the manager queues up to five requests behind
+%% the one in flight on a keep-alive connection, so several reporter workers
+%% posting at once were served one after another. The instance profile reuses
+%% a connection only when it is idle.
+requests_from_several_workers_run_in_parallel(_) ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {reuseaddr, true}]),
+    {ok, Port} = inet:port(Listen),
+    Concurrency = atomics:new(2, []),
+    Acceptor = spawn_link(fun() -> slow_accept_loop(Listen, Concurrency) end),
+    State = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    Uri = "http://localhost:" ++ integer_to_list(Port) ++ "/bulk",
+    Self = self(),
+    T0 = erlang:monotonic_time(millisecond),
+    Senders = [spawn_link(fun() ->
+        Self ! {done, self(), ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), Uri)}
+    end) || _ <- lists:seq(1, 4)],
+    lists:foreach(fun(Pid) ->
+        receive {done, Pid, {ok, _}} -> ok after 5000 -> ct:fail("send did not complete") end
+    end, Senders),
+    Elapsed = erlang:monotonic_time(millisecond) - T0,
+    MaxConcurrent = atomics:get(Concurrency, 2),
+    ct:pal("4 requests against a 400 ms endpoint took ~b ms, max concurrent ~b", [Elapsed, MaxConcurrent]),
+    true = MaxConcurrent >= 2,
+    %% Serial delivery would take at least 1 600 ms.
+    true = Elapsed < 1200,
+    unlink(Acceptor),
+    exit(Acceptor, kill),
+    gen_tcp:close(Listen).
+
+stop_releases_the_instance_profile(_) ->
+    #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    ldclient_events_default = Profile,
+    Manager = httpc:profile_name(Profile),
+    true = is_pid(whereis(Manager)),
+    ok = ldclient_event_dispatch_httpc:stop(default),
+    undefined = whereis(Manager),
+    %% Stopping twice is harmless, and the next init starts it again.
+    ok = ldclient_event_dispatch_httpc:stop(default),
+    #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    true = is_pid(whereis(Manager)).
+
+slow_accept_loop(Listen, Concurrency) ->
+    case gen_tcp:accept(Listen) of
+        {ok, Socket} ->
+            spawn(fun() -> handle_slowly(Socket, Concurrency) end),
+            slow_accept_loop(Listen, Concurrency);
+        {error, _} ->
+            ok
+    end.
+
+handle_slowly(Socket, Concurrency) ->
+    bump_max(Concurrency, atomics:add_get(Concurrency, 1, 1)),
+    _ = gen_tcp:recv(Socket, 0, 2000),
+    timer:sleep(400),
+    ok = gen_tcp:send(Socket, <<"HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n">>),
+    atomics:sub(Concurrency, 1, 1),
+    gen_tcp:close(Socket).
+
+bump_max(Ref, Current) ->
+    Max = atomics:get(Ref, 2),
+    case Current > Max of
+        true ->
+            case atomics:compare_exchange(Ref, 2, Max, Current) of
+                ok -> ok;
+                _ -> bump_max(Ref, Current)
+            end;
+        false ->
+            ok
+    end.

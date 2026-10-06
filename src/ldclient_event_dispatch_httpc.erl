@@ -9,13 +9,17 @@
 -behaviour(ldclient_event_dispatch).
 
 %% Behavior callbacks
--export([init/2, send/4]).
+-export([init/2, send/4, stop/1]).
 
-%% Internal type for ETag cache state
 -type state() :: #{
-headers => list(),
-http_options => list()
+    headers => list(),
+    http_options => list(),
+    profile => atom()
 }.
+
+%% Options of the default httpc profile that describe how to reach the network
+%% and therefore also apply to the events profile.
+-define(INHERITED_PROFILE_OPTIONS, [proxy, https_proxy, ipfamily, ip, port, socket_opts, unix_socket]).
 
 %% Expose non-exported methods for tests.
 -ifdef(TEST).
@@ -40,8 +44,16 @@ init(Tag, _SdkKey) ->
     ], Options),
     #{
         headers => Headers,
-        http_options => HttpOptions
+        http_options => HttpOptions,
+        profile => ensure_profile(Tag)
     }.
+
+%% @doc Stop the instance's httpc profile.
+%% @end
+-spec stop(Tag :: atom()) -> ok.
+stop(Tag) ->
+    _ = inets:stop(httpc, profile_name(Tag)),
+    ok.
 
 %% @doc Send events to LaunchDarkly event server
 %%
@@ -54,12 +66,56 @@ send(State, JsonEvents, PayloadId, Uri) ->
         {"X-LaunchDarkly-Payload-ID", uuid:uuid_to_string(PayloadId)} |
         BaseHeaders
     ],
-    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, HttpOptions, []),
+    Profile = maps:get(profile, State, default),
+    Request = httpc:request(post, {Uri, Headers, "application/json", JsonEvents}, HttpOptions, [], Profile),
     process_request(Request).
 
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+-spec profile_name(Tag :: atom()) -> atom().
+profile_name(Tag) ->
+    list_to_atom("ldclient_events_" ++ atom_to_list(Tag)).
+
+%% The reporter pool needs one connection per in-flight request. On the default
+%% httpc profile the manager queues up to `max_keep_alive_length' (5) requests
+%% behind the one in flight on a keep-alive connection, and opens at most
+%% `max_sessions' (2) of them, so several workers posting at once share one
+%% connection and a batch handed to a fresh worker waits behind a hung request
+%% for its whole timeout. Each instance therefore gets its own profile in which
+%% a connection is reused only when it is idle and up to `events_max_workers'
+%% persistent connections may be open. Starting the profile is idempotent: every
+%% worker calls `init/2'.
+-spec ensure_profile(Tag :: atom()) -> atom().
+ensure_profile(Tag) ->
+    Profile = profile_name(Tag),
+    {ok, _} = application:ensure_all_started(inets),
+    case inets:start(httpc, [{profile, Profile}]) of
+        {ok, _} -> ok;
+        {error, {already_started, _}} -> ok
+    end,
+    MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
+    ok = httpc:set_options(inherited_options() ++ [{max_sessions, MaxWorkers}, {max_keep_alive_length, 0}], Profile),
+    Profile.
+
+%% Network-related options an application configured on the default profile
+%% (a proxy, for example) must keep applying to event delivery.
+-spec inherited_options() -> [{atom(), term()}].
+inherited_options() ->
+    {ok, Options} = httpc:get_options(all),
+    [Opt || {Key, Value} = Opt <- Options, lists:member(Key, ?INHERITED_PROFILE_OPTIONS), is_set(Key, Value)].
+
+%% Unset values as reported by `httpc:get_options/1' are not valid inputs to
+%% `httpc:set_options/2'.
+-spec is_set(atom(), term()) -> boolean().
+is_set(proxy, {undefined, _}) -> false;
+is_set(https_proxy, {undefined, _}) -> false;
+is_set(ip, default) -> false;
+is_set(port, default) -> false;
+is_set(unix_socket, undefined) -> false;
+is_set(socket_opts, []) -> false;
+is_set(_, _) -> true.
 
 -type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
 

@@ -16,3 +16,9 @@
 
 %% `init' should return an initial value for the `State' argument to `send'
 -callback init(Tag :: atom(), SdkKey :: string()) -> any().
+
+%% `stop' releases anything `init' set up per instance (for example an httpc
+%% profile). It is called once when the instance's event pipeline stops.
+-callback stop(Tag :: atom()) -> ok.
+
+-optional_callbacks([stop/1]).

@@ -435,32 +435,64 @@ send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) ->
     end.
 
 %% @doc Encode a batch. If a term in some event cannot be represented as JSON
-%% (for example a tuple in custom event data), drop only those events and report
-%% them, instead of crashing the worker and losing the whole batch.
+%% (for example a tuple in custom event data, or a map with a key that is not
+%% a binary, atom or integer), drop only those events and report them, instead
+%% of crashing the worker and losing the whole batch. jsx raises `badarg' for
+%% some such terms and `function_clause' for others, so every error is treated
+%% as "not JSON". The summary is the one event that must survive: an
+%% unencodable application-supplied default value is replaced by `null' there.
 %% @end
 -spec encode(OutputEvents :: [map()], Tag :: atom()) -> {ok, binary()} | empty.
 encode(OutputEvents, Tag) ->
     try
         {ok, jsx:encode(OutputEvents)}
     catch
-        error:badarg ->
-            Encodable = [E || E <- OutputEvents, is_encodable(E)],
-            Dropped = length(OutputEvents) - length(Encodable),
-            telemetry:execute([ldclient, events, dropped], #{count => Dropped}, #{tag => Tag, reason => unencodable}),
-            error_logger:error_msg("Dropped ~b events for ~p that could not be encoded as JSON", [Dropped, Tag]),
+        error:_ ->
+            Sanitized = [sanitize_summary(E) || E <- OutputEvents],
+            Encodable = [E || E <- Sanitized, is_encodable(E)],
+            Dropped = length(Sanitized) - length(Encodable),
+            case Dropped of
+                0 -> ok;
+                _ ->
+                    telemetry:execute([ldclient, events, dropped], #{count => Dropped}, #{tag => Tag, reason => unencodable}),
+                    error_logger:error_msg("Dropped ~b events for ~p that could not be encoded as JSON", [Dropped, Tag])
+            end,
             case Encodable of
                 [] -> empty;
                 _ -> {ok, jsx:encode(Encodable)}
             end
     end.
 
--spec is_encodable(map()) -> boolean().
-is_encodable(Event) ->
+%% A summary carries, per flag, the default value the application passed to the
+%% first evaluation of that flag in the window, and for an unknown flag (or a
+%% flag with an invalid variation) that default is also the counter's value.
+%% Those are the only parts of a summary the application controls; if one is
+%% not JSON, send `null' in its place rather than lose every flag's counters.
+-spec sanitize_summary(map()) -> map().
+sanitize_summary(#{<<"kind">> := <<"summary">>, <<"features">> := Features} = Summary) ->
+    Summary#{<<"features">> := maps:map(fun(_FlagKey, #{default := Default, counters := Counters} = Flag) ->
+        Flag#{
+            default := encodable_or_null(Default),
+            counters := [Counter#{value := encodable_or_null(Value)} || #{value := Value} = Counter <- Counters]
+        }
+    end, Features)};
+sanitize_summary(Event) ->
+    Event.
+
+-spec encodable_or_null(term()) -> term().
+encodable_or_null(Term) ->
+    case is_encodable(Term) of
+        true -> Term;
+        false -> null
+    end.
+
+-spec is_encodable(term()) -> boolean().
+is_encodable(Term) ->
     try
-        _ = jsx:encode(Event),
+        _ = jsx:encode(Term),
         true
     catch
-        error:badarg -> false
+        error:_ -> false
     end.
 
 -spec ets_table_name(Tag :: atom()) -> atom().

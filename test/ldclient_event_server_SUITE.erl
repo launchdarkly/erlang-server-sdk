@@ -33,7 +33,9 @@
     capacity_drops_reported_once_per_flush/1,
     unencodable_events_do_not_lose_the_batch/1,
     emits_flush_telemetry_on_success/1,
-    emits_flush_telemetry_once_after_retry/1
+    emits_flush_telemetry_once_after_retry/1,
+    function_clause_terms_do_not_lose_the_batch/1,
+    unencodable_default_keeps_the_summary/1
 ]).
 
 %%====================================================================
@@ -64,7 +66,9 @@ all() ->
         capacity_drops_reported_once_per_flush,
         unencodable_events_do_not_lose_the_batch,
         emits_flush_telemetry_on_success,
-        emits_flush_telemetry_once_after_retry
+        emits_flush_telemetry_once_after_retry,
+        function_clause_terms_do_not_lose_the_batch,
+        unencodable_default_keeps_the_summary
     ].
 
 init_per_suite(Config) ->
@@ -892,6 +896,76 @@ unencodable_events_do_not_lose_the_batch(_) ->
             {dropped, #{count := 1}, #{tag := Tag, reason := unencodable}} -> ok
         after 1000 ->
             ct:fail("Expected a dropped telemetry event for the unencodable custom event")
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% jsx raises function_clause, not badarg, for a map whose key is a string, a
+%% float or a tuple, and for an improper list. Those must be dropped per event
+%% exactly like badarg terms.
+function_clause_terms_do_not_lose_the_batch(_) ->
+    Tag = publisher,
+    HandlerId = {?MODULE, function_clause_terms_do_not_lose_the_batch, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        Ctx = ldclient_context:new_from_user(#{key => <<"fc-bad">>}),
+        Bad = ldclient_event:new_custom(<<"bad-data">>, Ctx, #{"plan" => <<"pro">>}),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"fc-ok">>), #{}),
+        ok = ldclient_event_server:add_event(Tag, Bad, #{}),
+        wait_for_event_count(Tag, 3),
+        ok = ldclient_event_server:flush(Tag),
+        Payload = collect_payload_with_key(<<"fc-ok">>, 3000),
+        [] = [E || #{<<"kind">> := <<"custom">>} = E <- Payload],
+        receive
+            {dropped, #{count := 1}, #{tag := Tag, reason := unencodable}} -> ok
+        after 1000 ->
+            ct:fail("Expected a dropped telemetry event for the unencodable custom event")
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% The summary is one output event for every flag in the window. An
+%% application-supplied default that is not JSON must not take all of those
+%% counters with it: it is sent as null instead.
+unencodable_default_keeps_the_summary(_) ->
+    Tag = publisher,
+    HandlerId = {?MODULE, unencodable_default_keeps_the_summary, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        Ctx = ldclient_context:new_from_user(#{key => <<"def-ok">>}),
+        BadDefault = #{"a" => 1},
+        Eval = ldclient_event:new_for_unknown_flag(<<"abc">>, Ctx, BadDefault, {error, flag_not_found}),
+        ok = ldclient_event_server:add_event(Tag, Eval, #{}),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"def-ok">>), #{}),
+        wait_for_event_count(Tag, 2),
+        ok = ldclient_event_server:flush(Tag),
+        Payload = collect_payload_with_key(<<"def-ok">>, 3000),
+        [#{<<"features">> := #{<<"abc">> := Feature}}] = [E || #{<<"kind">> := <<"summary">>} = E <- Payload],
+        #{<<"default">> := null, <<"counters">> := [#{<<"value">> := null, <<"count">> := 1}]} = Feature,
+        receive
+            {dropped, _, #{reason := unencodable}} -> ct:fail("Nothing should have been dropped")
+        after 300 ->
+            ok
         end
     after
         telemetry:detach(HandlerId)
