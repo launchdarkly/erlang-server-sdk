@@ -29,7 +29,10 @@ http_options => list()
 -spec init(Tag :: atom(), SdkKey :: string()) -> state().
 init(Tag, _SdkKey) ->
     Options = ldclient_config:get_value(Tag, http_options),
-    HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
+    %% A request that is never answered must not hold a reporter worker (and
+    %% its batch) forever: bound it, and let the timeout be a temporary failure.
+    RequestTimeout = ldclient_config:get_value(Tag, events_request_timeout),
+    HttpOptions = [{timeout, RequestTimeout} | ldclient_http_options:httpc_parse_http_options(Options)],
     DefaultHeaders = ldclient_headers:get_default_headers(Tag, string_pairs),
     Headers = ldclient_http_options:httpc_append_custom_headers([
         {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()}
@@ -82,17 +85,23 @@ get_server_time([{"date", Date}|_T]) when is_list(Date) ->
     %% convert_request_date expects a string that is a list of characters.
     %% Not a binary string. The guard can make sure it is a list, but not
     %% that it is a char list. So that gets checked here.
-    case io_lib:char_list(Date) of
-        true -> case httpd_util:convert_request_date(Date) of
-                    bad_date ->
-                        %% This would be a date in a bad format.
-                        0;
-                    ParsedDate ->
-                        ldclient_time:datetime_to_timestamp(ParsedDate)
-                end;
-        false ->
-            %% The date was a list, but was not a list of characters.
-            0
+    %% A malformed header must not crash the worker after a successful send
+    %% (httpd_util/calendar raise on some inputs), so any failure yields 0.
+    try
+        case io_lib:char_list(Date) of
+            true -> case httpd_util:convert_request_date(Date) of
+                        bad_date ->
+                            %% This would be a date in a bad format.
+                            0;
+                        ParsedDate ->
+                            ldclient_time:datetime_to_timestamp(ParsedDate)
+                    end;
+            false ->
+                %% The date was a list, but was not a list of characters.
+                0
+        end
+    catch
+        _:_ -> 0
     end;
 get_server_time([_H|T]) ->
     get_server_time(T);

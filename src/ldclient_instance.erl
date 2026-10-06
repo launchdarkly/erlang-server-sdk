@@ -28,26 +28,27 @@
     %% Module implementing the `ldclient_event_dispatch' behaviour used to
     %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
     events_shed_threshold => pos_integer(),
-    %% Outstanding work (events cast but not yet processed, plus events already
-    %% buffered) above which best-effort events (identify/custom) are dropped by
-    %% the caller instead of enqueued, bounding the event server mailbox and
-    %% memory under overload. Defaults to `events_capacity'.
-    events_shed_all => boolean(),
-    %% When `true', feature request events are also eligible for caller-side
-    %% shedding at `events_shed_threshold'. This is an opt-in emergency memory
-    %% valve: it prevents unbounded mailbox growth under an evaluation flood, at
-    %% the cost of under-counting summary analytics while shedding. Defaults to
-    %% `false' so summary analytics keep counting every evaluation.
+    %% Buffered event count at which best-effort events (identify/custom) are
+    %% dropped by the caller (load shedding) instead of enqueued. Defaults to
+    %% `events_capacity'.
+    events_inbox_capacity => pos_integer(),
+    %% Number of events queued in the event server mailbox at which the caller
+    %% sheds every event, including feature requests, bounding the mailbox under
+    %% ingress overload. Defaults to `events_capacity'.
+    events_request_timeout => pos_integer(),
+    %% Milliseconds a reporter worker waits for the events endpoint to answer
+    %% before treating the request as a temporary failure. Defaults to 30000.
     events_min_workers => pos_integer(),
     %% Minimum number of reporter workers in the egress pool. Defaults to 5.
     events_max_workers => pos_integer(),
-    %% Maximum number of reporter workers the pool may autoscale to. Set above
-    %% `events_min_workers' to enable autoscaling. Defaults to 10.
+    %% Maximum number of reporter workers; one is added on demand whenever a
+    %% flush finds every worker busy. Defaults to 10.
     events_batch_size => pos_integer(),
-    %% Maximum number of events a single worker sends per request. Defaults to 100.
+    %% Maximum number of events a single worker sends per request. Defaults to
+    %% `events_capacity', i.e. one request per flush.
     events_scale_up_threshold => non_neg_integer(),
-    %% Buffered event count at which the pool commissions an additional worker.
-    %% Defaults to half of `events_capacity'.
+    %% Accepted for compatibility; workers are added on demand rather than by
+    %% buffer depth. Defaults to half of `events_capacity'.
     events_scale_down_threshold => non_neg_integer(),
     %% Buffered event count at or below which the pool decommissions an idle
     %% worker. Defaults to 0.

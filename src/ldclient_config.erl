@@ -60,10 +60,13 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     events_shed_threshold => pos_integer(),
-    %% Outstanding work (mailbox + buffered) at which callers shed best-effort events.
-    events_shed_all => boolean(),
-    %% When true, feature request events are also eligible for shedding under
-    %% `events_shed_threshold' (emergency memory valve; trades summary accuracy).
+    %% Buffered event count at which callers shed new best-effort events instead of enqueueing them.
+    events_inbox_capacity => pos_integer(),
+    %% Number of queued (not yet processed) casts at which callers shed every
+    %% event, including feature requests. Bounds the event server mailbox.
+    events_request_timeout => pos_integer(),
+    %% Milliseconds a reporter worker waits for the events endpoint to answer
+    %% before treating the request as a temporary failure.
     events_min_workers => pos_integer(),
     %% Minimum size of the reporter worker pool.
     events_max_workers => pos_integer(),
@@ -122,9 +125,8 @@
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
 -define(DEFAULT_EVENTS_MIN_WORKERS, 5).
+-define(DEFAULT_EVENTS_REQUEST_TIMEOUT, 30000).
 -define(DEFAULT_EVENTS_MAX_WORKERS, 10).
--define(DEFAULT_EVENTS_BATCH_SIZE, 100).
--define(DEFAULT_EVENTS_SHED_ALL, false).
 -define(DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD, 0).
 -define(DEFAULT_EVENTS_SCALE_INTERVAL, 1000).
 -define(DEFAULT_EVENTS_SCALE_COOLDOWN, 1000).
@@ -198,19 +200,23 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsUri = string:trim(maps:get(events_uri, Options, ?DEFAULT_EVENTS_URI), trailing, "/"),
     StreamUri = string:trim(maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI), trailing, "/"),
     FeatureStore = maps:get(feature_store, Options, ?DEFAULT_FEATURE_STORE),
-    EventsCapacity = maps:get(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
-    EventsFlushInterval = maps:get(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
+    EventsCapacity = pos_integer_option(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
+    EventsFlushInterval = pos_integer_option(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
-    EventsShedThreshold = maps:get(events_shed_threshold, Options, EventsCapacity),
-    EventsShedAll = maps:get(events_shed_all, Options, ?DEFAULT_EVENTS_SHED_ALL),
-    EventsMinWorkers = maps:get(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
-    EventsMaxWorkers = maps:get(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
-    EventsBatchSize = maps:get(events_batch_size, Options, ?DEFAULT_EVENTS_BATCH_SIZE),
-    EventsScaleUpThreshold = maps:get(events_scale_up_threshold, Options, lists:max([1, EventsCapacity div 2])),
-    EventsScaleDownThreshold = maps:get(events_scale_down_threshold, Options, ?DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD),
-    EventsScaleInterval = maps:get(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
-    EventsScaleCooldown = maps:get(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
-    ContextKeysCapacity = maps:get(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
+    EventsShedThreshold = pos_integer_option(events_shed_threshold, Options, EventsCapacity),
+    EventsInboxCapacity = pos_integer_option(events_inbox_capacity, Options, EventsCapacity),
+    EventsMinWorkers0 = pos_integer_option(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
+    EventsMaxWorkers0 = pos_integer_option(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
+    {EventsMinWorkers, EventsMaxWorkers} = order_worker_bounds(EventsMinWorkers0, EventsMaxWorkers0, maps:is_key(events_min_workers, Options)),
+    EventsRequestTimeout = pos_integer_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
+    %% One payload per flush by default (the behaviour before the worker pool);
+    %% splitting a flush into smaller requests is opt-in.
+    EventsBatchSize = pos_integer_option(events_batch_size, Options, EventsCapacity),
+    EventsScaleUpThreshold = non_neg_integer_option(events_scale_up_threshold, Options, lists:max([1, EventsCapacity div 2])),
+    EventsScaleDownThreshold = non_neg_integer_option(events_scale_down_threshold, Options, ?DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD),
+    EventsScaleInterval = pos_integer_option(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
+    EventsScaleCooldown = non_neg_integer_option(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
+    ContextKeysCapacity = pos_integer_option(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
     PollingUpdateRequestor = maps:get(polling_update_requestor, Options, ?DEFAULT_POLLING_UPDATE_REQUESTOR),
@@ -257,7 +263,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
         events_shed_threshold => EventsShedThreshold,
-        events_shed_all => EventsShedAll,
+        events_inbox_capacity => EventsInboxCapacity,
+        events_request_timeout => EventsRequestTimeout,
         events_min_workers => EventsMinWorkers,
         events_max_workers => EventsMaxWorkers,
         events_batch_size => EventsBatchSize,
@@ -531,3 +538,45 @@ parse_private_attributes(Attributes) -> lists:map(fun ensure_attribute_reference
     ldclient_attribute_reference:attribute_reference().
 ensure_attribute_reference(Attribute) when is_binary(Attribute) -> ldclient_attribute_reference:new(Attribute);
 ensure_attribute_reference(Attribute) -> Attribute.
+
+%%===================================================================
+%% Option validation
+%%===================================================================
+
+%% @doc Read an option that must be a positive integer; otherwise warn and use
+%% the default. Invalid pipeline sizes used to produce infinite loops at
+%% startup, so they are never passed through.
+%% @private
+-spec pos_integer_option(Key :: atom(), Options :: map(), Default :: pos_integer()) -> pos_integer().
+pos_integer_option(Key, Options, Default) ->
+    case maps:get(Key, Options, Default) of
+        Value when is_integer(Value), Value >= 1 -> Value;
+        Invalid -> warn_invalid_option(Key, Invalid, Default), Default
+    end.
+
+%% @private
+-spec non_neg_integer_option(Key :: atom(), Options :: map(), Default :: non_neg_integer()) -> non_neg_integer().
+non_neg_integer_option(Key, Options, Default) ->
+    case maps:get(Key, Options, Default) of
+        Value when is_integer(Value), Value >= 0 -> Value;
+        Invalid -> warn_invalid_option(Key, Invalid, Default), Default
+    end.
+
+%% @private
+%% @private
+%% A maximum below the minimum means "this many workers at most" when the user
+%% only set the maximum (the default minimum is lowered to it); when both were
+%% set explicitly the inconsistency is reported and the minimum wins.
+-spec order_worker_bounds(Min :: pos_integer(), Max :: pos_integer(), MinWasSet :: boolean()) -> {pos_integer(), pos_integer()}.
+order_worker_bounds(Min, Max, _MinWasSet) when Min =< Max ->
+    {Min, Max};
+order_worker_bounds(_Min, Max, false) ->
+    {Max, Max};
+order_worker_bounds(Min, Max, true) ->
+    error_logger:warning_msg("events_min_workers (~p) is greater than events_max_workers (~p); using ~p for both", [Min, Max, Min]),
+    {Min, Min}.
+
+-spec warn_invalid_option(atom(), term(), term()) -> ok.
+warn_invalid_option(Key, Value, Default) ->
+    error_logger:warning_msg("Invalid value ~p for option ~p; using default ~p", [Value, Key, Default]),
+    ok.

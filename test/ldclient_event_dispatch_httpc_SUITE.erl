@@ -18,7 +18,8 @@
     handles_incorrect_rfc1123_dates/1,
     handles_incorrect_date_types/1,
     handles_no_date_present/1,
-    handle_date_in_headers/1
+    handle_date_in_headers/1,
+    request_timeout_is_a_temporary_failure/1
 ]).
 
 all() ->
@@ -30,7 +31,8 @@ all() ->
         handles_incorrect_rfc1123_dates,
         handles_incorrect_date_types,
         handles_no_date_present,
-        handle_date_in_headers
+        handle_date_in_headers,
+        request_timeout_is_a_temporary_failure
     ].
 
 init_per_suite(Config) ->
@@ -58,6 +60,8 @@ init_per_testcase(_, Config) ->
         }
     }),
     ok = ldclient_config:register(tls, TlsSettings),
+    SlowSettings = ldclient_config:parse_options("sdk-key", #{events_request_timeout => 200}),
+    ok = ldclient_config:register(slow_endpoint, SlowSettings),
     Config.
 
 end_per_testcase(_, _Config) ->
@@ -72,6 +76,19 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 %% Tests
 %%====================================================================
+
+%% An endpoint that accepts the request and never answers must not hold the
+%% worker: the configured request timeout turns it into a temporary failure.
+request_timeout_is_a_temporary_failure(_) ->
+    State = ldclient_event_dispatch_httpc:init(slow_endpoint, "sdk-key"),
+    bookish_spork:stub_request(fun(_Request) ->
+        timer:sleep(1500),
+        [200, #{}, <<>>]
+    end),
+    T0 = erlang:monotonic_time(millisecond),
+    {error, temporary, _Reason} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    Elapsed = erlang:monotonic_time(millisecond) - T0,
+    true = Elapsed < 1200.
 
 authorization_header_set_on_request(_) ->
     PayloadId = uuid:get_v4(),

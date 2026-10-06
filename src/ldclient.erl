@@ -82,26 +82,30 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       buffered events are handed to the reporter pool.</li>
 %%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
 %%       implementing the `ldclient_event_dispatch' behaviour.</li>
-%%   <li>`events_shed_threshold' (`events_capacity') - outstanding event count
-%%       (events cast but not yet processed, plus events already buffered) at
+%%   <li>`events_shed_threshold' (`events_capacity') - buffered event count at
 %%       which best-effort events (identify/custom) are shed (dropped) by the
-%%       caller instead of being enqueued, bounding the event server mailbox and
-%%       memory under overload.</li>
-%%   <li>`events_shed_all' (`false') - when `true', feature request events are
-%%       also eligible for caller-side shedding at `events_shed_threshold'. This
-%%       is an opt-in emergency memory valve that prevents unbounded mailbox
-%%       growth under an evaluation flood, at the cost of under-counting summary
-%%       analytics while shedding. When `false' (the default), feature requests
-%%       are always processed so summary analytics continue to count every
-%%       evaluation; only their full-fidelity payloads are subject to
-%%       `events_capacity'.</li>
-%%   <li>`events_min_workers' (`5') - minimum reporter worker pool size.</li>
-%%   <li>`events_max_workers' (`10') - maximum reporter worker pool size;
-%%       autoscaling is enabled by default between the two.</li>
-%%   <li>`events_batch_size' (`100') - maximum number of events a worker sends
-%%       per request.</li>
-%%   <li>`events_scale_up_threshold' (half of `events_capacity') - buffer depth
-%%       at which the pool commissions another worker.</li>
+%%       caller instead of being enqueued, since they would be dropped at
+%%       capacity anyway.</li>
+%%   <li>`events_inbox_capacity' (`events_capacity') - number of events queued
+%%       in the event server's mailbox (accepted but not yet processed) at
+%%       which the caller sheds every event, including feature requests. This
+%%       bounds the event server mailbox and memory under ingress overload. Below
+%%       this bound every evaluation is counted in the summary event even while
+%%       full-fidelity payloads are dropped at `events_capacity'.</li>
+%%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
+%%       waits for the events endpoint to answer; a timeout is a temporary
+%%       failure (retried once), so a stalled endpoint cannot pin a worker.</li>
+%%   <li>`events_min_workers' (`5') - minimum reporter worker pool size, as in
+%%       the other server-side SDKs.</li>
+%%   <li>`events_max_workers' (`10') - maximum reporter worker pool size. A
+%%       worker is added on demand when a flush starts while every worker is
+%%       still busy with a previous request, up to this bound.</li>
+%%   <li>`events_batch_size' (`events_capacity') - maximum number of events a
+%%       worker sends per request. The default sends each flush as a single
+%%       request; lower it to split a flush across several workers.</li>
+%%   <li>`events_scale_up_threshold' (half of `events_capacity') - accepted for
+%%       compatibility; workers are added on demand (see
+%%       `events_max_workers') rather than by buffer depth.</li>
 %%   <li>`events_scale_down_threshold' (`0') - buffer depth at or below which
 %%       the pool decommissions an idle worker.</li>
 %%   <li>`events_scale_interval_ms' (`1000') - how often the pool samples the
@@ -116,16 +120,25 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% pipeline:
 %%
 %% <ul>
-%%   <li>`[ldclient, events, shed]' - emitted when an event is dropped due to
-%%       load shedding. Measurement `count' (number of events shed, currently
-%%       always `1'); metadata contains the instance `tag'. Suitable for a
-%%       counter metric.</li>
+%%   <li>`[ldclient, events, shed]' - emitted when an event is dropped by the
+%%       caller due to load shedding. Measurement `count' (currently always
+%%       `1'); metadata contains the instance `tag' and the event `kind'
+%%       (`feature_request', `identify' or `custom'). Suitable for a counter
+%%       metric.</li>
+%%   <li>`[ldclient, events, dropped]' - emitted once per flush window when
+%%       full-fidelity events were dropped because the buffer was at
+%%       `events_capacity' (`reason => capacity'), and when events had to be
+%%       left out of a request because they could not be encoded as JSON
+%%       (`reason => unencodable'). Measurement `count'; metadata contains the
+%%       instance `tag' and the `reason'. Summary counts are unaffected by
+%%       capacity drops.</li>
 %%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
 %%       delivered. Measurement `count' (number of events in the batch);
 %%       metadata contains the instance `tag'. Suitable for a counter metric.</li>
 %%   <li>`[ldclient, events, send_error]' - emitted when a batch fails to send.
 %%       Measurement `count' (currently always `1'); metadata contains the
-%%       instance `tag' and the failure `type' (`temporary' or `permanent').
+%%       instance `tag' and the failure `type' (`temporary', `permanent', or
+%%       `worker_exit' when a batch was lost because its worker exited twice).
 %%       Suitable for a counter metric.</li>
 %%   <li>`[ldclient, events, pool_size]' - emitted whenever the reporter pool
 %%       size changes, and once at startup. Measurement `workers' is the

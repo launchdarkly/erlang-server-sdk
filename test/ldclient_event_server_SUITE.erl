@@ -23,8 +23,15 @@
     decommission_waits_for_pending_retries/1,
     flush_not_extended_by_new_events/1,
     flush_does_not_overshoot_window/1,
+    flush_returns_without_waiting_for_delivery/1,
     default_pool_bounds/1,
-    sheds_all_event_types_when_enabled/1
+    decommission_delivers_all_pending_retries/1,
+    feature_requests_shed_when_inbox_full/1,
+    flush_sends_one_payload_by_default/1,
+    worker_exit_mid_batch_redispatches/1,
+    invalid_options_fall_back_to_defaults/1,
+    capacity_drops_reported_once_per_flush/1,
+    unencodable_events_do_not_lose_the_batch/1
 ]).
 
 %%====================================================================
@@ -45,8 +52,15 @@ all() ->
         decommission_waits_for_pending_retries,
         flush_not_extended_by_new_events,
         flush_does_not_overshoot_window,
+        flush_returns_without_waiting_for_delivery,
         default_pool_bounds,
-        sheds_all_event_types_when_enabled
+        decommission_delivers_all_pending_retries,
+        feature_requests_shed_when_inbox_full,
+        flush_sends_one_payload_by_default,
+        worker_exit_mid_batch_redispatches,
+        invalid_options_fall_back_to_defaults,
+        capacity_drops_reported_once_per_flush,
+        unencodable_events_do_not_lose_the_batch
     ].
 
 init_per_suite(Config) ->
@@ -73,14 +87,14 @@ init_per_suite(Config) ->
     ldclient:start_instance("", pooler, PoolOptions),
     ScalerOptions = #{
         stream => false,
-        events_dispatcher => ldclient_event_dispatch_test,
+        events_dispatcher => ldclient_event_dispatch_slow,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_min_workers => 1,
         events_max_workers => 3,
-        events_batch_size => 100,
+        events_batch_size => 1,
         events_scale_up_threshold => 1,
         events_scale_down_threshold => 0,
         events_scale_interval_ms => 50,
@@ -123,6 +137,7 @@ init_per_suite(Config) ->
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 1,
         events_shed_threshold => 1,
+        events_inbox_capacity => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", summary_shedder, SummaryOptions),
@@ -170,6 +185,77 @@ init_per_suite(Config) ->
         events_max_workers => 1
     },
     ldclient:start_instance("", slow_flush_batch, SlowBatchOptions),
+    DecommissionMultiOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
+    },
+    ldclient:start_instance("sdk-key-events-fail", decommission_multi, DecommissionMultiOptions),
+    InboxOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_inbox_capacity => 5,
+        events_flush_interval => 60000,
+        %% keep the scale tick (which also resyncs the queue counter) out of the
+        %% test's suspend window
+        events_scale_interval_ms => 60000
+    },
+    ldclient:start_instance("", inbox_bound, InboxOptions),
+    SinglePayloadOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 500,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000
+    },
+    ldclient:start_instance("", single_payload, SinglePayloadOptions),
+    CrashOnceOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_crash_once,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_scale_interval_ms => 50,
+        events_min_workers => 1,
+        events_max_workers => 1
+    },
+    ldclient:start_instance("", crash_once, CrashOnceOptions),
+    BadOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 0,
+        events_flush_interval => -1,
+        events_min_workers => -1,
+        events_max_workers => 0.5,
+        events_batch_size => 0,
+        events_shed_threshold => 0,
+        events_inbox_capacity => foo,
+        events_scale_interval_ms => 0,
+        events_scale_cooldown_ms => -5,
+        events_request_timeout => 0,
+        context_keys_capacity => -3
+    },
+    ldclient:start_instance("", bad_options, BadOptions),
+    MaxOnlyOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_flush_interval => 60000,
+        events_max_workers => 2
+    },
+    ldclient:start_instance("", max_only, MaxOnlyOptions),
     DefaultsOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -179,18 +265,6 @@ init_per_suite(Config) ->
         events_flush_interval => 60000
     },
     ldclient:start_instance("", defaults, DefaultsOptions),
-    ShedAllOptions = #{
-        stream => false,
-        events_dispatcher => ldclient_event_dispatch_test,
-        polling_update_requestor => ldclient_update_requestor_test,
-        events_capacity => 100,
-        events_shed_threshold => 1,
-        events_shed_all => true,
-        events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
-    },
-    ldclient:start_instance("", shed_all, ShedAllOptions),
     Config.
 
 end_per_suite(_) ->
@@ -262,8 +336,9 @@ pool_uses_multiple_workers(_) ->
     GotKeys = lists:sort([K || Payload <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- Payload]),
     Keys = GotKeys.
 
-%% The pool scales workers up as the buffer depth grows and back down once it
-%% is drained, staying within [min_workers, max_workers].
+%% A flush that finds every worker busy adds workers on demand up to
+%% max_workers; once the buffer has drained the pool shrinks back to
+%% min_workers.
 autoscales_worker_pool(_) ->
     Tag = scaler,
     SupName = ldclient_event_worker_sup:get_sup_name(Tag),
@@ -283,10 +358,12 @@ autoscales_worker_pool(_) ->
         Keys = [<<"k1">>, <<"k2">>, <<"k3">>, <<"k4">>, <<"k5">>],
         [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
         wait_for_event_count(Tag, 5),
-        wait_for_worker_count(SupName, 3, 100),
+        %% Five batches of one against a 200 ms dispatcher: the first takes the
+        %% only worker and the rest find the pool busy, so it grows to max.
         ok = ldclient_event_server:flush(Tag),
-        _ = collect_payloads(1),
-        wait_for_worker_count(SupName, 1, 100),
+        wait_for_worker_count(SupName, 3, 100),
+        _ = collect_payloads(5),
+        wait_for_worker_count(SupName, 1, 300),
         Directions = collect_scales([]),
         true = lists:member(up, Directions),
         true = lists:member(down, Directions)
@@ -502,19 +579,65 @@ flush_does_not_overshoot_window(_) ->
     [<<"g1">>, <<"g2">>, <<"g3">>] = GotKeys,
     ok = wait_for_no_event(<<"g4">>, 500).
 
-%% The default reporter pool matches the other server SDKs: 5 flush workers at
-%% rest, autoscaling horizontally up to 10.
+%% The default reporter pool matches the other server SDKs: 5 workers at rest,
+%% growing on demand up to 10.
 default_pool_bounds(_) ->
     SupName = ldclient_event_worker_sup:get_sup_name(defaults),
     5 = length(supervisor:which_children(SupName)),
     5 = ldclient_config:get_value(defaults, events_min_workers),
     10 = ldclient_config:get_value(defaults, events_max_workers).
 
-%% With events_shed_all enabled, feature request events are shed too, bounding
-%% the mailbox at the cost of summary accuracy (the emergency memory valve).
-sheds_all_event_types_when_enabled(_) ->
-    Tag = shed_all,
-    HandlerId = {?MODULE, sheds_all_event_types_when_enabled, self()},
+%% flush/1 opens the window and returns; it must not wait for the HTTP requests
+%% of the window to complete (the pre-pool contract), so a slow endpoint cannot
+%% block the caller.
+flush_returns_without_waiting_for_delivery(_) ->
+    Tag = slow_flush,
+    register_collector(),
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- [<<"w1">>, <<"w2">>, <<"w3">>]],
+    wait_for_event_count(Tag, 3),
+    T0 = erlang:monotonic_time(millisecond),
+    ok = ldclient_event_server:flush(Tag),
+    Elapsed = erlang:monotonic_time(millisecond) - T0,
+    %% Three batches of one at 200 ms each would take ~600 ms if flush waited.
+    true = Elapsed < 150,
+    %% The instance is shared with the window tests, so other keys may be
+    %% delivered too; only require that ours arrive.
+    [_ = collect_payload_with_key(K, 3000) || K <- [<<"w1">>, <<"w2">>, <<"w3">>]],
+    ok.
+
+%% A decommissioned worker holding more than one scheduled retry must attempt
+%% every one of them before exiting.
+decommission_delivers_all_pending_retries(_) ->
+    Tag = decommission_multi,
+    register_collector(),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"m1">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payload_with_key(<<"m1">>, 2000),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"m2">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payload_with_key(<<"m2">>, 2000),
+        SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+        [Worker] = [Pid || {_Id, Pid, _Type, _Modules} <- supervisor:which_children(SupName), is_pid(Pid)],
+        #{pending := 2} = sys:get_state(Worker),
+        ok = ldclient_event_process_server:decommission(Worker),
+        %% Both retries fire about 1 s after their first attempt, in either
+        %% order, so collect two payloads and compare the set of keys.
+        Payloads = collect_payloads(2),
+        [<<"m1">>, <<"m2">>] = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
+        wait_for_dead(Worker, 3000)
+    after
+        _ = ldclient:stop_instance(Tag)
+    end.
+
+%% Feature requests are admitted while the event server keeps up, but once the
+%% number of queued casts reaches events_inbox_capacity they are shed too, so
+%% the mailbox is bounded under ingress overload.
+feature_requests_shed_when_inbox_full(_) ->
+    Tag = inbox_bound,
+    HandlerId = {?MODULE, feature_requests_shed_when_inbox_full, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
@@ -525,29 +648,164 @@ sheds_all_event_types_when_enabled(_) ->
         undefined
     ),
     register_collector(),
-    {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
-    Flag = ldclient_flag:new(FlagMap),
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
     try
-        E1 = ldclient_event:new_flag_eval(
-            5, <<"v5">>, <<"def">>, ldclient_context:new_from_user(#{key => <<"sa1">>}), target_match, Flag
-        ),
-        ok = ldclient_event_server:add_event(Tag, E1, #{include_reasons => true}),
-        wait_for_event_count(Tag, 2),
-        E2 = ldclient_event:new_flag_eval(
-            5, <<"v5">>, <<"def">>, ldclient_context:new_from_user(#{key => <<"sa2">>}), target_match, Flag
-        ),
-        ok = ldclient_event_server:add_event(Tag, E2, #{include_reasons => true}),
-        receive
-            {shed, #{count := 1}, #{tag := Tag}} -> ok
-        after 1000 ->
-            ct:fail("Expected a feature request to be shed when events_shed_all is enabled")
+        {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
+        Flag = ldclient_flag:new(FlagMap),
+        Eval = fun(Key) ->
+            ldclient_event:new_flag_eval(5, <<"v">>, <<"d">>, ldclient_context:new_from_user(#{key => Key}), target_match, Flag)
         end,
+        %% Freeze the server so nothing is dequeued while we cast.
+        ok = sys:suspend(ServerName),
+        [ok = ldclient_event_server:add_event(Tag, Eval(<<"i", (integer_to_binary(N))/binary>>), #{}) || N <- lists:seq(1, 10)],
+        {message_queue_len, Queued} = process_info(whereis(ServerName), message_queue_len),
+        Shed = count_shed(0),
+        ok = sys:resume(ServerName),
+        5 = Queued,
+        5 = Shed,
         ok = ldclient_event_server:flush(Tag),
-        Payload = collect_payload_with_key(<<"sa1">>, 2000),
-        [Summary|_] = [E || E <- Payload, maps:get(<<"kind">>, E) =:= <<"summary">>],
+        Payloads = collect_payloads(1),
+        [Summary|_] = [E || E <- hd(Payloads), maps:get(<<"kind">>, E) =:= <<"summary">>],
         #{<<"features">> := #{<<"abc">> := #{<<"counters">> := [Counter]}}} = Summary,
-        %% Only the first evaluation was counted; the shed one was not.
-        1 = maps:get(<<"count">>, Counter)
+        5 = maps:get(<<"count">>, Counter)
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+count_shed(Acc) ->
+    receive
+        {shed, #{count := 1}, #{tag := inbox_bound, kind := feature_request}} -> count_shed(Acc + 1)
+    after 100 ->
+        Acc
+    end.
+
+%% With the default batch size a flush is one request, as before the pool.
+flush_sends_one_payload_by_default(_) ->
+    Tag = single_payload,
+    register_collector(),
+    Keys = [<<"sp", (integer_to_binary(N))/binary>> || N <- lists:seq(1, 250)],
+    [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
+    wait_for_event_count(Tag, 250),
+    ok = ldclient_event_server:flush(Tag),
+    [Payload] = collect_payloads(1),
+    250 = length(Payload),
+    receive
+        {EventsBin, _} when is_binary(EventsBin) -> ct:fail("Flush was split into more than one request")
+    after 500 ->
+        ok
+    end.
+
+%% A batch whose worker crashes mid-send is handed to a replacement worker once
+%% instead of being lost.
+worker_exit_mid_batch_redispatches(_) ->
+    Tag = crash_once,
+    register_collector(),
+    ok = ldclient_event_server:add_event(Tag, identify_event(<<"crash">>), #{}),
+    wait_for_event_count(Tag, 1),
+    ok = ldclient_event_server:flush(Tag),
+    %% First attempt: the dispatcher forwards the payload and the worker dies.
+    {_, PayloadId1} = collect_payload_and_id_with_key(<<"crash">>, 3000),
+    %% Second attempt from a replacement worker reuses the same payload id, so
+    %% the service can deduplicate if the first request did get through.
+    {_, PayloadId2} = collect_payload_and_id_with_key(<<"crash">>, 3000),
+    PayloadId1 = PayloadId2,
+    SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+    wait_for_worker_count(SupName, 1, 100).
+
+%% Invalid pipeline options are replaced by their defaults instead of being
+%% passed through (a negative worker count used to spawn workers forever).
+invalid_options_fall_back_to_defaults(_) ->
+    Tag = bad_options,
+    10000 = ldclient_config:get_value(Tag, events_capacity),
+    30000 = ldclient_config:get_value(Tag, events_flush_interval),
+    5 = ldclient_config:get_value(Tag, events_min_workers),
+    10 = ldclient_config:get_value(Tag, events_max_workers),
+    10000 = ldclient_config:get_value(Tag, events_batch_size),
+    10000 = ldclient_config:get_value(Tag, events_shed_threshold),
+    10000 = ldclient_config:get_value(Tag, events_inbox_capacity),
+    1000 = ldclient_config:get_value(Tag, events_scale_interval_ms),
+    1000 = ldclient_config:get_value(Tag, events_scale_cooldown_ms),
+    30000 = ldclient_config:get_value(Tag, events_request_timeout),
+    1000 = ldclient_config:get_value(Tag, context_keys_capacity),
+    %% Setting only a maximum below the default minimum lowers the minimum.
+    2 = ldclient_config:get_value(max_only, events_min_workers),
+    2 = ldclient_config:get_value(max_only, events_max_workers),
+    2 = length(supervisor:which_children(ldclient_event_worker_sup:get_sup_name(max_only))),
+    SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+    5 = length(supervisor:which_children(SupName)).
+
+%% Events dropped at capacity are reported with a single telemetry event (and a
+%% single log line) per flush window instead of one warning per event.
+capacity_drops_reported_once_per_flush(_) ->
+    Tag = summary_shedder,
+    HandlerId = {?MODULE, capacity_drops_reported_once_per_flush, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        %% Feature requests are not shed at the caller (below the inbox bound),
+        %% so with capacity 1 their index/feature payloads are dropped inside
+        %% the server.
+        {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
+        Flag = ldclient_flag:new(FlagMap),
+        Events = [
+            ldclient_event:new_flag_eval(5, <<"v">>, <<"d">>, ldclient_context:new_from_user(#{key => Key}), target_match, Flag)
+         || Key <- [<<"d1">>, <<"d2">>, <<"d3">>, <<"d4">>, <<"d5">>]
+        ],
+        [ok = ldclient_event_server:add_event(Tag, E, #{}) || E <- Events],
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payloads(1),
+        receive
+            {dropped, #{count := Count}, #{tag := Tag}} when Count >= 1 -> ok
+        after 1000 ->
+            ct:fail("Expected a dropped telemetry event")
+        end,
+        receive
+            {dropped, _, _} -> ct:fail("Drops were reported more than once for one window")
+        after 200 ->
+            ok
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% An event whose data cannot be encoded as JSON is dropped (and reported) on
+%% its own; the rest of the batch and the summary are still delivered.
+unencodable_events_do_not_lose_the_batch(_) ->
+    Tag = publisher,
+    HandlerId = {?MODULE, unencodable_events_do_not_lose_the_batch, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        Ctx = ldclient_context:new_from_user(#{key => <<"enc-bad">>}),
+        Bad = ldclient_event:new_custom(<<"bad-data">>, Ctx, #{<<"v">> => {not_json, 1}}),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"enc-ok">>), #{}),
+        ok = ldclient_event_server:add_event(Tag, Bad, #{}),
+        wait_for_event_count(Tag, 3),
+        ok = ldclient_event_server:flush(Tag),
+        Payload = collect_payload_with_key(<<"enc-ok">>, 3000),
+        [] = [E || #{<<"kind">> := <<"custom">>} = E <- Payload],
+        receive
+            {dropped, #{count := 1}, #{tag := Tag, reason := unencodable}} -> ok
+        after 1000 ->
+            ct:fail("Expected a dropped telemetry event for the unencodable custom event")
+        end
     after
         telemetry:detach(HandlerId)
     end.
@@ -663,6 +921,24 @@ collect_payload_with_key(Key, Deadline, Timeout) ->
             case lists:any(fun(E) -> event_context_key(E) =:= Key end, Payload) of
                 true -> Payload;
                 false -> collect_payload_with_key(Key, Deadline, Timeout)
+            end
+    after Remaining ->
+        ct:fail("Did not receive a payload for key ~p within ~bms", [Key, Timeout])
+    end.
+
+%% Like collect_payload_with_key/2 but also returns the payload id.
+collect_payload_and_id_with_key(Key, Timeout) ->
+    Deadline = erlang:monotonic_time(millisecond) + Timeout,
+    collect_payload_and_id_with_key(Key, Deadline, Timeout).
+
+collect_payload_and_id_with_key(Key, Deadline, Timeout) ->
+    Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
+    receive
+        {EventsBin, PayloadId} when is_binary(EventsBin) ->
+            Payload = jsx:decode(EventsBin, [return_maps]),
+            case lists:any(fun(E) -> event_context_key(E) =:= Key end, Payload) of
+                true -> {Payload, PayloadId};
+                false -> collect_payload_and_id_with_key(Key, Deadline, Timeout)
             end
     after Remaining ->
         ct:fail("Did not receive a payload for key ~p within ~bms", [Key, Timeout])

@@ -16,7 +16,7 @@
 
 %% API
 -export([
-    send_batch/4,
+    send_batch/5,
     decommission/1,
     get_last_server_time/1,
     ets_table_name/1
@@ -48,16 +48,20 @@
 %%
 %% `Owner' is notified with `{worker_done, self()}' once the batch has been
 %% handed to the dispatcher (or scheduled for retry). `SummaryEvent' is either
-%% a summary event map or `undefined'.
+%% a summary event map or `undefined'. `PayloadId' is chosen by the owner so
+%% that a batch re-dispatched after a worker exit keeps the same id.
 %% @end
--spec send_batch(Worker :: pid(), Owner :: pid(), Events :: [ldclient_event:event()], SummaryEvent :: ldclient_event_server:summary_event() | undefined) ->
+-spec send_batch(Worker :: pid(), Owner :: pid(), Events :: [ldclient_event:event()],
+                 SummaryEvent :: ldclient_event_server:summary_event() | undefined, PayloadId :: uuid:uuid()) ->
     ok.
-send_batch(Worker, Owner, Events, SummaryEvent) ->
-    gen_server:cast(Worker, {send_batch, Owner, Events, SummaryEvent}).
+send_batch(Worker, Owner, Events, SummaryEvent, PayloadId) ->
+    gen_server:cast(Worker, {send_batch, Owner, Events, SummaryEvent, PayloadId}).
 
 %% @doc Ask a worker to stop once it has no outstanding retries. Used when the
-%% pool scales down: a worker holding a scheduled retry must not be killed, or
-%% the events it is retrying would be lost.
+%% pool scales down: a worker holding scheduled retries must not be killed, or
+%% the events it is retrying would be lost. Each retry is attempted at most
+%% once, so a decommissioned worker lives for at most
+%% `pending * (retry delay + request time)'.
 %% @end
 -spec decommission(Worker :: pid()) -> ok.
 decommission(Worker) ->
@@ -124,22 +128,21 @@ handle_call(_Request, _From, State) ->
 
 -spec handle_cast(Request :: term(), State :: state()) ->
     {noreply, NewState :: state()} | {stop, normal, NewState :: state()}.
-handle_cast({send_batch, Owner, Events, SummaryEvent},
+handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     #{global_private_attributes := GlobalPrivateAttributes} = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
-    PayloadId = uuid:get_v4(),
     NewState = do_send(OutputEvents, PayloadId, 0, State),
     %% Report the worker as available as soon as the batch has been attempted, so
     %% the pool can keep dispatching; a scheduled retry is tracked separately in
     %% `pending' and delays decommissioning rather than idling the worker.
     _ = Owner ! {worker_done, self()},
-    stop_after_attempt(NewState);
+    stop_if_idle_decommissioned(NewState);
 handle_cast(decommission, State) ->
-    %% Stop immediately if there is no retry in flight; otherwise stop after the
-    %% in-flight retry attempt resolves, so a sustained outage cannot keep a
-    %% decommissioned worker alive forever.
+    %% Stop immediately if there is no retry in flight; otherwise stop once every
+    %% scheduled retry has been attempted. Retries are never rescheduled, so the
+    %% worker's remaining lifetime is bounded even during a sustained outage.
     stop_if_idle_decommissioned(State#{decommission := true});
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -147,7 +150,7 @@ handle_cast(_Request, State) ->
 handle_info({send, OutputEvents, PayloadId, Attempt}, #{pending := Pending} = State) ->
     %% The scheduled retry timer has fired.
     NewState = do_send(OutputEvents, PayloadId, Attempt, State#{pending := max(0, Pending - 1)}),
-    stop_after_attempt(NewState);
+    stop_if_idle_decommissioned(NewState);
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -345,12 +348,14 @@ do_send(OutputEvents, PayloadId, Attempt, State) ->
         dispatcher_state := DispatcherState,
         tag := Tag
     } = State,
-    case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) of
+    case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) of
         ok ->
             emit_published(Tag, OutputEvents),
             State;
         {ok, Date} ->
-            ets:insert(ets_table_name(Tag), {last_known_server_time, Date}),
+            %% The table is owned by the event server and may already be gone
+            %% while the instance is shutting down.
+            _ = (catch ets:insert(ets_table_name(Tag), {last_known_server_time, Date})),
             emit_published(Tag, OutputEvents),
             State;
         {error, temporary, Reason} when Attempt =:= 0 ->
@@ -376,16 +381,6 @@ stop_if_idle_decommissioned(#{decommission := true, pending := 0} = State) ->
 stop_if_idle_decommissioned(State) ->
     {noreply, State}.
 
-%% @doc Stop a decommissioned worker once the current attempt has resolved. This
-%% bounds the lifetime of a scaled-down worker even if the endpoint keeps
-%% failing and every retry reschedules.
-%% @end
--spec stop_after_attempt(state()) -> {noreply, state()} | {stop, normal, state()}.
-stop_after_attempt(#{decommission := true} = State) ->
-    {stop, normal, State};
-stop_after_attempt(State) ->
-    {noreply, State}.
-
 %% @doc Report how many events were successfully delivered in a batch. Emitted
 %% once per successful dispatch (including successful retries) so it can back a
 %% "published events" counter metric.
@@ -400,13 +395,44 @@ emit_published(Tag, OutputEvents) ->
         #{tag => Tag}
     ).
 
--spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string()) ->
+-spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string(), Tag :: atom()) ->
     ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
-send(_, _, [], _, _) ->
+send(_, _, [], _, _, _) ->
     ok;
-send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri) ->
-    JsonEvents = jsx:encode(OutputEvents),
-    Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri).
+send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) ->
+    case encode(OutputEvents, Tag) of
+        {ok, JsonEvents} -> Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri);
+        empty -> ok
+    end.
+
+%% @doc Encode a batch. If a term in some event cannot be represented as JSON
+%% (for example a tuple in custom event data), drop only those events and report
+%% them, instead of crashing the worker and losing the whole batch.
+%% @end
+-spec encode(OutputEvents :: [map()], Tag :: atom()) -> {ok, binary()} | empty.
+encode(OutputEvents, Tag) ->
+    try
+        {ok, jsx:encode(OutputEvents)}
+    catch
+        error:badarg ->
+            Encodable = [E || E <- OutputEvents, is_encodable(E)],
+            Dropped = length(OutputEvents) - length(Encodable),
+            telemetry:execute([ldclient, events, dropped], #{count => Dropped}, #{tag => Tag, reason => unencodable}),
+            error_logger:error_msg("Dropped ~b events for ~p that could not be encoded as JSON", [Dropped, Tag]),
+            case Encodable of
+                [] -> empty;
+                _ -> {ok, jsx:encode(Encodable)}
+            end
+    end.
+
+-spec is_encodable(map()) -> boolean().
+is_encodable(Event) ->
+    try
+        _ = jsx:encode(Event),
+        true
+    catch
+        error:badarg -> false
+    end.
 
 -spec ets_table_name(Tag :: atom()) -> atom().
 ets_table_name(Tag) -> list_to_atom(?TABLE_PREFIX ++ atom_to_list(Tag)).

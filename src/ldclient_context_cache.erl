@@ -91,4 +91,7 @@ maybe_rotate({Current, Previous} = Cache, Capacity) ->
 
 -spec new_table() -> ets:tid().
 new_table() ->
-    ets:new(?MODULE, [set, public, {write_concurrency, true}, {read_concurrency, true}]).
+    %% Only the owning event server reads and writes these tables, so keep
+    %% them protected and skip the concurrency options (which only add cost to
+    %% a single-writer member/insert pattern).
+    ets:new(?MODULE, [set, protected]).
