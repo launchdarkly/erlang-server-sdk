@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.12.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.3...v3.12.0) (2026-10-06)
+
+
+### Features
+
+* add a read timeout to the streaming data source ([#200](https://github.com/launchdarkly/erlang-server-sdk/issues/200)) ([563ae28](https://github.com/launchdarkly/erlang-server-sdk/commit/563ae28422744f5446ee4a7dffc6f8a4dec4cb99))
+
 ## [3.11.3](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.2...v3.11.3) (2026-09-23)
 
 
