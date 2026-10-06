@@ -34,6 +34,9 @@
     decommission := boolean()
 }.
 
+-type send_result() ::
+    ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
+
 -define(TABLE_PREFIX, "event_process_state").
 
 %% A transient dispatch failure is retried exactly once (matching the SDK's
@@ -133,7 +136,8 @@ handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
     FormattedEvents = format_events(Events, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
-    NewState = do_send(OutputEvents, PayloadId, 0, State),
+    StartTime = erlang:monotonic_time(),
+    NewState = do_send(OutputEvents, PayloadId, 0, StartTime, State),
     %% Report the worker as available as soon as the batch has been attempted, so
     %% the pool can keep dispatching; a scheduled retry is tracked separately in
     %% `pending' and delays decommissioning rather than idling the worker.
@@ -147,9 +151,9 @@ handle_cast(decommission, State) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents, PayloadId, Attempt}, #{pending := Pending} = State) ->
+handle_info({send, OutputEvents, PayloadId, Attempt, StartTime}, #{pending := Pending} = State) ->
     %% The scheduled retry timer has fired.
-    NewState = do_send(OutputEvents, PayloadId, Attempt, State#{pending := max(0, Pending - 1)}),
+    NewState = do_send(OutputEvents, PayloadId, Attempt, StartTime, State#{pending := max(0, Pending - 1)}),
     stop_if_idle_decommissioned(NewState);
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -340,36 +344,41 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec do_send(list(), uuid:uuid(), non_neg_integer(), state()) -> state().
-do_send(OutputEvents, PayloadId, Attempt, State) ->
+-spec do_send(list(), uuid:uuid(), non_neg_integer(), integer(), state()) -> state().
+do_send(OutputEvents, PayloadId, Attempt, StartTime, State) ->
     #{
         dispatcher := Dispatcher,
         events_uri := Uri,
         dispatcher_state := DispatcherState,
         tag := Tag
     } = State,
-    case send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) of
+    {Result, Size} = send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag),
+    case Result of
         ok ->
             emit_published(Tag, OutputEvents),
+            emit_flush(Tag, OutputEvents, Size, StartTime, accepted),
             State;
         {ok, Date} ->
             %% The table is owned by the event server and may already be gone
             %% while the instance is shutting down.
             _ = (catch ets:insert(ets_table_name(Tag), {last_known_server_time, Date})),
             emit_published(Tag, OutputEvents),
+            emit_flush(Tag, OutputEvents, Size, StartTime, accepted),
             State;
         {error, temporary, Reason} when Attempt =:= 0 ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
-            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, OutputEvents, PayloadId, 1}),
+            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, OutputEvents, PayloadId, 1, StartTime}),
             maps:update_with(pending, fun(P) -> P + 1 end, State);
         {error, temporary, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
+            emit_flush(Tag, OutputEvents, Size, StartTime, failed),
             State;
         {error, permanent, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
+            emit_flush(Tag, OutputEvents, Size, StartTime, failed),
             State
     end.
 
@@ -395,14 +404,34 @@ emit_published(Tag, OutputEvents) ->
         #{tag => Tag}
     ).
 
--spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string(), Tag :: atom()) ->
-    ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
-send(_, _, [], _, _, _) ->
+%% @doc Report one delivery attempt per batch, including its retry. The
+%% `duration' spans the first attempt through the retry so it can back flush
+%% count, batch size, flush duration, sent and failed metrics.
+%% @end
+-spec emit_flush(atom(), list(), non_neg_integer(), integer(), accepted | failed) -> ok.
+emit_flush(_Tag, [], _Size, _StartTime, _Outcome) ->
     ok;
+emit_flush(Tag, OutputEvents, Size, StartTime, Outcome) ->
+    telemetry:execute(
+        [ldclient, events, flush],
+        #{
+            count => length(OutputEvents),
+            size => Size,
+            duration => erlang:monotonic_time() - StartTime
+        },
+        #{tag => Tag, outcome => Outcome}
+    ).
+
+-spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string(), Tag :: atom()) ->
+    {send_result(), non_neg_integer()}.
+send(_, _, [], _, _, _) ->
+    {ok, 0};
 send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) ->
     case encode(OutputEvents, Tag) of
-        {ok, JsonEvents} -> Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri);
-        empty -> ok
+        {ok, JsonEvents} ->
+            {Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri), byte_size(JsonEvents)};
+        empty ->
+            {ok, 0}
     end.
 
 %% @doc Encode a batch. If a term in some event cannot be represented as JSON

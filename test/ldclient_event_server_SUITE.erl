@@ -31,7 +31,9 @@
     worker_exit_mid_batch_redispatches/1,
     invalid_options_fall_back_to_defaults/1,
     capacity_drops_reported_once_per_flush/1,
-    unencodable_events_do_not_lose_the_batch/1
+    unencodable_events_do_not_lose_the_batch/1,
+    emits_flush_telemetry_on_success/1,
+    emits_flush_telemetry_once_after_retry/1
 ]).
 
 %%====================================================================
@@ -60,7 +62,9 @@ all() ->
         worker_exit_mid_batch_redispatches,
         invalid_options_fall_back_to_defaults,
         capacity_drops_reported_once_per_flush,
-        unencodable_events_do_not_lose_the_batch
+        unencodable_events_do_not_lose_the_batch,
+        emits_flush_telemetry_on_success,
+        emits_flush_telemetry_once_after_retry
     ].
 
 init_per_suite(Config) ->
@@ -150,6 +154,17 @@ init_per_suite(Config) ->
         events_flush_interval => 60000
     },
     ldclient:start_instance("", permanent_failing, PermanentOptions),
+    FlushFailingOptions = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
+    },
+    ldclient:start_instance("sdk-key-events-fail", flush_failing, FlushFailingOptions),
     DecommissionOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -430,6 +445,78 @@ emits_published_telemetry(_) ->
             {published, #{count := 2}, #{tag := Tag}} -> ok
         after 1000 ->
             ct:fail("Expected a published telemetry event with count 2")
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% Each delivered batch emits one flush event with count, size and duration, so
+%% a recorder can derive flush count, batch size, flush duration and sent
+%% metrics from telemetry alone.
+emits_flush_telemetry_on_success(_) ->
+    Tag = publisher,
+    HandlerId = {?MODULE, emits_flush_telemetry_on_success, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, flush],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {flush_event, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        Keys = [<<"fl1">>, <<"fl2">>],
+        [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
+        wait_for_event_count(Tag, 2),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payloads(1),
+        receive
+            {flush_event, Measurements, #{tag := Tag, outcome := accepted}} ->
+                2 = maps:get(count, Measurements),
+                true = (maps:get(size, Measurements) > 0),
+                true = (maps:get(duration, Measurements) >= 0)
+        after 1000 ->
+            ct:fail("Expected an accepted [ldclient, events, flush] telemetry event")
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% A batch that fails after its retry emits exactly one flush event, whose
+%% duration covers both attempts.
+emits_flush_telemetry_once_after_retry(_) ->
+    Tag = flush_failing,
+    HandlerId = {?MODULE, emits_flush_telemetry_once_after_retry, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, flush],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {flush_event, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"flfail">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        %% Two dispatch attempts, but only one flush event for the batch.
+        _ = collect_payloads(2),
+        receive
+            {flush_event, Measurements, #{tag := Tag, outcome := failed}} ->
+                1 = maps:get(count, Measurements),
+                true = (maps:get(duration, Measurements) >= 0)
+        after 2000 ->
+            ct:fail("Expected a failed [ldclient, events, flush] telemetry event")
+        end,
+        receive
+            {flush_event, _M, #{tag := Tag}} ->
+                ct:fail("flush event emitted more than once for a batch")
+        after 500 ->
+            ok
         end
     after
         telemetry:detach(HandlerId)

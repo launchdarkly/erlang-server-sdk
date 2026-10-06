@@ -135,6 +135,13 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
 %%       delivered. Measurement `count' (number of events in the batch);
 %%       metadata contains the instance `tag'. Suitable for a counter metric.</li>
+%%   <li>`[ldclient, events, flush]' - emitted once per delivered batch,
+%%       including any retry. Measurements `count' (events in the batch,
+%%       including summary), `size' (bytes of the encoded payload before
+%%       compression) and `duration' (native time from the first attempt to
+%%       resolution); metadata contains the instance `tag' and the `outcome'
+%%       (`accepted' or `failed'). Backs the flush count, batch size, flush
+%%       duration, sent and failed metrics.</li>
 %%   <li>`[ldclient, events, send_error]' - emitted when a batch fails to send.
 %%       Measurement `count' (currently always `1'); metadata contains the
 %%       instance `tag' and the failure `type' (`temporary', `permanent', or
