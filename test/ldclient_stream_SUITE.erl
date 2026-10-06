@@ -17,8 +17,7 @@
     server_process_event_put_delete/1,
     server_process_event_other/1,
     parse_shotgun_event/1,
-    parse_shotgun_event_optional_spaces/1,
-    shotgun_read_timeout/1
+    parse_shotgun_event_optional_spaces/1
 ]).
 
 %%====================================================================
@@ -33,8 +32,7 @@ all() ->
         server_process_event_put_delete,
         server_process_event_other,
         parse_shotgun_event,
-        parse_shotgun_event_optional_spaces,
-        shotgun_read_timeout
+        parse_shotgun_event_optional_spaces
     ].
 
 init_per_suite(Config) ->
@@ -163,6 +161,3 @@ parse_shotgun_event_optional_spaces(_) ->
     ExpectedEvent = #{event => <<"put">>, data => <<"foo\n">>},
     ExpectedEvent = ldclient_update_stream_server:parse_shotgun_event(EventBin).
 
-shotgun_read_timeout(_) ->
-    infinity = ldclient_update_stream_server:shotgun_read_timeout(0),
-    300000 = ldclient_update_stream_server:shotgun_read_timeout(300000).

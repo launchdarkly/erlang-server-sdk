@@ -23,7 +23,7 @@
     %% Try to use a proper type with Gun 2.0
     gun_options := any(),
     headers := map(),
-    read_timeout_ms := non_neg_integer()
+    read_timeout_ms := pos_integer()
 }.
 
 -ifdef(TEST).
@@ -39,6 +39,10 @@
 %% TCP socket would stay open for the full default timeout after the client is
 %% closed.
 -define(STREAM_CLOSING_TIMEOUT_MS, 100).
+
+%% Close and reconnect the stream when no bytes (heartbeats included) arrive for this
+%% long. Five minutes, as in the Java and Go SDKs; the stream heartbeats at least every three.
+-define(STREAM_READ_TIMEOUT_MS, 300000).
 
 %%===================================================================
 %% Supervision
@@ -61,7 +65,7 @@ init([Tag]) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
     InitialRetryDelay = ldclient_config:get_value(Tag, stream_initial_retry_delay_ms),
-    ReadTimeoutMs = ldclient_config:get_value(Tag, stream_read_timeout_ms),
+    ReadTimeoutMs = read_timeout_ms(),
     Backoff = ldclient_backoff:init(InitialRetryDelay, ?MAX_BACKOFF_DELAY, self(), listen),
     GunOptions = ldclient_http_options:gun_parse_http_options(HttpOptions),
     Headers = ldclient_http_options:gun_append_custom_headers(
@@ -173,7 +177,7 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}], ReadTimeoutMs :: non_neg_integer()) -> {ok, pid()} | {error, atom(), term()}.
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}], ReadTimeoutMs :: pos_integer()) -> {ok, pid()} | {error, atom(), term()}.
 do_listen(Uri, FeatureStore, Tag, GunOpts, Headers, ReadTimeoutMs) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     HttpOpts = maps:get(http_opts, GunOpts, #{}),
@@ -206,7 +210,7 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers, ReadTimeoutMs) ->
                 async_mode => sse,
                 handle_event => F,
                 allow_reconnect => false,
-                read_timeout => shotgun_read_timeout(ReadTimeoutMs)
+                read_timeout => ReadTimeoutMs
             },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
@@ -224,10 +228,13 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers, ReadTimeoutMs) ->
             end
     end.
 
-%% shotgun rejects a read_timeout of 0, which disables the timeout here.
--spec shotgun_read_timeout(non_neg_integer()) -> timeout().
-shotgun_read_timeout(0) -> infinity;
-shotgun_read_timeout(ReadTimeoutMs) -> ReadTimeoutMs.
+-spec read_timeout_ms() -> pos_integer().
+-ifdef(TEST).
+%% Tests shorten the timeout through the application env; it is not an SDK option.
+read_timeout_ms() -> application:get_env(ldclient, stream_read_timeout_ms, ?STREAM_READ_TIMEOUT_MS).
+-else.
+read_timeout_ms() -> ?STREAM_READ_TIMEOUT_MS.
+-endif.
 
 %% @doc Processes server-sent event received from shotgun
 %% @private

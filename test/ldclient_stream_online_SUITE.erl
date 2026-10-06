@@ -16,8 +16,7 @@
     stream_sse_put_no_path/1,
     stream_sse_timeout/1,
     stream_sse_read_timeout_reconnects/1,
-    stream_sse_heartbeats_keep_connection_alive/1,
-    stream_sse_read_timeout_disabled/1
+    stream_sse_heartbeats_keep_connection_alive/1
 ]).
 
 %%====================================================================
@@ -31,8 +30,7 @@ all() ->
         stream_sse_put_no_path,
         stream_sse_timeout,
         stream_sse_read_timeout_reconnects,
-        stream_sse_heartbeats_keep_connection_alive,
-        stream_sse_read_timeout_disabled
+        stream_sse_heartbeats_keep_connection_alive
     ].
 
 init_per_suite(Config) ->
@@ -117,8 +115,8 @@ stream_sse_read_timeout_reconnects(_) ->
     true = register(read_timeout_test, self()),
     ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
     try
-        Options = (sdk_options())#{stream_read_timeout_ms => 1000},
-        ok = ldclient:start_instance("sdk-read-timeout", Options),
+        ok = application:set_env(ldclient, stream_read_timeout_ms, 1000),
+        ok = ldclient:start_instance("sdk-read-timeout", sdk_options()),
         First =
             receive {stream_connected, FirstPid} -> FirstPid
             after 2000 -> ct:fail(no_initial_connection)
@@ -136,6 +134,7 @@ stream_sse_read_timeout_reconnects(_) ->
         {1, false, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
         ok = ldclient:stop_instance()
     after
+        application:unset_env(ldclient, stream_read_timeout_ms),
         unregister(read_timeout_test)
     end,
     ok.
@@ -145,8 +144,8 @@ stream_sse_heartbeats_keep_connection_alive(_) ->
     true = register(read_timeout_test, self()),
     ok = http_server_sse_handler:reset_connections(<<"sdk-heartbeat">>),
     try
-        Options = (sdk_options())#{stream_read_timeout_ms => 1000},
-        ok = ldclient:start_instance("sdk-heartbeat", Options),
+        ok = application:set_env(ldclient, stream_read_timeout_ms, 1000),
+        ok = ldclient:start_instance("sdk-heartbeat", sdk_options()),
         receive {stream_connected, _FirstPid} -> ok
         after 2000 -> ct:fail(no_initial_connection)
         end,
@@ -156,25 +155,8 @@ stream_sse_heartbeats_keep_connection_alive(_) ->
         {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
         ok = ldclient:stop_instance()
     after
+        application:unset_env(ldclient, stream_read_timeout_ms),
         unregister(read_timeout_test)
     end,
     ok.
 
-stream_sse_read_timeout_disabled(_) ->
-    true = register(read_timeout_test, self()),
-    ok = http_server_sse_handler:reset_connections(<<"sdk-read-timeout">>),
-    try
-        Options = (sdk_options())#{stream_read_timeout_ms => 0},
-        ok = ldclient:start_instance("sdk-read-timeout", Options),
-        receive {stream_connected, _FirstPid} -> ok
-        after 2000 -> ct:fail(no_initial_connection)
-        end,
-        receive {stream_connected, _SecondPid} -> ct:fail(reconnected_with_timeout_disabled)
-        after 3500 -> ok
-        end,
-        {0, true, fallthrough} = ldclient:variation_detail(<<"abc">>, #{key => <<"123">>}, foo),
-        ok = ldclient:stop_instance()
-    after
-        unregister(read_timeout_test)
-    end,
-    ok.

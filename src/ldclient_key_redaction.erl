@@ -89,8 +89,6 @@ format_shotgun_error(nxdomain) ->
     "domain name not found";
 format_shotgun_error({shutdown, read_timeout}) ->
     "read timeout";
-format_shotgun_error({invalid_read_timeout, _Value}) ->
-    "invalid stream read timeout";
 format_shotgun_error({shutdown, _}) ->
     "connection shutdown";
 format_shotgun_error(normal) ->
