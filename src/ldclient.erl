@@ -145,6 +145,11 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       absolute pool size; metadata contains the instance `tag' and the
 %%       `direction' of the change (`initial', `up' or `down'). Suitable for a
 %%       gauge metric.</li>
+%%   <li>`[ldclient, evaluation, stop]' - emitted after each flag evaluation.
+%%       Measurement `duration' (native time units, the same convention as
+%%       `telemetry:span/3'); metadata contains the instance `tag', the
+%%       evaluated `flag_key' and the resulting `variation' index (or `null').
+%%       Suitable for a duration histogram or for building a trace span.</li>
 %% </ul>
 %%
 %% @end
@@ -221,7 +226,9 @@ variation(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map(Contex
     ldclient_eval:result_value().
 variation(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {{_Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    Start = erlang:monotonic_time(),
+    {{Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    ok = emit_evaluation_event(Tag, FlagKey, Index, erlang:monotonic_time() - Start),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{}) end,
     lists:foreach(SendEventsFun, Events),
@@ -249,7 +256,9 @@ variation_detail(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map
     ldclient_eval:detail().
 variation_detail(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {Detail, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    Start = erlang:monotonic_time(),
+    {Detail = {Index, _Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    ok = emit_evaluation_event(Tag, FlagKey, Index, erlang:monotonic_time() - Start),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{include_reasons => true}) end,
     lists:foreach(SendEventsFun, Events),
@@ -377,3 +386,21 @@ when_is_valid_context(Context, AllowEmptyKey, Fun) ->
         true -> Fun();
         false -> ok
     end.
+
+%% @doc Emit the flag evaluation timing event.
+%%
+%% `Duration' is in native time units, the same convention as `telemetry:span/3'.
+%% @private
+%% @end
+-spec emit_evaluation_event(
+    Tag :: atom(),
+    FlagKey :: binary(),
+    VariationIndex :: non_neg_integer() | null,
+    Duration :: integer()
+) -> ok.
+emit_evaluation_event(Tag, FlagKey, VariationIndex, Duration) ->
+    telemetry:execute(
+        [ldclient, evaluation, stop],
+        #{duration => Duration},
+        #{tag => Tag, flag_key => FlagKey, variation => VariationIndex}
+    ).
