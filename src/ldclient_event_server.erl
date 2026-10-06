@@ -21,6 +21,7 @@
     buffer := ldclient_event_buffer:buffer(),
     event_count := non_neg_integer(),
     counters_ref := counters:counters_ref(),
+    context_keys_capacity := pos_integer(),
     summary_event := summary_event(),
     pending_summaries := [summary_event()],
     capacity := pos_integer(),
@@ -198,12 +199,14 @@ init([Tag]) ->
         worker_monitors => #{},
         flush_waiters => [],
         offline => OfflineMode,
-        send_events => SendEvents
+        send_events => SendEvents,
+        context_keys_capacity => ldclient_config:get_value(Tag, context_keys_capacity)
     },
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
     InitialState = start_workers(State, MinWorkers),
     ok = emit_pool_size(InitialState, initial),
+    ok = ldclient_context_cache:new(Tag),
     {ok, InitialState}.
 
 %%===================================================================
@@ -236,8 +239,9 @@ handle_cast(_Request, State) ->
 
 handle_info({flush, _Tag}, State) ->
     {noreply, start_flush(State)};
-handle_info(scale, #{scale_interval_ms := Interval} = State) ->
+handle_info(scale, #{scale_interval_ms := Interval, tag := Tag, context_keys_capacity := ContextKeysCapacity} = State) ->
     State1 = maybe_scale(State),
+    ok = ldclient_context_cache:maybe_rotate(Tag, ContextKeysCapacity),
     Ref = erlang:send_after(Interval, self(), scale),
     {noreply, State1#{scale_timer_ref := Ref}};
 handle_info({worker_done, Pid}, #{busy_workers := Busy, idle_workers := Idle, flushing := Flushing} = State) ->
@@ -258,11 +262,12 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
+terminate(Reason, #{tag := Tag, timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
     _ = erlang:cancel_timer(ScaleTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
+    _ = ldclient_context_cache:delete(Tag),
     _ = erase_counters(State),
     ok;
 terminate(_Reason, _State) ->

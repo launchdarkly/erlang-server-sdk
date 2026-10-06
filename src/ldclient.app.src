@@ -14,7 +14,6 @@
     ssl,
     shotgun,
     jsx,
-    lru,
     verl,
     uuid,
     eredis,
