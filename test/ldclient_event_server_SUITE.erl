@@ -35,7 +35,13 @@
     emits_flush_telemetry_on_success/1,
     emits_flush_telemetry_once_after_retry/1,
     function_clause_terms_do_not_lose_the_batch/1,
-    unencodable_default_keeps_the_summary/1
+    unencodable_default_keeps_the_summary/1,
+    gate_is_closed_while_the_pool_starts/1,
+    gate_closes_on_crash_and_counters_are_erased_on_stop/1,
+    live_workers_never_exceed_max_workers/1,
+    capacity_drops_are_reported_when_the_server_restarts/1,
+    published_counts_only_sent_events/1,
+    unencodable_drop_reported_once_across_retry/1
 ]).
 
 %%====================================================================
@@ -68,7 +74,13 @@ all() ->
         emits_flush_telemetry_on_success,
         emits_flush_telemetry_once_after_retry,
         function_clause_terms_do_not_lose_the_batch,
-        unencodable_default_keeps_the_summary
+        unencodable_default_keeps_the_summary,
+        gate_is_closed_while_the_pool_starts,
+        gate_closes_on_crash_and_counters_are_erased_on_stop,
+        live_workers_never_exceed_max_workers,
+        capacity_drops_are_reported_when_the_server_restarts,
+        published_counts_only_sent_events,
+        unencodable_drop_reported_once_across_retry
     ].
 
 init_per_suite(Config) ->
@@ -103,7 +115,6 @@ init_per_suite(Config) ->
         events_min_workers => 1,
         events_max_workers => 3,
         events_batch_size => 1,
-        events_scale_up_threshold => 1,
         events_scale_down_threshold => 0,
         events_scale_interval_ms => 50,
         events_scale_cooldown_ms => 0
@@ -254,7 +265,7 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 0,
-        events_flush_interval => -1,
+        events_flush_interval => 1 bsl 52,
         events_min_workers => -1,
         events_max_workers => 0.5,
         events_batch_size => 0,
@@ -262,7 +273,7 @@ init_per_suite(Config) ->
         events_inbox_capacity => foo,
         events_scale_interval_ms => 0,
         events_scale_cooldown_ms => -5,
-        events_request_timeout => 0,
+        events_request_timeout => 1 bsl 50,
         context_keys_capacity => -3
     },
     ldclient:start_instance("", bad_options, BadOptions),
@@ -752,7 +763,8 @@ feature_requests_shed_when_inbox_full(_) ->
         {message_queue_len, Queued} = process_info(whereis(ServerName), message_queue_len),
         Shed = count_shed(0),
         ok = sys:resume(ServerName),
-        5 = Queued,
+        %% Five casts were admitted; a flush or scale timer may also be queued.
+        true = Queued >= 5,
         5 = Shed,
         ok = ldclient_event_server:flush(Tag),
         Payloads = collect_payloads(1),
@@ -971,6 +983,244 @@ unencodable_default_keeps_the_summary(_) ->
         telemetry:detach(HandlerId)
     end.
 
+%% The server is registered before init/1 runs, and callers admit without
+%% counting while no counters are published. The counters are therefore
+%% published first with the gate closed, so a cast arriving while the pool
+%% starts is shed instead of queueing uncounted; the gate opens once a worker
+%% exists.
+gate_is_closed_while_the_pool_starts(_) ->
+    Tag = slow_init,
+    Key = {ldclient_event_server_counters, Tag},
+    HandlerId = {?MODULE, gate_is_closed_while_the_pool_starts, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, shed],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {shed, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    _Starter = spawn_link(fun() ->
+        Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_slow_init, events_inbox_capacity => 50}),
+        Self ! {started, ldclient:start_instance("", Tag, Options)}
+    end),
+    try
+        {Ref, _Threshold, 50} = wait_for_counters(Key, 300),
+        50 = counters:get(Ref, 2),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"during-init">>), #{}),
+        receive
+            {shed, #{count := 1}, #{tag := Tag, kind := identify}} -> ok
+        after 1000 ->
+            ct:fail("Expected the cast made during init to be shed")
+        end,
+        receive
+            {started, ok} -> ok
+        after 5000 ->
+            ct:fail("start_instance did not complete")
+        end,
+        true = counters:get(Ref, 2) < 50,
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"after-init">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payload_with_key(<<"after-init">>, 3000)
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag))
+    end.
+
+gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
+    Tag = gate,
+    Key = {ldclient_event_server_counters, Tag},
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
+    ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100, events_scale_interval_ms => 50})),
+    register_collector(),
+    try
+        {Ref1, _, 100} = persistent_term:get(Key),
+        Pid1 = whereis(ServerName),
+        %% An event without a context crashes the handler.
+        ok = gen_server:cast(ServerName, {add_event, #{type => identify}, Tag, #{}}),
+        _Pid2 = wait_new_pid(ServerName, Pid1, 300),
+        %% The crashed incarnation left its gate closed, so callers holding the
+        %% old counters shed; the new incarnation published fresh, open ones.
+        100 = counters:get(Ref1, 2),
+        {Ref2, _, 100} = persistent_term:get(Key),
+        true = Ref1 =/= Ref2,
+        true = counters:get(Ref2, 2) < 100,
+        %% Reservations leaked by callers that died between their add and their
+        %% cast are clamped back to the real mailbox length on the next tick.
+        counters:add(Ref2, 2, 7),
+        timer:sleep(200),
+        true = counters:get(Ref2, 2) =< 1,
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"gate-user">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payload_with_key(<<"gate-user">>, 3000)
+    after
+        ok = ldclient:stop_instance(Tag)
+    end,
+    undefined = persistent_term:get(Key, undefined).
+
+%% A decommissioned worker that is still attempting its pending retry is a
+%% live worker holding a connection and a batch. It counts against
+%% events_max_workers, so the pool never has more live workers than that.
+live_workers_never_exceed_max_workers(_) ->
+    Tag = pool_bound,
+    Max = 2,
+    ok = ldclient:start_instance("", Tag, instance_options(#{
+        events_dispatcher => ldclient_event_dispatch_slow_fail,
+        events_batch_size => 1,
+        events_min_workers => 1,
+        events_max_workers => Max,
+        events_scale_interval_ms => 20,
+        events_scale_cooldown_ms => 0
+    })),
+    register_collector(),
+    SupName = ldclient_event_worker_sup:get_sup_name(Tag),
+    Self = self(),
+    Sampler = spawn_link(fun() -> live_sampler(SupName, 0, Self) end),
+    try
+        lists:foreach(fun(I) ->
+            ok = ldclient_event_server:add_event(Tag, identify_event(<<"wa", (integer_to_binary(I))/binary>>), #{}),
+            wait_for_event_count(Tag, 1),
+            ok = ldclient_event_server:flush(Tag),
+            timer:sleep(10),
+            ok = ldclient_event_server:add_event(Tag, identify_event(<<"wb", (integer_to_binary(I))/binary>>), #{}),
+            timer:sleep(10),
+            ok = ldclient_event_server:flush(Tag),
+            timer:sleep(700)
+        end, lists:seq(1, 4)),
+        Sampler ! {stop, self()},
+        MaxLive = receive {live, Live} -> Live after 2000 -> ct:fail("sampler did not report") end,
+        ct:pal("events_max_workers=~b; most live worker processes observed: ~b", [Max, MaxLive]),
+        true = MaxLive =< Max
+    after
+        ok = ldclient:stop_instance(Tag)
+    end.
+
+%% Drops are reported once per flush window. A window that ends with the
+%% server crashing instead of flushing must still report them.
+capacity_drops_are_reported_when_the_server_restarts(_) ->
+    Tag = drop_restart,
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
+    HandlerId = {?MODULE, capacity_drops_are_reported_when_the_server_restarts, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    ok = ldclient:start_instance("", Tag, instance_options(#{events_capacity => 2, events_scale_interval_ms => 50})),
+    try
+        {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
+        Flag = ldclient_flag:new(FlagMap),
+        lists:foreach(fun(I) ->
+            Ctx = ldclient_context:new_from_user(#{key => <<"x", (integer_to_binary(I))/binary>>}),
+            ok = ldclient_event_server:add_event(Tag, ldclient_event:new_flag_eval(5, <<"v">>, <<"d">>, Ctx, target_match, Flag), #{})
+        end, lists:seq(1, 10)),
+        ok = wait_until(fun() -> maps:get(dropped, sys:get_state(ServerName)) > 0 end, 100),
+        Dropped = maps:get(dropped, sys:get_state(ServerName)),
+        Pid1 = whereis(ServerName),
+        ok = gen_server:cast(ServerName, {add_event, #{type => identify}, Tag, #{}}),
+        _ = wait_new_pid(ServerName, Pid1, 300),
+        receive
+            {dropped, #{count := Dropped}, #{tag := Tag, reason := capacity}} -> ok
+        after 1000 ->
+            ct:fail("~b drops counted before the restart were never reported", [Dropped])
+        end
+    after
+        telemetry:detach(HandlerId),
+        ok = ldclient:stop_instance(Tag)
+    end.
+
+%% `published` counts the events that were actually in the request, after
+%% unencodable ones were dropped; a batch with nothing left to send publishes
+%% nothing.
+published_counts_only_sent_events(_) ->
+    Tag = publisher,
+    HandlerId = {?MODULE, published_counts_only_sent_events, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, published],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {published, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        Ctx = ldclient_context:new_from_user(#{key => <<"pub-bad">>}),
+        Bad = ldclient_event:new_custom(<<"bad-data">>, Ctx, #{<<"v">> => {not_json, 1}}),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"pub-ok">>), #{}),
+        ok = ldclient_event_server:add_event(Tag, Bad, #{}),
+        %% identify + custom + the custom event's index event
+        wait_for_event_count(Tag, 3),
+        ok = ldclient_event_server:flush(Tag),
+        Payload = collect_payload_with_key(<<"pub-ok">>, 3000),
+        Sent = length(Payload),
+        receive
+            {published, #{count := Sent}, #{tag := Tag}} -> ok
+        after 1000 ->
+            ct:fail("Expected a published count of ~b", [Sent])
+        end,
+        %% The context has been seen, so this batch holds only the bad event.
+        ok = ldclient_event_server:add_event(Tag, Bad, #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {published, Measurements, _} -> ct:fail("Nothing was sent, but published reported ~p", [Measurements])
+        after 500 ->
+            ok
+        end
+    after
+        telemetry:detach(HandlerId)
+    end.
+
+%% The retry resends the bytes of the first attempt, so an unencodable event
+%% is dropped and reported exactly once per batch.
+unencodable_drop_reported_once_across_retry(_) ->
+    Tag = retry_once,
+    HandlerId = {?MODULE, unencodable_drop_reported_once_across_retry, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    ok = ldclient:start_instance("sdk-key-events-fail", Tag, instance_options(#{})),
+    register_collector(),
+    try
+        Ctx = ldclient_context:new_from_user(#{key => <<"retry-bad">>}),
+        Bad = ldclient_event:new_custom(<<"bad-data">>, Ctx, #{"plan" => <<"pro">>}),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"retry-ok">>), #{}),
+        ok = ldclient_event_server:add_event(Tag, Bad, #{}),
+        wait_for_event_count(Tag, 3),
+        ok = ldclient_event_server:flush(Tag),
+        %% Both the attempt and the retry (one second later) fail.
+        _ = collect_payload_with_key(<<"retry-ok">>, 3000),
+        _ = collect_payload_with_key(<<"retry-ok">>, 3000),
+        timer:sleep(200),
+        1 = count_dropped_reports(0)
+    after
+        telemetry:detach(HandlerId),
+        ok = ldclient:stop_instance(Tag)
+    end.
+
+count_dropped_reports(Acc) ->
+    receive
+        {dropped, _, #{reason := unencodable}} -> count_dropped_reports(Acc + 1)
+    after 0 ->
+        Acc
+    end.
+
 %%====================================================================
 %% Helpers
 %%====================================================================
@@ -1132,4 +1382,49 @@ receive_events() ->
             {ActualEvents, PayloadIdReceived}
     after 2000 ->
         ct:fail("Did not receive events")
+    end.
+
+instance_options(Extra) ->
+    maps:merge(#{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_capacity => 100,
+        events_shed_threshold => 1000,
+        events_inbox_capacity => 1000,
+        events_flush_interval => 60000,
+        events_min_workers => 1,
+        events_max_workers => 1
+    }, Extra).
+
+wait_for_counters(_Key, 0) ->
+    ct:fail("The event server did not publish its counters");
+wait_for_counters(Key, Retries) ->
+    case persistent_term:get(Key, undefined) of
+        undefined -> timer:sleep(10), wait_for_counters(Key, Retries - 1);
+        Counters -> Counters
+    end.
+
+wait_new_pid(_Name, _Old, 0) ->
+    ct:fail("The event server was not restarted");
+wait_new_pid(Name, Old, Retries) ->
+    case whereis(Name) of
+        Pid when is_pid(Pid), Pid =/= Old -> Pid;
+        _ -> timer:sleep(10), wait_new_pid(Name, Old, Retries - 1)
+    end.
+
+wait_until(_Fun, 0) ->
+    ct:fail("Condition not met in time");
+wait_until(Fun, Retries) ->
+    case Fun() of
+        true -> ok;
+        false -> timer:sleep(10), wait_until(Fun, Retries - 1)
+    end.
+
+live_sampler(SupName, MaxLive, Parent) ->
+    receive
+        {stop, From} -> From ! {live, MaxLive}
+    after 5 ->
+        Live = proplists:get_value(active, supervisor:count_children(SupName)),
+        live_sampler(SupName, max(MaxLive, Live), Parent)
     end.

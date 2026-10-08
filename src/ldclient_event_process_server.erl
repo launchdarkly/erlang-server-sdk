@@ -34,8 +34,6 @@
     decommission := boolean()
 }.
 
--type send_result() ::
-    ok | {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
 
 -define(TABLE_PREFIX, "event_process_state").
 
@@ -137,7 +135,7 @@ handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     FormattedEvents = format_events(Events, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     StartTime = erlang:monotonic_time(),
-    NewState = do_send(OutputEvents, PayloadId, 0, StartTime, State),
+    NewState = do_send(OutputEvents, PayloadId, StartTime, State),
     %% Report the worker as available as soon as the batch has been attempted, so
     %% the pool can keep dispatching; a scheduled retry is tracked separately in
     %% `pending' and delays decommissioning rather than idling the worker.
@@ -151,9 +149,9 @@ handle_cast(decommission, State) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, OutputEvents, PayloadId, Attempt, StartTime}, #{pending := Pending} = State) ->
-    %% The scheduled retry timer has fired.
-    NewState = do_send(OutputEvents, PayloadId, Attempt, StartTime, State#{pending := max(0, Pending - 1)}),
+handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime}, #{pending := Pending} = State) ->
+    %% The scheduled retry timer has fired; resend the same bytes.
+    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State#{pending := max(0, Pending - 1)}),
     stop_if_idle_decommissioned(NewState);
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -344,41 +342,47 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec do_send(list(), uuid:uuid(), non_neg_integer(), integer(), state()) -> state().
-do_send(OutputEvents, PayloadId, Attempt, StartTime, State) ->
+-spec do_send(list(), uuid:uuid(), integer(), state()) -> state().
+do_send(OutputEvents, PayloadId, StartTime, #{tag := Tag} = State) ->
+    %% Encode once. The retry resends the same bytes, so an unencodable event
+    %% is dropped and reported exactly once, and the counts reported below
+    %% describe what is actually sent.
+    case encode(OutputEvents, Tag) of
+        {ok, JsonEvents, Count} -> attempt(JsonEvents, Count, PayloadId, 0, StartTime, State);
+        empty -> State
+    end.
+
+-spec attempt(binary(), pos_integer(), uuid:uuid(), non_neg_integer(), integer(), state()) -> state().
+attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
     #{
         dispatcher := Dispatcher,
         events_uri := Uri,
         dispatcher_state := DispatcherState,
         tag := Tag
     } = State,
-    {Result, Size} = send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag),
-    case Result of
-        ok ->
-            emit_published(Tag, OutputEvents),
-            emit_flush(Tag, OutputEvents, Size, StartTime, accepted),
-            State;
+    Size = byte_size(JsonEvents),
+    case Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri) of
         {ok, Date} ->
             %% The table is owned by the event server and may already be gone
             %% while the instance is shutting down.
             _ = (catch ets:insert(ets_table_name(Tag), {last_known_server_time, Date})),
-            emit_published(Tag, OutputEvents),
-            emit_flush(Tag, OutputEvents, Size, StartTime, accepted),
+            emit_published(Tag, Count),
+            emit_flush(Tag, Count, Size, StartTime, accepted),
             State;
         {error, temporary, Reason} when Attempt =:= 0 ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
-            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, OutputEvents, PayloadId, 1, StartTime}),
+            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime}),
             maps:update_with(pending, fun(P) -> P + 1 end, State);
         {error, temporary, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
-            emit_flush(Tag, OutputEvents, Size, StartTime, failed),
+            emit_flush(Tag, Count, Size, StartTime, failed),
             State;
         {error, permanent, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
-            emit_flush(Tag, OutputEvents, Size, StartTime, failed),
+            emit_flush(Tag, Count, Size, StartTime, failed),
             State
     end.
 
@@ -390,17 +394,18 @@ stop_if_idle_decommissioned(#{decommission := true, pending := 0} = State) ->
 stop_if_idle_decommissioned(State) ->
     {noreply, State}.
 
-%% @doc Report how many events were successfully delivered in a batch. Emitted
-%% once per successful dispatch (including successful retries) so it can back a
-%% "published events" counter metric.
+%% @doc Report how many events were delivered in a batch. Emitted once per
+%% successful dispatch (including a successful retry) so it can back a
+%% "published events" counter metric. `Count' is the number of events in the
+%% request, after any unencodable ones were dropped.
 %% @end
--spec emit_published(atom(), list()) -> ok.
-emit_published(_Tag, []) ->
+-spec emit_published(atom(), non_neg_integer()) -> ok.
+emit_published(_Tag, 0) ->
     ok;
-emit_published(Tag, OutputEvents) ->
+emit_published(Tag, Count) ->
     telemetry:execute(
         [ldclient, events, published],
-        #{count => length(OutputEvents)},
+        #{count => Count},
         #{tag => Tag}
     ).
 
@@ -408,44 +413,35 @@ emit_published(Tag, OutputEvents) ->
 %% `duration' spans the first attempt through the retry so it can back flush
 %% count, batch size, flush duration, sent and failed metrics.
 %% @end
--spec emit_flush(atom(), list(), non_neg_integer(), integer(), accepted | failed) -> ok.
-emit_flush(_Tag, [], _Size, _StartTime, _Outcome) ->
+-spec emit_flush(atom(), non_neg_integer(), non_neg_integer(), integer(), accepted | failed) -> ok.
+emit_flush(_Tag, 0, _Size, _StartTime, _Outcome) ->
     ok;
-emit_flush(Tag, OutputEvents, Size, StartTime, Outcome) ->
+emit_flush(Tag, Count, Size, StartTime, Outcome) ->
     telemetry:execute(
         [ldclient, events, flush],
         #{
-            count => length(OutputEvents),
+            count => Count,
             size => Size,
             duration => erlang:monotonic_time() - StartTime
         },
         #{tag => Tag, outcome => Outcome}
     ).
 
--spec send(Dispatcher :: atom(), DispatcherState :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string(), Tag :: atom()) ->
-    {send_result(), non_neg_integer()}.
-send(_, _, [], _, _, _) ->
-    {ok, 0};
-send(Dispatcher, DispatcherState, OutputEvents, PayloadId, Uri, Tag) ->
-    case encode(OutputEvents, Tag) of
-        {ok, JsonEvents} ->
-            {Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri), byte_size(JsonEvents)};
-        empty ->
-            {ok, 0}
-    end.
-
-%% @doc Encode a batch. If a term in some event cannot be represented as JSON
-%% (for example a tuple in custom event data, or a map with a key that is not
-%% a binary, atom or integer), drop only those events and report them, instead
-%% of crashing the worker and losing the whole batch. jsx raises `badarg' for
-%% some such terms and `function_clause' for others, so every error is treated
-%% as "not JSON". The summary is the one event that must survive: an
-%% unencodable application-supplied default value is replaced by `null' there.
+%% @doc Encode a batch, returning the JSON and the number of events in it.
+%% If a term in some event cannot be represented as JSON (for example a tuple
+%% in custom event data, or a map with a key that is not a binary, atom or
+%% integer), drop only those events and report them, instead of crashing the
+%% worker and losing the whole batch. jsx raises `badarg' for some such terms
+%% and `function_clause' for others, so every error is treated as "not JSON".
+%% The summary is the one event that must survive: an unencodable
+%% application-supplied default value is replaced by `null' there.
 %% @end
--spec encode(OutputEvents :: [map()], Tag :: atom()) -> {ok, binary()} | empty.
+-spec encode(OutputEvents :: [map()], Tag :: atom()) -> {ok, binary(), pos_integer()} | empty.
+encode([], _Tag) ->
+    empty;
 encode(OutputEvents, Tag) ->
     try
-        {ok, jsx:encode(OutputEvents)}
+        {ok, jsx:encode(OutputEvents), length(OutputEvents)}
     catch
         error:_ ->
             Sanitized = [sanitize_summary(E) || E <- OutputEvents],
@@ -459,7 +455,7 @@ encode(OutputEvents, Tag) ->
             end,
             case Encodable of
                 [] -> empty;
-                _ -> {ok, jsx:encode(Encodable)}
+                _ -> {ok, jsx:encode(Encodable), length(Encodable)}
             end
     end.
 

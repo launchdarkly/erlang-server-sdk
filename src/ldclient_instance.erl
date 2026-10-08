@@ -46,9 +46,6 @@
     events_batch_size => pos_integer(),
     %% Maximum number of events a single worker sends per request. Defaults to
     %% `events_capacity', i.e. one request per flush.
-    events_scale_up_threshold => non_neg_integer(),
-    %% Accepted for compatibility; workers are added on demand rather than by
-    %% buffer depth. Defaults to half of `events_capacity'.
     events_scale_down_threshold => non_neg_integer(),
     %% Buffered event count at or below which the pool decommissions an idle
     %% worker. Defaults to 0.

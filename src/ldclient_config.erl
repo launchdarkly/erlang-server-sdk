@@ -73,8 +73,6 @@
     %% Maximum size of the reporter worker pool (autoscaling upper bound).
     events_batch_size => pos_integer(),
     %% Maximum number of events dispatched per worker request.
-    events_scale_up_threshold => non_neg_integer(),
-    %% Buffer depth at which the worker pool scales up.
     events_scale_down_threshold => non_neg_integer(),
     %% Buffer depth at or below which the worker pool scales down.
     events_scale_interval_ms => pos_integer(),
@@ -126,6 +124,8 @@
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
 -define(DEFAULT_EVENTS_MIN_WORKERS, 5).
 -define(DEFAULT_EVENTS_REQUEST_TIMEOUT, 30000).
+%% Largest millisecond interval accepted for timers and request timeouts.
+-define(MAX_INTERVAL_MS, 16#FFFFFFFF).
 -define(DEFAULT_EVENTS_MAX_WORKERS, 10).
 -define(DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD, 0).
 -define(DEFAULT_EVENTS_SCALE_INTERVAL, 1000).
@@ -201,21 +201,20 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     StreamUri = string:trim(maps:get(stream_uri, Options, ?DEFAULT_STREAM_URI), trailing, "/"),
     FeatureStore = maps:get(feature_store, Options, ?DEFAULT_FEATURE_STORE),
     EventsCapacity = pos_integer_option(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
-    EventsFlushInterval = pos_integer_option(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
+    EventsFlushInterval = interval_option(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     EventsShedThreshold = pos_integer_option(events_shed_threshold, Options, EventsCapacity),
     EventsInboxCapacity = pos_integer_option(events_inbox_capacity, Options, EventsCapacity),
     EventsMinWorkers0 = pos_integer_option(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
     EventsMaxWorkers0 = pos_integer_option(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
     {EventsMinWorkers, EventsMaxWorkers} = order_worker_bounds(EventsMinWorkers0, EventsMaxWorkers0, maps:is_key(events_min_workers, Options)),
-    EventsRequestTimeout = pos_integer_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
+    EventsRequestTimeout = interval_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
     %% One payload per flush by default (the behaviour before the worker pool);
     %% splitting a flush into smaller requests is opt-in.
     EventsBatchSize = pos_integer_option(events_batch_size, Options, EventsCapacity),
-    EventsScaleUpThreshold = non_neg_integer_option(events_scale_up_threshold, Options, lists:max([1, EventsCapacity div 2])),
     EventsScaleDownThreshold = non_neg_integer_option(events_scale_down_threshold, Options, ?DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD),
-    EventsScaleInterval = pos_integer_option(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
-    EventsScaleCooldown = non_neg_integer_option(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
+    EventsScaleInterval = interval_option(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
+    EventsScaleCooldown = non_neg_interval_option(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
     ContextKeysCapacity = pos_integer_option(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
@@ -268,7 +267,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_min_workers => EventsMinWorkers,
         events_max_workers => EventsMaxWorkers,
         events_batch_size => EventsBatchSize,
-        events_scale_up_threshold => EventsScaleUpThreshold,
         events_scale_down_threshold => EventsScaleDownThreshold,
         events_scale_interval_ms => EventsScaleInterval,
         events_scale_cooldown_ms => EventsScaleCooldown,
@@ -559,6 +557,26 @@ pos_integer_option(Key, Options, Default) ->
 non_neg_integer_option(Key, Options, Default) ->
     case maps:get(Key, Options, Default) of
         Value when is_integer(Value), Value >= 0 -> Value;
+        Invalid -> warn_invalid_option(Key, Invalid, Default), Default
+    end.
+
+%% @doc Read a millisecond interval or timeout: a positive integer no larger
+%% than `?MAX_INTERVAL_MS' (about 49 days). Larger values are not usable as
+%% timer or request timeouts (`erlang:send_after/3' raises on them and httpc
+%% never answers), so they fall back to the default with a warning.
+%% @private
+-spec interval_option(Key :: atom(), Options :: map(), Default :: pos_integer()) -> pos_integer().
+interval_option(Key, Options, Default) ->
+    case maps:get(Key, Options, Default) of
+        Value when is_integer(Value), Value >= 1, Value =< ?MAX_INTERVAL_MS -> Value;
+        Invalid -> warn_invalid_option(Key, Invalid, Default), Default
+    end.
+
+%% @private
+-spec non_neg_interval_option(Key :: atom(), Options :: map(), Default :: non_neg_integer()) -> non_neg_integer().
+non_neg_interval_option(Key, Options, Default) ->
+    case maps:get(Key, Options, Default) of
+        Value when is_integer(Value), Value >= 0, Value =< ?MAX_INTERVAL_MS -> Value;
         Invalid -> warn_invalid_option(Key, Invalid, Default), Default
     end.
 

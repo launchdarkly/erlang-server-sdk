@@ -103,9 +103,6 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%   <li>`events_batch_size' (`events_capacity') - maximum number of events a
 %%       worker sends per request. The default sends each flush as a single
 %%       request; lower it to split a flush across several workers.</li>
-%%   <li>`events_scale_up_threshold' (half of `events_capacity') - accepted for
-%%       compatibility; workers are added on demand (see
-%%       `events_max_workers') rather than by buffer depth.</li>
 %%   <li>`events_scale_down_threshold' (`0') - buffer depth at or below which
 %%       the pool decommissions an idle worker.</li>
 %%   <li>`events_scale_interval_ms' (`1000') - how often the pool samples the

@@ -37,7 +37,6 @@
     retry_batches := [{[ldclient_event:event()], summary_event() | undefined, uuid:uuid()}],
     min_workers := pos_integer(),
     max_workers := pos_integer(),
-    scale_up_threshold := non_neg_integer(),
     scale_down_threshold := non_neg_integer(),
     scale_interval_ms := pos_integer(),
     scale_cooldown_ms := non_neg_integer(),
@@ -181,7 +180,6 @@ init([Tag]) ->
     BatchSize = ldclient_config:get_value(Tag, events_batch_size),
     MinWorkers = ldclient_config:get_value(Tag, events_min_workers),
     MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
-    ScaleUpThreshold = ldclient_config:get_value(Tag, events_scale_up_threshold),
     ScaleDownThreshold = ldclient_config:get_value(Tag, events_scale_down_threshold),
     ScaleInterval = ldclient_config:get_value(Tag, events_scale_interval_ms),
     ScaleCooldown = ldclient_config:get_value(Tag, events_scale_cooldown_ms),
@@ -217,7 +215,6 @@ init([Tag]) ->
         retry_batches => [],
         min_workers => MinWorkers,
         max_workers => MaxWorkers,
-        scale_up_threshold => ScaleUpThreshold,
         scale_down_threshold => ScaleDownThreshold,
         scale_interval_ms => ScaleInterval,
         scale_cooldown_ms => ScaleCooldown,
@@ -231,6 +228,13 @@ init([Tag]) ->
         context_cache => ldclient_context_cache:new(),
         context_keys_capacity => ldclient_config:get_value(Tag, context_keys_capacity)
     },
+    %% The server is registered before `init/1' runs and callers admit without
+    %% counting while no counters are published, so publish them first, with
+    %% the gate closed: callers shed for the few milliseconds the pool takes to
+    %% start instead of filling the mailbox uncounted. The forced resync below
+    %% opens the gate once there is a worker to deliver to.
+    ok = close_gate(State),
+    persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, InboxCapacity}),
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
     InitialState = start_workers(State, MinWorkers),
@@ -240,9 +244,9 @@ init([Tag]) ->
             %% (as the previous single-process pipeline did) instead of
             %% accepting events into a pool that cannot deliver them.
             _ = ldclient_event_buffer:delete(Buffer),
+            _ = erase_counters(State),
             {stop, {event_workers_unavailable, Tag}};
         _ ->
-            persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, InboxCapacity}),
             %% Casts that arrived before the counters were published were not
             %% counted; start from the real mailbox length.
             _ = resync_inflight(InitialState, force),
@@ -323,6 +327,8 @@ terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buf
     _ = erlang:cancel_timer(ScaleTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
     _ = ldclient_context_cache:delete(maps:get(context_cache, State)),
+    %% Drops counted since the last flush would otherwise never be reported.
+    _ = report_dropped(State),
     _ = stop_dispatcher(Tag),
     case Reason of
         normal -> _ = erase_counters(State);
@@ -774,9 +780,13 @@ scale(#{event_count := Depth, idle_workers := Idle, min_workers := Min, scale_do
         false -> State
     end.
 
+%% @doc Every live worker, including decommissioned ones still attempting
+%% their pending retries. Those still hold a batch and a connection, so they
+%% count against `events_max_workers' and against decommissioning more.
+%% @end
 -spec active_workers(state()) -> non_neg_integer().
-active_workers(#{idle_workers := Idle, busy_workers := Busy}) ->
-    length(Idle) + map_size(Busy).
+active_workers(#{worker_monitors := Monitors}) ->
+    map_size(Monitors).
 
 -spec scale_down(state(), non_neg_integer(), integer()) -> state().
 scale_down(#{idle_workers := [Worker|Idle]} = State, _Active, Now) ->
