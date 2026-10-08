@@ -1,8 +1,8 @@
 %%-------------------------------------------------------------------
 %% @doc Supervisor for event reporter workers
 %%
-%% Uses a `simple_one_for_one' strategy so the event server can commission and
-%% decommission workers at runtime.
+%% Uses a `simple_one_for_one' strategy so the event server can start its
+%% workers and replace any that exit.
 %% @private
 %% @end
 %%-------------------------------------------------------------------

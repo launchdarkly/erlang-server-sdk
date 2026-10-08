@@ -17,7 +17,6 @@
 %% API
 -export([
     send_batch/5,
-    decommission/1,
     get_last_server_time/1,
     ets_table_name/1
 ]).
@@ -29,9 +28,7 @@
     global_private_attributes := ldclient_config:private_attributes(),
     events_uri := string(),
     tag := atom(),
-    dispatcher_state := any(),
-    pending := non_neg_integer(),
-    decommission := boolean()
+    dispatcher_state := any()
 }.
 
 
@@ -57,16 +54,6 @@
     ok.
 send_batch(Worker, Owner, Events, SummaryEvent, PayloadId) ->
     gen_server:cast(Worker, {send_batch, Owner, Events, SummaryEvent, PayloadId}).
-
-%% @doc Ask a worker to stop once it has no outstanding retries. Used when the
-%% pool scales down: a worker holding scheduled retries must not be killed, or
-%% the events it is retrying would be lost. Each retry is attempted at most
-%% once, so a decommissioned worker lives for at most
-%% `pending * (retry delay + request time)'.
-%% @end
--spec decommission(Worker :: pid()) -> ok.
-decommission(Worker) ->
-    gen_server:cast(Worker, decommission).
 
 -spec get_last_server_time(Tag :: atom()) -> integer().
 get_last_server_time(Tag) ->
@@ -110,9 +97,7 @@ init([Tag]) ->
         global_private_attributes => GlobalPrivateAttributes,
         events_uri => EventsUri,
         tag => Tag,
-        dispatcher_state =>  Dispatcher:init(Tag, SdkKey),
-        pending => 0,
-        decommission => false
+        dispatcher_state =>  Dispatcher:init(Tag, SdkKey)
     },
     {ok, State}.
 
@@ -128,7 +113,7 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 -spec handle_cast(Request :: term(), State :: state()) ->
-    {noreply, NewState :: state()} | {stop, normal, NewState :: state()}.
+    {noreply, NewState :: state()}.
 handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     #{global_private_attributes := GlobalPrivateAttributes} = State) ->
     FormattedSummaryEvent = format_summary_event(SummaryEvent),
@@ -137,22 +122,17 @@ handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     StartTime = erlang:monotonic_time(),
     NewState = do_send(OutputEvents, PayloadId, StartTime, State),
     %% Report the worker as available as soon as the batch has been attempted, so
-    %% the pool can keep dispatching; a scheduled retry is tracked separately in
-    %% `pending' and delays decommissioning rather than idling the worker.
+    %% the pool can keep dispatching; a scheduled retry runs in this worker
+    %% alongside any later batch.
     _ = Owner ! {worker_done, self()},
-    stop_if_idle_decommissioned(NewState);
-handle_cast(decommission, State) ->
-    %% Stop immediately if there is no retry in flight; otherwise stop once every
-    %% scheduled retry has been attempted. Retries are never rescheduled, so the
-    %% worker's remaining lifetime is bounded even during a sustained outage.
-    stop_if_idle_decommissioned(State#{decommission := true});
+    {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime}, #{pending := Pending} = State) ->
+handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime}, State) ->
     %% The scheduled retry timer has fired; resend the same bytes.
-    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State#{pending := max(0, Pending - 1)}),
-    stop_if_idle_decommissioned(NewState);
+    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State),
+    {noreply, NewState};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -373,7 +353,7 @@ attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
             _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime}),
-            maps:update_with(pending, fun(P) -> P + 1 end, State);
+            State;
         {error, temporary, Reason} ->
             telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
@@ -385,14 +365,6 @@ attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
             emit_flush(Tag, Count, Size, StartTime, failed),
             State
     end.
-
-%% @doc Stop a decommissioned worker that has nothing in flight.
-%% @end
--spec stop_if_idle_decommissioned(state()) -> {noreply, state()} | {stop, normal, state()}.
-stop_if_idle_decommissioned(#{decommission := true, pending := 0} = State) ->
-    {stop, normal, State};
-stop_if_idle_decommissioned(State) ->
-    {noreply, State}.
 
 %% @doc Report how many events were delivered in a batch. Emitted once per
 %% successful dispatch (including a successful retry) so it can back a

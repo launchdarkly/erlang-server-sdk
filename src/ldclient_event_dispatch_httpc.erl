@@ -84,8 +84,8 @@ profile_name(Tag) ->
 %% `max_sessions' (2) of them, so several workers posting at once share one
 %% connection and a batch handed to a fresh worker waits behind a hung request
 %% for its whole timeout. Each instance therefore gets its own profile in which
-%% a connection is reused only when it is idle and up to `events_max_workers'
-%% persistent connections may be open. Starting the profile is idempotent: every
+%% a connection is reused only when it is idle and up to `events_flush_workers'
+%% persistent connections may be open (one per reporter worker). Starting the profile is idempotent: every
 %% worker calls `init/2'.
 -spec ensure_profile(Tag :: atom()) -> atom().
 ensure_profile(Tag) ->
@@ -95,7 +95,7 @@ ensure_profile(Tag) ->
         {ok, _} -> ok;
         {error, {already_started, _}} -> ok
     end,
-    MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
+    MaxWorkers = ldclient_config:get_value(Tag, events_flush_workers),
     ok = httpc:set_options(inherited_options() ++ [{max_sessions, MaxWorkers}, {max_keep_alive_length, 0}], Profile),
     Profile.
 

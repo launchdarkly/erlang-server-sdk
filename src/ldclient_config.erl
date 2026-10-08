@@ -67,18 +67,15 @@
     events_request_timeout => pos_integer(),
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure.
-    events_min_workers => pos_integer(),
-    %% Minimum size of the reporter worker pool.
-    events_max_workers => pos_integer(),
-    %% Maximum size of the reporter worker pool (autoscaling upper bound).
+    events_flush_workers => pos_integer(),
+    %% Number of reporter workers, i.e. the maximum number of concurrent requests
+    %% to the events endpoint. A flush that finds every worker busy is skipped
+    %% and its events go out with the next one.
     events_batch_size => pos_integer(),
     %% Maximum number of events dispatched per worker request.
-    events_scale_down_threshold => non_neg_integer(),
-    %% Buffer depth at or below which the worker pool scales down.
-    events_scale_interval_ms => pos_integer(),
-    %% How often the worker pool samples the buffer depth.
-    events_scale_cooldown_ms => non_neg_integer(),
-    %% Minimum time between worker pool scaling decisions.
+    events_housekeeping_interval_ms => pos_integer(),
+    %% How often the event server clamps its queue counter and replaces crashed
+    %% workers.
     context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
@@ -122,14 +119,13 @@
 -define(DEFAULT_EVENTS_CAPACITY, 10000).
 -define(DEFAULT_EVENTS_FLUSH_INTERVAL, 30000).
 -define(DEFAULT_EVENTS_DISPATCHER, ldclient_event_dispatch_httpc).
--define(DEFAULT_EVENTS_MIN_WORKERS, 5).
+-define(DEFAULT_EVENTS_FLUSH_WORKERS, 5).
+%% Upper bound for `events_flush_workers'.
+-define(MAX_EVENTS_FLUSH_WORKERS, 1024).
 -define(DEFAULT_EVENTS_REQUEST_TIMEOUT, 30000).
 %% Largest millisecond interval accepted for timers and request timeouts.
 -define(MAX_INTERVAL_MS, 16#FFFFFFFF).
--define(DEFAULT_EVENTS_MAX_WORKERS, 10).
--define(DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD, 0).
--define(DEFAULT_EVENTS_SCALE_INTERVAL, 1000).
--define(DEFAULT_EVENTS_SCALE_COOLDOWN, 1000).
+-define(DEFAULT_EVENTS_HOUSEKEEPING_INTERVAL, 1000).
 -define(DEFAULT_CONTEXT_KEYS_CAPACITY, 1000).
 -define(DEFAULT_PRIVATE_ATTRIBUTES, []).
 -define(DEFAULT_STREAM, true).
@@ -205,16 +201,12 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
     EventsShedThreshold = pos_integer_option(events_shed_threshold, Options, EventsCapacity),
     EventsInboxCapacity = pos_integer_option(events_inbox_capacity, Options, EventsCapacity),
-    EventsMinWorkers0 = pos_integer_option(events_min_workers, Options, ?DEFAULT_EVENTS_MIN_WORKERS),
-    EventsMaxWorkers0 = pos_integer_option(events_max_workers, Options, ?DEFAULT_EVENTS_MAX_WORKERS),
-    {EventsMinWorkers, EventsMaxWorkers} = order_worker_bounds(EventsMinWorkers0, EventsMaxWorkers0, maps:is_key(events_min_workers, Options)),
+    EventsFlushWorkers = bounded_integer_option(events_flush_workers, Options, ?DEFAULT_EVENTS_FLUSH_WORKERS, ?MAX_EVENTS_FLUSH_WORKERS),
     EventsRequestTimeout = interval_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
     %% One payload per flush by default (the behaviour before the worker pool);
     %% splitting a flush into smaller requests is opt-in.
     EventsBatchSize = pos_integer_option(events_batch_size, Options, EventsCapacity),
-    EventsScaleDownThreshold = non_neg_integer_option(events_scale_down_threshold, Options, ?DEFAULT_EVENTS_SCALE_DOWN_THRESHOLD),
-    EventsScaleInterval = interval_option(events_scale_interval_ms, Options, ?DEFAULT_EVENTS_SCALE_INTERVAL),
-    EventsScaleCooldown = non_neg_interval_option(events_scale_cooldown_ms, Options, ?DEFAULT_EVENTS_SCALE_COOLDOWN),
+    EventsHousekeepingInterval = interval_option(events_housekeeping_interval_ms, Options, ?DEFAULT_EVENTS_HOUSEKEEPING_INTERVAL),
     ContextKeysCapacity = pos_integer_option(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
     PrivateAttributes = maps:get(private_attributes, Options, ?DEFAULT_PRIVATE_ATTRIBUTES),
     Stream = maps:get(stream, Options, ?DEFAULT_STREAM),
@@ -264,12 +256,9 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_shed_threshold => EventsShedThreshold,
         events_inbox_capacity => EventsInboxCapacity,
         events_request_timeout => EventsRequestTimeout,
-        events_min_workers => EventsMinWorkers,
-        events_max_workers => EventsMaxWorkers,
+        events_flush_workers => EventsFlushWorkers,
         events_batch_size => EventsBatchSize,
-        events_scale_down_threshold => EventsScaleDownThreshold,
-        events_scale_interval_ms => EventsScaleInterval,
-        events_scale_cooldown_ms => EventsScaleCooldown,
+        events_housekeeping_interval_ms => EventsHousekeepingInterval,
         context_keys_capacity => ContextKeysCapacity,
         private_attributes => parse_private_attributes(PrivateAttributes),
         stream => Stream,
@@ -552,15 +541,7 @@ pos_integer_option(Key, Options, Default) ->
         Invalid -> warn_invalid_option(Key, Invalid, Default), Default
     end.
 
-%% @private
--spec non_neg_integer_option(Key :: atom(), Options :: map(), Default :: non_neg_integer()) -> non_neg_integer().
-non_neg_integer_option(Key, Options, Default) ->
-    case maps:get(Key, Options, Default) of
-        Value when is_integer(Value), Value >= 0 -> Value;
-        Invalid -> warn_invalid_option(Key, Invalid, Default), Default
-    end.
-
-%% @doc Read a millisecond interval or timeout: a positive integer no larger
+%%% @doc Read a millisecond interval or timeout: a positive integer no larger
 %% than `?MAX_INTERVAL_MS' (about 49 days). Larger values are not usable as
 %% timer or request timeouts (`erlang:send_after/3' raises on them and httpc
 %% never answers), so they fall back to the default with a warning.
@@ -572,27 +553,15 @@ interval_option(Key, Options, Default) ->
         Invalid -> warn_invalid_option(Key, Invalid, Default), Default
     end.
 
+%%% @doc Read an option that must be an integer in `[1, Max]'; otherwise warn and
+%% use the default.
 %% @private
--spec non_neg_interval_option(Key :: atom(), Options :: map(), Default :: non_neg_integer()) -> non_neg_integer().
-non_neg_interval_option(Key, Options, Default) ->
+-spec bounded_integer_option(Key :: atom(), Options :: map(), Default :: pos_integer(), Max :: pos_integer()) -> pos_integer().
+bounded_integer_option(Key, Options, Default, Max) ->
     case maps:get(Key, Options, Default) of
-        Value when is_integer(Value), Value >= 0, Value =< ?MAX_INTERVAL_MS -> Value;
+        Value when is_integer(Value), Value >= 1, Value =< Max -> Value;
         Invalid -> warn_invalid_option(Key, Invalid, Default), Default
     end.
-
-%% @private
-%% @private
-%% A maximum below the minimum means "this many workers at most" when the user
-%% only set the maximum (the default minimum is lowered to it); when both were
-%% set explicitly the inconsistency is reported and the minimum wins.
--spec order_worker_bounds(Min :: pos_integer(), Max :: pos_integer(), MinWasSet :: boolean()) -> {pos_integer(), pos_integer()}.
-order_worker_bounds(Min, Max, _MinWasSet) when Min =< Max ->
-    {Min, Max};
-order_worker_bounds(_Min, Max, false) ->
-    {Max, Max};
-order_worker_bounds(Min, Max, true) ->
-    error_logger:warning_msg("events_min_workers (~p) is greater than events_max_workers (~p); using ~p for both", [Min, Max, Min]),
-    {Min, Min}.
 
 -spec warn_invalid_option(atom(), term(), term()) -> ok.
 warn_invalid_option(Key, Value, Default) ->

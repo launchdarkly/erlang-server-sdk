@@ -31,17 +31,14 @@
     timer_ref := reference(),
     flushing := boolean(),
     flush_remaining := non_neg_integer(),
+    deferred_flush := boolean(),
     dropped := non_neg_integer(),
     idle_workers := [pid()],
     busy_workers := #{pid() => in_flight()},
     retry_batches := [{[ldclient_event:event()], summary_event() | undefined, uuid:uuid()}],
-    min_workers := pos_integer(),
-    max_workers := pos_integer(),
-    scale_down_threshold := non_neg_integer(),
-    scale_interval_ms := pos_integer(),
-    scale_cooldown_ms := non_neg_integer(),
-    scale_timer_ref := reference(),
-    last_scale_ms := integer(),
+    pool_size := pos_integer(),
+    housekeeping_interval_ms := pos_integer(),
+    housekeeping_timer_ref := reference(),
     worker_monitors := #{reference() => pid()},
     offline := boolean(),
     send_events := boolean(),
@@ -148,11 +145,12 @@ cast_event(Tag, Event, Options) ->
 -spec flush(Tag :: atom()) -> ok.
 flush(Tag) when is_atom(Tag) ->
     ServerName = get_local_reg_name(Tag),
-    %% Flushing is asynchronous: the handler replies as soon as the flush window
-    %% has been opened and its first batches handed to idle workers, not when the
-    %% HTTP requests complete. A call (not a cast) means the window is open when
-    %% this returns. The wait is bounded by the inbox capacity divided by the
-    %% server's ingest rate, so no timeout is imposed on the caller.
+    %% Flushing is asynchronous: the handler replies as soon as the flush has
+    %% been started (its first batches handed to idle workers), or deferred when
+    %% every reporter worker is still busy, in which case it starts as soon as a
+    %% worker is free. It never waits for the HTTP requests to complete. The wait
+    %% is bounded by the inbox capacity divided by the server's ingest rate, so
+    %% no timeout is imposed on the caller.
     gen_server:call(ServerName, {flush, Tag}, infinity).
 
 %%===================================================================
@@ -178,11 +176,8 @@ init([Tag]) ->
     ShedThreshold = ldclient_config:get_value(Tag, events_shed_threshold),
     InboxCapacity = ldclient_config:get_value(Tag, events_inbox_capacity),
     BatchSize = ldclient_config:get_value(Tag, events_batch_size),
-    MinWorkers = ldclient_config:get_value(Tag, events_min_workers),
-    MaxWorkers = ldclient_config:get_value(Tag, events_max_workers),
-    ScaleDownThreshold = ldclient_config:get_value(Tag, events_scale_down_threshold),
-    ScaleInterval = ldclient_config:get_value(Tag, events_scale_interval_ms),
-    ScaleCooldown = ldclient_config:get_value(Tag, events_scale_cooldown_ms),
+    PoolSize = ldclient_config:get_value(Tag, events_flush_workers),
+    HousekeepingInterval = ldclient_config:get_value(Tag, events_housekeeping_interval_ms),
     TimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
     OfflineMode = ldclient:is_offline(Tag),
     SendEvents = ldclient_config:get_value(Tag, send_events),
@@ -209,17 +204,14 @@ init([Tag]) ->
         timer_ref => TimerRef,
         flushing => false,
         flush_remaining => 0,
+        deferred_flush => false,
         dropped => 0,
         idle_workers => [],
         busy_workers => #{},
         retry_batches => [],
-        min_workers => MinWorkers,
-        max_workers => MaxWorkers,
-        scale_down_threshold => ScaleDownThreshold,
-        scale_interval_ms => ScaleInterval,
-        scale_cooldown_ms => ScaleCooldown,
-        scale_timer_ref => erlang:send_after(ScaleInterval, self(), scale),
-        last_scale_ms => erlang:monotonic_time(millisecond),
+        pool_size => PoolSize,
+        housekeeping_interval_ms => HousekeepingInterval,
+        housekeeping_timer_ref => erlang:send_after(HousekeepingInterval, self(), housekeeping),
         worker_monitors => #{},
         offline => OfflineMode,
         send_events => SendEvents,
@@ -237,7 +229,7 @@ init([Tag]) ->
     persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, InboxCapacity}),
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
-    InitialState = start_workers(State, MinWorkers),
+    InitialState = start_workers(State, PoolSize),
     case maps:get(idle_workers, InitialState) of
         [] ->
             %% Without a single reporter nothing would ever be sent; fail loudly
@@ -267,7 +259,7 @@ handle_call(_Request, _From, #{offline := true} = State) ->
 handle_call(_Request, _From, #{send_events := false} = State) ->
     {reply, ok, State};
 handle_call({flush, _Tag}, _From, State) ->
-    {reply, ok, start_flush(State)};
+    {reply, ok, start_flush(State, explicit)};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -289,42 +281,41 @@ handle_add_event({add_event, Event, Tag, Options}, #{buffer := Buffer, event_cou
     {noreply, set_count(State#{summary_event := NewSummaryEvent, dropped := NewDropped, context_cache := NewCache}, NewCount)}.
 
 handle_info({flush, _Tag}, State) ->
-    {noreply, start_flush(State)};
-handle_info(scale, #{scale_interval_ms := Interval} = State) ->
-    %% The scale tick doubles as a housekeeping tick: clamp the queued cast
-    %% counter to the real mailbox length, top the pool back up to its minimum
-    %% if a worker could not be started earlier, and resume dispatching to any
+    {noreply, start_flush(State, timer)};
+handle_info(housekeeping, #{housekeeping_interval_ms := Interval} = State) ->
+    %% Clamp the queued cast counter to the real mailbox length, replace any
+    %% worker that could not be (re)started earlier, and resume dispatching to a
     %% worker that appeared.
-    Before = active_workers(State),
+    Before = live_workers(State),
     State1 = ensure_workers(resync_inflight(State)),
-    case active_workers(State1) > Before of
+    case live_workers(State1) > Before of
         true -> ok = emit_pool_size(State1, up);
         false -> ok
     end,
-    State2 = maybe_drain(maybe_scale(State1)),
-    Ref = erlang:send_after(Interval, self(), scale),
-    {noreply, State2#{scale_timer_ref := Ref}};
+    State2 = maybe_start_deferred(maybe_drain(State1)),
+    Ref = erlang:send_after(Interval, self(), housekeeping),
+    {noreply, State2#{housekeeping_timer_ref := Ref}};
 handle_info({worker_done, Pid}, #{busy_workers := Busy, idle_workers := Idle} = State) ->
     State1 = State#{busy_workers := maps:remove(Pid, Busy), idle_workers := [Pid|Idle]},
-    {noreply, maybe_drain(State1)};
+    {noreply, maybe_start_deferred(maybe_drain(State1))};
 handle_info({'DOWN', Ref, process, Pid, Reason}, #{busy_workers := Busy} = State) ->
     State1 = requeue_lost_batch(maps:find(Pid, Busy), Reason, State),
     State2 = remove_worker(State1, Ref, Pid),
     State3 = ensure_workers(State2),
-    case active_workers(State3) < active_workers(State) of
+    case live_workers(State3) < live_workers(State) of
         true -> ok = emit_pool_size(State3, down);
         false -> ok
     end,
-    {noreply, maybe_drain(State3)};
+    {noreply, maybe_start_deferred(maybe_drain(State3))};
 handle_info(_Info, State) ->
     {noreply, State}.
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef, scale_timer_ref := ScaleTimerRef, buffer := Buffer, tag := Tag} = State) ->
+terminate(Reason, #{timer_ref := TimerRef, housekeeping_timer_ref := HousekeepingTimerRef, buffer := Buffer, tag := Tag} = State) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
-    _ = erlang:cancel_timer(ScaleTimerRef),
+    _ = erlang:cancel_timer(HousekeepingTimerRef),
     _ = ldclient_event_buffer:delete(Buffer),
     _ = ldclient_context_cache:delete(maps:get(context_cache, State)),
     %% Drops counted since the last flush would otherwise never be reported.
@@ -565,7 +556,7 @@ update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
 
 %% @doc Account for one cast leaving the mailbox. Callers increment the slot
 %% before casting; drift (casts to a dead server, counts from a previous
-%% incarnation) is corrected by `resync_inflight/1' on every scale tick.
+%% incarnation) is corrected by `resync_inflight/1' on every housekeeping tick.
 %% @end
 -spec dequeued(state()) -> ok.
 dequeued(#{counters_ref := Ref}) ->
@@ -625,26 +616,81 @@ erase_counters(#{tag := Tag}) ->
 %% Pool scheduling
 %%===================================================================
 
--spec start_flush(state()) -> state().
-start_flush(#{summary_event := SummaryEvent, pending_summaries := Pending, tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef, event_count := Count} = State) ->
+%% @doc Start a flush, or defer it.
+%%
+%% A flush with nothing to send is a no-op. Otherwise, if a reporter worker is
+%% idle a flush window is opened over everything buffered now; if every worker
+%% is still busy with a previous request the flush is deferred and runs as soon
+%% as a worker is free (one deferred flush at a time, like the single waiting
+%% payload in the Go and Java SDKs). Meanwhile the events stay in the buffer and
+%% the summary keeps accumulating; nothing is lost here, and the buffer's
+%% capacity bound applies as always. Exited workers are replaced before the pool
+%% is judged busy.
+%%
+%% The periodic timer is re-armed when it fired (`timer') and when an explicit
+%% flush actually starts a window; a deferred or skipped explicit flush leaves
+%% the schedule alone.
+%% @end
+-spec start_flush(state(), timer | explicit | deferred) -> state().
+start_flush(State0, Trigger) ->
+    State = report_dropped(resync_inflight(State0#{deferred_flush := false})),
+    case has_work(State) of
+        false ->
+            rearm_if_timer(State, Trigger);
+        true ->
+            State1 = ensure_workers(State),
+            case maps:get(idle_workers, State1) of
+                [] -> defer_flush(rearm_if_timer(State1, Trigger));
+                _ -> open_window(State1, Trigger)
+            end
+    end.
+
+-spec has_work(state()) -> boolean().
+has_work(#{event_count := Count, summary_event := SummaryEvent}) ->
+    Count > 0 orelse map_size(SummaryEvent) > 0.
+
+-spec rearm_if_timer(state(), timer | explicit | deferred) -> state().
+rearm_if_timer(State, timer) -> rearm_flush_timer(State);
+rearm_if_timer(State, _Trigger) -> State.
+
+-spec rearm_flush_timer(state()) -> state().
+rearm_flush_timer(#{tag := Tag, flush_interval := FlushInterval, timer_ref := TimerRef} = State) ->
+    _ = erlang:cancel_timer(TimerRef),
+    State#{timer_ref := erlang:send_after(FlushInterval, self(), {flush, Tag})}.
+
+-spec defer_flush(state()) -> state().
+defer_flush(#{tag := Tag} = State) ->
+    telemetry:execute([ldclient, events, flush_skipped], #{count => 1}, #{tag => Tag}),
+    State#{deferred_flush := true}.
+
+%% @doc Run a deferred flush once a worker is idle and no window is open.
+%% @end
+-spec maybe_start_deferred(state()) -> state().
+maybe_start_deferred(#{deferred_flush := true, flushing := false, retry_batches := [], idle_workers := [_|_]} = State) ->
+    start_flush(State, deferred);
+maybe_start_deferred(State) ->
+    State.
+
+-spec open_window(state(), timer | explicit | deferred) -> state().
+open_window(#{summary_event := SummaryEvent, pending_summaries := Pending, event_count := Count} = State0, Trigger) ->
+    %% Re-arm the flush timer as soon as the window starts so a slow dispatcher
+    %% cannot delay subsequent flushes.
+    State = case Trigger of
+        deferred -> State0;
+        _ -> rearm_flush_timer(State0)
+    end,
     NewPending = case map_size(SummaryEvent) of
         0 -> Pending;
         _ -> Pending ++ [SummaryEvent]
     end,
-    %% Rearm the flush timer as soon as the window starts so a slow dispatcher
-    %% cannot delay subsequent flushes.
-    _ = erlang:cancel_timer(TimerRef),
-    NewTimerRef = erlang:send_after(FlushInterval, self(), {flush, Tag}),
-    State1 = report_dropped(resync_inflight(State)),
-    %% Everything buffered now belongs to this window. If a window is still being
-    %% dispatched when the next one starts, the two merge: the new summary is
-    %% queued behind the old one and the remaining count covers both.
-    drain(State1#{
+    %% Everything buffered now belongs to this window. A window is only opened
+    %% while a worker is idle, which implies no other window is in progress, so
+    %% at most one summary is ever pending.
+    drain(State#{
         summary_event := #{},
         pending_summaries := NewPending,
         flushing := true,
-        flush_remaining := Count,
-        timer_ref := NewTimerRef
+        flush_remaining := Count
     }).
 
 %% @doc Report events dropped at capacity since the previous flush: one log line
@@ -694,27 +740,10 @@ drain(#{idle_workers := [Worker|Idle], flush_remaining := Remaining} = State) wh
 drain(#{idle_workers := [Worker|Idle], flush_remaining := 0, pending_summaries := [Summary|Rest]} = State) ->
     State1 = dispatch(Worker, [], Summary, 0, uuid:get_v4(), State#{idle_workers := Idle, pending_summaries := Rest}),
     drain(State1);
-drain(#{max_workers := Max} = State) ->
-    %% No idle worker. This is the moment a worker is actually needed (a flush
-    %% is waiting on a busy pool), so add one on demand while the pool is below
-    %% its maximum; otherwise wait for `worker_done' or a DOWN message.
-    case wants_worker(State) andalso active_workers(State) < Max of
-        true ->
-            State1 = start_worker(State),
-            case active_workers(State1) > active_workers(State) of
-                true ->
-                    ok = emit_pool_size(State1, up),
-                    drain(State1);
-                false ->
-                    State1
-            end;
-        false ->
-            State
-    end.
-
--spec wants_worker(state()) -> boolean().
-wants_worker(#{flush_remaining := Remaining, pending_summaries := Pending, retry_batches := Retry}) ->
-    Remaining > 0 orelse Pending =/= [] orelse Retry =/= [].
+drain(State) ->
+    %% No idle worker: the rest of the window waits for `worker_done' or a DOWN
+    %% message. The pool has a fixed size, so nothing is started here.
+    State.
 
 -spec pop_batch(state()) -> {[ldclient_event:event()], state()}.
 pop_batch(#{buffer := Buffer, batch_size := BatchSize, event_count := Count, flush_remaining := Remaining} = State) ->
@@ -761,46 +790,16 @@ complete_flush(State) ->
         flush_remaining := 0
     }.
 
--spec maybe_scale(state()) -> state().
-maybe_scale(#{scale_cooldown_ms := Cooldown, last_scale_ms := Last} = State) ->
-    Now = erlang:monotonic_time(millisecond),
-    case Cooldown =< (Now - Last) of
-        true -> scale(State, Now);
-        false -> State
-    end.
-
--spec scale(state(), integer()) -> state().
-scale(#{event_count := Depth, idle_workers := Idle, min_workers := Min, scale_down_threshold := DownThreshold} = State, Now) ->
-    %% Workers are added on demand by `drain/1' when a flush finds no idle
-    %% worker; the tick only shrinks the pool back towards its minimum once the
-    %% buffer has drained.
-    Active = active_workers(State),
-    case (Depth =< DownThreshold) andalso (Active > Min) andalso (Idle =/= []) of
-        true -> scale_down(State, Active, Now);
-        false -> State
-    end.
-
-%% @doc Every live worker, including decommissioned ones still attempting
-%% their pending retries. Those still hold a batch and a connection, so they
-%% count against `events_max_workers' and against decommissioning more.
+%% @doc Every live worker, including one that is still attempting a retry.
 %% @end
--spec active_workers(state()) -> non_neg_integer().
-active_workers(#{worker_monitors := Monitors}) ->
+-spec live_workers(state()) -> non_neg_integer().
+live_workers(#{worker_monitors := Monitors}) ->
     map_size(Monitors).
 
--spec scale_down(state(), non_neg_integer(), integer()) -> state().
-scale_down(#{idle_workers := [Worker|Idle]} = State, _Active, Now) ->
-    %% Ask the worker to stop, but let it finish any scheduled retries first so
-    %% in-flight events are not lost. It is removed from the pool immediately so
-    %% it receives no new work; the monitor stays until it actually exits.
-    ok = ldclient_event_process_server:decommission(Worker),
-    State1 = State#{idle_workers := Idle, last_scale_ms := Now},
-    emit_pool_size(State1, down),
-    State1.
-
 %% @doc Emit the current pool size. `direction' describes the transition that
-%% produced this sample (`initial', `up', `down'), while `workers' is the
-%% absolute value suitable for a gauge metric.
+%% produced this sample (`initial', `up' when a crashed worker was replaced,
+%% `down' when a worker exited), while `workers' is the absolute value suitable
+%% for a gauge metric.
 %% @end
 -spec emit_pool_size(state(), initial | up | down) -> ok.
 emit_pool_size(#{tag := Tag, idle_workers := Idle, busy_workers := Busy}, Direction) ->
@@ -819,7 +818,7 @@ start_workers(State, Remaining) ->
 -spec start_worker(state()) -> state().
 start_worker(#{tag := Tag, idle_workers := Idle, worker_monitors := Monitors} = State) ->
     %% The worker supervisor may itself be restarting; a failed start is retried
-    %% on the next scale tick by `ensure_workers/1' instead of crashing here.
+    %% on the next housekeeping tick by `ensure_workers/1' instead of crashing here.
     try ldclient_event_worker_sup:start_worker(Tag) of
         {ok, Pid} ->
             Ref = erlang:monitor(process, Pid),
@@ -833,11 +832,14 @@ start_worker(#{tag := Tag, idle_workers := Idle, worker_monitors := Monitors} = 
             State
     end.
 
+%% @doc Replace workers that exited (or could not be started earlier) so the
+%% pool is back at its configured size.
+%% @end
 -spec ensure_workers(state()) -> state().
-ensure_workers(#{min_workers := Min} = State) ->
-    Active = active_workers(State),
-    case Min > Active of
-        true -> start_workers(State, Min - Active);
+ensure_workers(#{pool_size := PoolSize} = State) ->
+    Live = live_workers(State),
+    case PoolSize > Live of
+        true -> start_workers(State, PoolSize - Live);
         false -> State
     end.
 

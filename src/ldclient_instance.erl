@@ -38,23 +38,16 @@
     events_request_timeout => pos_integer(),
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure. Defaults to 30000.
-    events_min_workers => pos_integer(),
-    %% Minimum number of reporter workers in the egress pool. Defaults to 5.
-    events_max_workers => pos_integer(),
-    %% Maximum number of reporter workers; one is added on demand whenever a
-    %% flush finds every worker busy. Defaults to 10.
+    events_flush_workers => pos_integer(),
+    %% Number of reporter workers, i.e. how many requests the pool makes to
+    %% the events endpoint at once. Defaults to 5; at most 1024.
     events_batch_size => pos_integer(),
     %% Maximum number of events a single worker sends per request. Defaults to
     %% `events_capacity', i.e. one request per flush.
-    events_scale_down_threshold => non_neg_integer(),
-    %% Buffered event count at or below which the pool decommissions an idle
-    %% worker. Defaults to 0.
-    events_scale_interval_ms => pos_integer(),
-    %% How often, in milliseconds, the pool samples the buffer depth to make a
-    %% scaling decision. Defaults to 1000.
-    events_scale_cooldown_ms => non_neg_integer(),
-    %% Minimum time, in milliseconds, between two scaling decisions, to avoid
-    %% thrashing. Defaults to 1000.
+    events_housekeeping_interval_ms => pos_integer(),
+    %% How often, in milliseconds, the event server reconciles its queue
+    %% counter with its mailbox and replaces workers that exited. Defaults to
+    %% 1000.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),

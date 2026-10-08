@@ -72,8 +72,11 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%
 %% Event ingestion is non-blocking: flag evaluations hand events to the SDK
 %% without waiting on the analytics pipeline. Buffered events are dispatched by
-%% a pool of reporter workers that can autoscale with the buffer depth. The
-%% following options tune this pipeline (defaults shown in parentheses):
+%% a fixed pool of reporter workers. A flush that finds every worker busy is
+%% deferred and runs as soon as a worker is free, with its events kept in the
+%% buffer meanwhile (the one waiting payload of the Go and Java SDKs; Python,
+%% Ruby and .NET skip to the next interval). The following options tune this
+%% pipeline (defaults shown in parentheses):
 %%
 %% <ul>
 %%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
@@ -95,20 +98,15 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
 %%       waits for the events endpoint to answer; a timeout is a temporary
 %%       failure (retried once), so a stalled endpoint cannot pin a worker.</li>
-%%   <li>`events_min_workers' (`5') - minimum reporter worker pool size, as in
-%%       the other server-side SDKs.</li>
-%%   <li>`events_max_workers' (`10') - maximum reporter worker pool size. A
-%%       worker is added on demand when a flush starts while every worker is
-%%       still busy with a previous request, up to this bound.</li>
+%%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
+%%       workers, i.e. how many requests the pool makes to the events endpoint
+%%       at once, as in the other server-side SDKs.</li>
 %%   <li>`events_batch_size' (`events_capacity') - maximum number of events a
 %%       worker sends per request. The default sends each flush as a single
 %%       request; lower it to split a flush across several workers.</li>
-%%   <li>`events_scale_down_threshold' (`0') - buffer depth at or below which
-%%       the pool decommissions an idle worker.</li>
-%%   <li>`events_scale_interval_ms' (`1000') - how often the pool samples the
-%%       buffer depth.</li>
-%%   <li>`events_scale_cooldown_ms' (`1000') - minimum time between scaling
-%%       decisions, to avoid thrashing.</li>
+%%   <li>`events_housekeeping_interval_ms' (`1000') - how often the event
+%%       server reconciles its queue counter with its mailbox and replaces
+%%       workers that exited.</li>
 %% </ul>
 %%
 %% == Telemetry ==
@@ -144,11 +142,15 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       instance `tag' and the failure `type' (`temporary', `permanent', or
 %%       `worker_exit' when a batch was lost because its worker exited twice).
 %%       Suitable for a counter metric.</li>
-%%   <li>`[ldclient, events, pool_size]' - emitted whenever the reporter pool
-%%       size changes, and once at startup. Measurement `workers' is the
+%%   <li>`[ldclient, events, pool_size]' - emitted once at startup and
+%%       whenever the number of live workers changes. Measurement `workers' is the
 %%       absolute pool size; metadata contains the instance `tag' and the
 %%       `direction' of the change (`initial', `up' or `down'). Suitable for a
 %%       gauge metric.</li>
+%%   <li>`[ldclient, events, flush_skipped]' - emitted when a flush finds every
+%%       reporter worker still busy with a previous request; the flush is
+%%       deferred and runs as soon as a worker is free. Measurement `count' is
+%%       `1'; metadata contains the instance `tag'.</li>
 %%   <li>`[ldclient, evaluation, stop]' - emitted after each flag evaluation.
 %%       Measurement `duration' (native time units, the same convention as
 %%       `telemetry:span/3'); metadata contains the instance `tag', the

@@ -14,18 +14,16 @@
     add_event_is_cast/1,
     sheds_when_buffer_at_threshold/1,
     pool_uses_multiple_workers/1,
-    autoscales_worker_pool/1,
+    flush_while_every_worker_is_busy_is_deferred/1,
     retries_transient_failures_once/1,
     emits_published_telemetry/1,
     offline_instance_does_not_send/1,
     preserves_summary_when_shedding/1,
     permanent_failures_are_not_retried/1,
-    decommission_waits_for_pending_retries/1,
     flush_not_extended_by_new_events/1,
     flush_does_not_overshoot_window/1,
     flush_returns_without_waiting_for_delivery/1,
-    default_pool_bounds/1,
-    decommission_delivers_all_pending_retries/1,
+    default_pool_size/1,
     feature_requests_shed_when_inbox_full/1,
     flush_sends_one_payload_by_default/1,
     worker_exit_mid_batch_redispatches/1,
@@ -38,7 +36,7 @@
     unencodable_default_keeps_the_summary/1,
     gate_is_closed_while_the_pool_starts/1,
     gate_closes_on_crash_and_counters_are_erased_on_stop/1,
-    live_workers_never_exceed_max_workers/1,
+    pool_never_exceeds_its_size/1,
     capacity_drops_are_reported_when_the_server_restarts/1,
     published_counts_only_sent_events/1,
     unencodable_drop_reported_once_across_retry/1
@@ -53,18 +51,16 @@ all() ->
         add_event_is_cast,
         sheds_when_buffer_at_threshold,
         pool_uses_multiple_workers,
-        autoscales_worker_pool,
+        flush_while_every_worker_is_busy_is_deferred,
         retries_transient_failures_once,
         emits_published_telemetry,
         offline_instance_does_not_send,
         preserves_summary_when_shedding,
         permanent_failures_are_not_retried,
-        decommission_waits_for_pending_retries,
         flush_not_extended_by_new_events,
         flush_does_not_overshoot_window,
         flush_returns_without_waiting_for_delivery,
-        default_pool_bounds,
-        decommission_delivers_all_pending_retries,
+        default_pool_size,
         feature_requests_shed_when_inbox_full,
         flush_sends_one_payload_by_default,
         worker_exit_mid_batch_redispatches,
@@ -77,7 +73,7 @@ all() ->
         unencodable_default_keeps_the_summary,
         gate_is_closed_while_the_pool_starts,
         gate_closes_on_crash_and_counters_are_erased_on_stop,
-        live_workers_never_exceed_max_workers,
+        pool_never_exceeds_its_size,
         capacity_drops_are_reported_when_the_server_restarts,
         published_counts_only_sent_events,
         unencodable_drop_reported_once_across_retry
@@ -101,25 +97,21 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_min_workers => 3,
+        events_flush_workers => 3,
         events_batch_size => 1
     },
     ldclient:start_instance("", pooler, PoolOptions),
-    ScalerOptions = #{
+    BusyPoolOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_slow,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 3,
-        events_batch_size => 1,
-        events_scale_down_threshold => 0,
-        events_scale_interval_ms => 50,
-        events_scale_cooldown_ms => 0
+        events_flush_workers => 1,
+        events_batch_size => 1
     },
-    ldclient:start_instance("", scaler, ScalerOptions),
+    ldclient:start_instance("", busy_pool, BusyPoolOptions),
     FailingOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -127,8 +119,7 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_flush_workers => 1
     },
     ldclient:start_instance("sdk-key-events-fail", failing, FailingOptions),
     PublisherOptions = #{
@@ -176,21 +167,9 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_flush_workers => 1
     },
     ldclient:start_instance("sdk-key-events-fail", flush_failing, FlushFailingOptions),
-    DecommissionOptions = #{
-        stream => false,
-        events_dispatcher => ldclient_event_dispatch_test,
-        polling_update_requestor => ldclient_update_requestor_test,
-        events_capacity => 100,
-        events_shed_threshold => 1000,
-        events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
-    },
-    ldclient:start_instance("sdk-key-events-fail", decommission_test, DecommissionOptions),
     SlowFlushOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_slow,
@@ -199,8 +178,7 @@ init_per_suite(Config) ->
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_batch_size => 1,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_flush_workers => 1
     },
     ldclient:start_instance("", slow_flush, SlowFlushOptions),
     SlowBatchOptions = #{
@@ -211,21 +189,9 @@ init_per_suite(Config) ->
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_batch_size => 2,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_flush_workers => 1
     },
     ldclient:start_instance("", slow_flush_batch, SlowBatchOptions),
-    DecommissionMultiOptions = #{
-        stream => false,
-        events_dispatcher => ldclient_event_dispatch_test,
-        polling_update_requestor => ldclient_update_requestor_test,
-        events_capacity => 100,
-        events_shed_threshold => 1000,
-        events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
-    },
-    ldclient:start_instance("sdk-key-events-fail", decommission_multi, DecommissionMultiOptions),
     InboxOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -234,9 +200,9 @@ init_per_suite(Config) ->
         events_shed_threshold => 1000,
         events_inbox_capacity => 5,
         events_flush_interval => 60000,
-        %% keep the scale tick (which also resyncs the queue counter) out of the
-        %% test's suspend window
-        events_scale_interval_ms => 60000
+        %% keep the housekeeping tick (which also resyncs the queue counter) out
+        %% of the test's suspend window
+        events_housekeeping_interval_ms => 60000
     },
     ldclient:start_instance("", inbox_bound, InboxOptions),
     SinglePayloadOptions = #{
@@ -255,9 +221,8 @@ init_per_suite(Config) ->
         events_capacity => 100,
         events_shed_threshold => 1000,
         events_flush_interval => 60000,
-        events_scale_interval_ms => 50,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_housekeeping_interval_ms => 50,
+        events_flush_workers => 1
     },
     ldclient:start_instance("", crash_once, CrashOnceOptions),
     BadOptions = #{
@@ -266,26 +231,15 @@ init_per_suite(Config) ->
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 0,
         events_flush_interval => 1 bsl 52,
-        events_min_workers => -1,
-        events_max_workers => 0.5,
+        events_flush_workers => 100000,
         events_batch_size => 0,
         events_shed_threshold => 0,
         events_inbox_capacity => foo,
-        events_scale_interval_ms => 0,
-        events_scale_cooldown_ms => -5,
+        events_housekeeping_interval_ms => 0,
         events_request_timeout => 1 bsl 50,
         context_keys_capacity => -3
     },
     ldclient:start_instance("", bad_options, BadOptions),
-    MaxOnlyOptions = #{
-        stream => false,
-        events_dispatcher => ldclient_event_dispatch_test,
-        polling_update_requestor => ldclient_update_requestor_test,
-        events_capacity => 100,
-        events_flush_interval => 60000,
-        events_max_workers => 2
-    },
-    ldclient:start_instance("", max_only, MaxOnlyOptions),
     DefaultsOptions = #{
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
@@ -366,37 +320,54 @@ pool_uses_multiple_workers(_) ->
     GotKeys = lists:sort([K || Payload <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- Payload]),
     Keys = GotKeys.
 
-%% A flush that finds every worker busy adds workers on demand up to
-%% max_workers; once the buffer has drained the pool shrinks back to
-%% min_workers.
-autoscales_worker_pool(_) ->
-    Tag = scaler,
+%% The pool has a fixed size. A flush that finds every worker busy is deferred
+%% (reported as flush_skipped) and runs as soon as a worker is free, so the
+%% events stay buffered meanwhile and no worker is ever added. A flush with
+%% nothing to send is a no-op and is not reported.
+flush_while_every_worker_is_busy_is_deferred(_) ->
+    Tag = busy_pool,
     SupName = ldclient_event_worker_sup:get_sup_name(Tag),
-    HandlerId = {?MODULE, autoscales_worker_pool, self()},
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
+    HandlerId = {?MODULE, flush_while_every_worker_is_busy_is_deferred, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
-        [ldclient, events, pool_size],
-        fun(_Event, _Measurements, Metadata, _Config) ->
-            Self ! {pool_size, maps:get(direction, Metadata)}
+        [ldclient, events, flush_skipped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {flush_skipped, Measurements, Metadata}
         end,
         undefined
     ),
     register_collector(),
     try
         1 = length(supervisor:which_children(SupName)),
-        Keys = [<<"k1">>, <<"k2">>, <<"k3">>, <<"k4">>, <<"k5">>],
-        [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- Keys],
-        wait_for_event_count(Tag, 5),
-        %% Five batches of one against a 200 ms dispatcher: the first takes the
-        %% only worker and the rest find the pool busy, so it grows to max.
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"busy1">>), #{}),
+        wait_for_event_count(Tag, 1),
+        %% The only worker takes this window (200 ms dispatcher).
         ok = ldclient_event_server:flush(Tag),
-        wait_for_worker_count(SupName, 3, 100),
-        _ = collect_payloads(5),
-        wait_for_worker_count(SupName, 1, 300),
-        Directions = collect_scales([]),
-        true = lists:member(up, Directions),
-        true = lists:member(down, Directions)
+        %% Nothing to send: a no-op, not a skip.
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {flush_skipped, _, _} -> ct:fail("A flush with nothing to send must not be reported as skipped")
+        after 100 ->
+            ok
+        end,
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"busy2">>), #{}),
+        wait_for_event_count(Tag, 1),
+        %% Every worker is busy: this flush is deferred and busy2 stays buffered.
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {flush_skipped, #{count := 1}, #{tag := Tag}} -> ok
+        after 1000 ->
+            ct:fail("Expected the flush to be deferred while the only worker was busy")
+        end,
+        #{event_count := 1, deferred_flush := true} = sys:get_state(ServerName),
+        1 = length(supervisor:which_children(SupName)),
+        _ = collect_payload_with_key(<<"busy1">>, 3000),
+        %% The worker is free again: the deferred flush runs by itself.
+        _ = collect_payload_with_key(<<"busy2">>, 3000),
+        #{deferred_flush := false} = sys:get_state(ServerName),
+        1 = length(supervisor:which_children(SupName))
     after
         telemetry:detach(HandlerId)
     end.
@@ -608,28 +579,6 @@ permanent_failures_are_not_retried(_) ->
         telemetry:detach(HandlerId)
     end.
 
-%% A worker that is decommissioned while it has a scheduled retry must not be
-%% killed, or the events it is retrying would be lost.
-decommission_waits_for_pending_retries(_) ->
-    Tag = decommission_test,
-    register_collector(),
-    try
-        ok = ldclient_event_server:add_event(Tag, identify_event(<<"dc">>), #{}),
-        wait_for_event_count(Tag, 1),
-        ok = ldclient_event_server:flush(Tag),
-        SupName = ldclient_event_worker_sup:get_sup_name(Tag),
-        [Worker] = [Pid || {_Id, Pid, _Type, _Modules} <- supervisor:which_children(SupName), is_pid(Pid)],
-        ok = ldclient_event_process_server:decommission(Worker),
-        timer:sleep(100),
-        %% The worker is mid-backoff, so it must still be alive.
-        true = is_process_alive(Worker),
-        %% Once the in-flight retry attempt resolves it must exit, even though
-        %% the endpoint keeps failing.
-        wait_for_dead(Worker, 3000)
-    after
-        _ = ldclient:stop_instance(Tag)
-    end.
-
 %% A flush only covers the events buffered when it started. Events that arrive
 %% while it is dispatching must not extend it, or a flush under sustained
 %% evaluations could block indefinitely.
@@ -681,13 +630,11 @@ flush_does_not_overshoot_window(_) ->
     [<<"g1">>, <<"g2">>, <<"g3">>] = GotKeys,
     ok = wait_for_no_event(<<"g4">>, 500).
 
-%% The default reporter pool matches the other server SDKs: 5 workers at rest,
-%% growing on demand up to 10.
-default_pool_bounds(_) ->
+%% The default reporter pool matches the other server SDKs: 5 workers, fixed.
+default_pool_size(_) ->
     SupName = ldclient_event_worker_sup:get_sup_name(defaults),
     5 = length(supervisor:which_children(SupName)),
-    5 = ldclient_config:get_value(defaults, events_min_workers),
-    10 = ldclient_config:get_value(defaults, events_max_workers).
+    5 = ldclient_config:get_value(defaults, events_flush_workers).
 
 %% flush/1 opens the window and returns; it must not wait for the HTTP requests
 %% of the window to complete (the pre-pool contract), so a slow endpoint cannot
@@ -706,33 +653,6 @@ flush_returns_without_waiting_for_delivery(_) ->
     %% delivered too; only require that ours arrive.
     [_ = collect_payload_with_key(K, 3000) || K <- [<<"w1">>, <<"w2">>, <<"w3">>]],
     ok.
-
-%% A decommissioned worker holding more than one scheduled retry must attempt
-%% every one of them before exiting.
-decommission_delivers_all_pending_retries(_) ->
-    Tag = decommission_multi,
-    register_collector(),
-    try
-        ok = ldclient_event_server:add_event(Tag, identify_event(<<"m1">>), #{}),
-        wait_for_event_count(Tag, 1),
-        ok = ldclient_event_server:flush(Tag),
-        _ = collect_payload_with_key(<<"m1">>, 2000),
-        ok = ldclient_event_server:add_event(Tag, identify_event(<<"m2">>), #{}),
-        wait_for_event_count(Tag, 1),
-        ok = ldclient_event_server:flush(Tag),
-        _ = collect_payload_with_key(<<"m2">>, 2000),
-        SupName = ldclient_event_worker_sup:get_sup_name(Tag),
-        [Worker] = [Pid || {_Id, Pid, _Type, _Modules} <- supervisor:which_children(SupName), is_pid(Pid)],
-        #{pending := 2} = sys:get_state(Worker),
-        ok = ldclient_event_process_server:decommission(Worker),
-        %% Both retries fire about 1 s after their first attempt, in either
-        %% order, so collect two payloads and compare the set of keys.
-        Payloads = collect_payloads(2),
-        [<<"m1">>, <<"m2">>] = lists:sort([K || P <- Payloads, #{<<"context">> := #{<<"key">> := K}} <- P]),
-        wait_for_dead(Worker, 3000)
-    after
-        _ = ldclient:stop_instance(Tag)
-    end.
 
 %% Feature requests are admitted while the event server keeps up, but once the
 %% number of queued casts reaches events_inbox_capacity they are shed too, so
@@ -763,7 +683,7 @@ feature_requests_shed_when_inbox_full(_) ->
         {message_queue_len, Queued} = process_info(whereis(ServerName), message_queue_len),
         Shed = count_shed(0),
         ok = sys:resume(ServerName),
-        %% Five casts were admitted; a flush or scale timer may also be queued.
+        %% Five casts were admitted; a flush or housekeeping timer may also be queued.
         true = Queued >= 5,
         5 = Shed,
         ok = ldclient_event_server:flush(Tag),
@@ -821,19 +741,13 @@ invalid_options_fall_back_to_defaults(_) ->
     Tag = bad_options,
     10000 = ldclient_config:get_value(Tag, events_capacity),
     30000 = ldclient_config:get_value(Tag, events_flush_interval),
-    5 = ldclient_config:get_value(Tag, events_min_workers),
-    10 = ldclient_config:get_value(Tag, events_max_workers),
+    5 = ldclient_config:get_value(Tag, events_flush_workers),
     10000 = ldclient_config:get_value(Tag, events_batch_size),
     10000 = ldclient_config:get_value(Tag, events_shed_threshold),
     10000 = ldclient_config:get_value(Tag, events_inbox_capacity),
-    1000 = ldclient_config:get_value(Tag, events_scale_interval_ms),
-    1000 = ldclient_config:get_value(Tag, events_scale_cooldown_ms),
+    1000 = ldclient_config:get_value(Tag, events_housekeeping_interval_ms),
     30000 = ldclient_config:get_value(Tag, events_request_timeout),
     1000 = ldclient_config:get_value(Tag, context_keys_capacity),
-    %% Setting only a maximum below the default minimum lowers the minimum.
-    2 = ldclient_config:get_value(max_only, events_min_workers),
-    2 = ldclient_config:get_value(max_only, events_max_workers),
-    2 = length(supervisor:which_children(ldclient_event_worker_sup:get_sup_name(max_only))),
     SupName = ldclient_event_worker_sup:get_sup_name(Tag),
     5 = length(supervisor:which_children(SupName)).
 
@@ -1034,7 +948,7 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
     Tag = gate,
     Key = {ldclient_event_server_counters, Tag},
     ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
-    ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100, events_scale_interval_ms => 50})),
+    ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100, events_housekeeping_interval_ms => 50})),
     register_collector(),
     try
         {Ref1, _, 100} = persistent_term:get(Key),
@@ -1062,19 +976,16 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
     end,
     undefined = persistent_term:get(Key, undefined).
 
-%% A decommissioned worker that is still attempting its pending retry is a
-%% live worker holding a connection and a batch. It counts against
-%% events_max_workers, so the pool never has more live workers than that.
-live_workers_never_exceed_max_workers(_) ->
+%% The pool never has more live workers than events_flush_workers, even while
+%% workers are busy with slow requests and holding retries.
+pool_never_exceeds_its_size(_) ->
     Tag = pool_bound,
-    Max = 2,
+    Size = 2,
     ok = ldclient:start_instance("", Tag, instance_options(#{
         events_dispatcher => ldclient_event_dispatch_slow_fail,
         events_batch_size => 1,
-        events_min_workers => 1,
-        events_max_workers => Max,
-        events_scale_interval_ms => 20,
-        events_scale_cooldown_ms => 0
+        events_flush_workers => Size,
+        events_housekeeping_interval_ms => 20
     })),
     register_collector(),
     SupName = ldclient_event_worker_sup:get_sup_name(Tag),
@@ -1093,8 +1004,8 @@ live_workers_never_exceed_max_workers(_) ->
         end, lists:seq(1, 4)),
         Sampler ! {stop, self()},
         MaxLive = receive {live, Live} -> Live after 2000 -> ct:fail("sampler did not report") end,
-        ct:pal("events_max_workers=~b; most live worker processes observed: ~b", [Max, MaxLive]),
-        true = MaxLive =< Max
+        ct:pal("events_flush_workers=~b; most live worker processes observed: ~b", [Size, MaxLive]),
+        true = MaxLive =< Size
     after
         ok = ldclient:stop_instance(Tag)
     end.
@@ -1114,7 +1025,7 @@ capacity_drops_are_reported_when_the_server_restarts(_) ->
         end,
         undefined
     ),
-    ok = ldclient:start_instance("", Tag, instance_options(#{events_capacity => 2, events_scale_interval_ms => 50})),
+    ok = ldclient:start_instance("", Tag, instance_options(#{events_capacity => 2, events_housekeeping_interval_ms => 50})),
     try
         {_Key, _Json, FlagMap} = ldclient_test_utils:get_simple_flag(),
         Flag = ldclient_flag:new(FlagMap),
@@ -1269,24 +1180,6 @@ wait_for_worker_count(SupName, Expected, Retries) ->
             wait_for_worker_count(SupName, Expected, Retries - 1)
     end.
 
-wait_for_dead(_Pid, 0) ->
-    ct:fail("Worker did not exit");
-wait_for_dead(Pid, Retries) ->
-    case is_process_alive(Pid) of
-        false ->
-            ok;
-        true ->
-            timer:sleep(25),
-            wait_for_dead(Pid, Retries - 1)
-    end.
-
-collect_scales(Acc) ->
-    receive
-        {pool_size, Direction} -> collect_scales([Direction|Acc])
-    after 50 ->
-        Acc
-    end.
-
 register_event_forwarding_process() ->
     TestPid = self(),
     ErPid = spawn(fun() -> receive ErEvents -> TestPid ! ErEvents end end),
@@ -1393,8 +1286,7 @@ instance_options(Extra) ->
         events_shed_threshold => 1000,
         events_inbox_capacity => 1000,
         events_flush_interval => 60000,
-        events_min_workers => 1,
-        events_max_workers => 1
+        events_flush_workers => 1
     }, Extra).
 
 wait_for_counters(_Key, 0) ->
