@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.12.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.0...v3.12.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* return the default value for an invalid context without creating analytics events ([#204](https://github.com/launchdarkly/erlang-server-sdk/issues/204)) ([0bc26ea](https://github.com/launchdarkly/erlang-server-sdk/commit/0bc26ea532db89365aa0932bd64002eb400c9b73))
+
 ## [3.12.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.3...v3.12.0) (2026-10-06)
 
 
