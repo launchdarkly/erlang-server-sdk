@@ -114,51 +114,63 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% == Telemetry ==
 %%
 %% The SDK emits `telemetry' events (beam-telemetry) from the analytics
-%% pipeline:
+%% pipeline. The metadata of every event contains the instance `tag'.
 %%
 %% <ul>
-%%   <li>`[ldclient, events, shed]' - emitted when an event is dropped by the
-%%       caller due to load shedding. Measurement `count' (currently always
-%%       `1'); metadata contains the instance `tag' and the event `kind'
-%%       (`feature_request', `identify' or `custom'). Suitable for a counter
-%%       metric.</li>
-%%   <li>`[ldclient, events, dropped]' - emitted once per flush window when
-%%       full-fidelity events were dropped because the buffer was at
-%%       `events_capacity' (`reason => capacity'), and when events had to be
-%%       left out of a request because they could not be encoded as JSON
-%%       (`reason => unencodable'). Measurement `count'; metadata contains the
-%%       instance `tag' and the `reason'. Summary counts are unaffected by
-%%       capacity drops.</li>
+%%   <li>`[ldclient, events, flush]' - emitted once per delivery attempt of a
+%%       batch, after the attempt (including its retry) has completed.
+%%       Measurements `count' (events in the batch, a summary counting as
+%%       one), `size' (bytes of the encoded payload before compression) and
+%%       `duration' (native time units from the first attempt to resolution);
+%%       metadata contains the `outcome' (`succeeded' or `failed') and, when
+%%       the last response was an HTTP error, its `status_code'. A `failed'
+%%       batch has been discarded.</li>
+%%   <li>`[ldclient, events, dropped]' - emitted once per flush window (and at
+%%       shutdown) for each `reason' with a non-zero count since the previous
+%%       window; measurement `count' is the number of events discarded before
+%%       delivery. Reasons: `capacity' (full-fidelity events dropped because
+%%       the buffer was at `events_capacity'; their evaluations are still in
+%%       the summary), `inbox' (events shed by the caller because the event
+%%       server's queue was at `events_inbox_capacity'; evaluations among them
+%%       are missing from the summary), `shed_threshold' (identify and custom
+%%       events shed by the caller because the buffer was at
+%%       `events_shed_threshold'), and `unencodable' (events left out of a
+%%       request because they could not be encoded as JSON; emitted by the
+%%       worker while it encodes a batch).</li>
 %%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
-%%       delivered. Measurement `count' (number of events in the batch);
-%%       metadata contains the instance `tag'. Suitable for a counter metric.</li>
-%%   <li>`[ldclient, events, flush]' - emitted once per delivered batch,
-%%       including any retry. Measurements `count' (events in the batch,
-%%       including summary), `size' (bytes of the encoded payload before
-%%       compression) and `duration' (native time from the first attempt to
-%%       resolution); metadata contains the instance `tag' and the `outcome'
-%%       (`accepted' or `failed'). Backs the flush count, batch size, flush
-%%       duration, sent and failed metrics.</li>
-%%   <li>`[ldclient, events, send_error]' - emitted when a batch fails to send.
-%%       Measurement `count' (currently always `1'); metadata contains the
-%%       instance `tag' and the failure `type' (`temporary', `permanent', or
-%%       `worker_exit' when a batch was lost because its worker exited twice).
-%%       Suitable for a counter metric.</li>
+%%       delivered. Measurement `count' (number of events in the batch).</li>
+%%   <li>`[ldclient, events, send_error]' - emitted for every failed delivery
+%%       attempt. Measurement `count' (`1'); metadata contains the failure
+%%       `type' (`temporary', `permanent', or `worker_exit' when a batch was
+%%       lost because its worker exited twice) and, for an HTTP error
+%%       response, its `status_code'.</li>
 %%   <li>`[ldclient, events, pool_size]' - emitted once at startup and
 %%       whenever the number of live workers changes. Measurement `workers' is the
-%%       absolute pool size; metadata contains the instance `tag' and the
-%%       `direction' of the change (`initial', `up' or `down'). Suitable for a
-%%       gauge metric.</li>
+%%       absolute pool size; metadata contains the `direction' of the change
+%%       (`initial', `up' or `down'). Suitable for a gauge metric.</li>
 %%   <li>`[ldclient, events, flush_skipped]' - emitted when a flush finds every
 %%       reporter worker still busy with a previous request; the flush is
 %%       deferred and runs as soon as a worker is free. Measurement `count' is
-%%       `1'; metadata contains the instance `tag'.</li>
+%%       `1'.</li>
 %%   <li>`[ldclient, evaluation, stop]' - emitted after each flag evaluation.
 %%       Measurement `duration' (native time units, the same convention as
-%%       `telemetry:span/3'); metadata contains the instance `tag', the
-%%       evaluated `flag_key' and the resulting `variation' index (or `null').
-%%       Suitable for a duration histogram or for building a trace span.</li>
+%%       `telemetry:span/3'); metadata contains the evaluated `flag_key' and
+%%       the resulting `variation' index (or `null'). Suitable for a duration
+%%       histogram or for building a trace span.</li>
 %% </ul>
+%%
+%% The `flush' and `dropped' events carry what the LaunchDarkly OpenTelemetry
+%% metrics specification derives from its `eventFlushCompleted' hook, so a
+%% handler can record its instruments without the SDK depending on
+%% OpenTelemetry: `launchdarkly.sdk.events.flushes' (1 per `flush'),
+%% `events.batch.size' (`count'), `events.flush.duration' (`duration' in
+%% seconds), `events.sent' and `events.sent.size' (`count' and `size' of a
+%% `succeeded' flush), `events.failed' (`count' of a `failed' flush, with
+%% `error.type' the `status_code' as a string or `"_OTHER"' and
+%% `http.response.status_code' the `status_code' when present) and
+%% `events.dropped' (`count' of every `dropped' event; `unencodable' is not a
+%% buffer-full drop and may be left out). The `outcome' values are the
+%% specification's.
 %%
 %% @end
 -spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->

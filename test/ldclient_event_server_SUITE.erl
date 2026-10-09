@@ -36,6 +36,8 @@
     unencodable_default_keeps_the_summary/1,
     gate_is_closed_while_the_pool_starts/1,
     gate_closes_on_crash_and_counters_are_erased_on_stop/1,
+    drops_counted_during_a_restart_are_reported_by_the_next_incarnation/1,
+    failed_flush_telemetry_carries_the_status_code/1,
     pool_never_exceeds_its_size/1,
     capacity_drops_are_reported_when_the_server_restarts/1,
     published_counts_only_sent_events/1,
@@ -73,6 +75,8 @@ all() ->
         unencodable_default_keeps_the_summary,
         gate_is_closed_while_the_pool_starts,
         gate_closes_on_crash_and_counters_are_erased_on_stop,
+        drops_counted_during_a_restart_are_reported_by_the_next_incarnation,
+        failed_flush_telemetry_carries_the_status_code,
         pool_never_exceeds_its_size,
         capacity_drops_are_reported_when_the_server_restarts,
         published_counts_only_sent_events,
@@ -271,17 +275,18 @@ add_event_is_cast(_) ->
     Event = identify_event(<<"no-server">>),
     ok = ldclient_event_server:add_event(no_such_tag, Event, #{}).
 
-%% Once the buffered event count reaches the shed threshold, further events are
-%% dropped at the caller with a telemetry event instead of being enqueued.
+%% Once the buffered event count reaches the shed threshold, further best-effort
+%% events are dropped at the caller instead of being enqueued. The drop is
+%% counted at the caller and reported, with its reason, by the next flush.
 sheds_when_buffer_at_threshold(_) ->
     Tag = shedder,
     HandlerId = {?MODULE, sheds_when_buffer_at_threshold, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
-        [ldclient, events, shed],
+        [ldclient, events, dropped],
         fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {shed, Measurements, Metadata}
+            Self ! {dropped, Measurements, Metadata}
         end,
         undefined
     ),
@@ -290,12 +295,12 @@ sheds_when_buffer_at_threshold(_) ->
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"first">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"second">>), #{}),
-        receive
-            {shed, #{count := 1}, #{tag := Tag}} -> ok
-        after 1000 ->
-            ct:fail("Expected a shed telemetry event")
-        end,
         ok = ldclient_event_server:flush(Tag),
+        receive
+            {dropped, #{count := 1}, #{tag := Tag, reason := shed_threshold}} -> ok
+        after 1000 ->
+            ct:fail("Expected a dropped telemetry event with reason shed_threshold")
+        end,
         {ActualEvents, _PayloadId} = receive_events(),
         %% Only the first event made it into the buffer.
         1 = length(ActualEvents),
@@ -459,12 +464,12 @@ emits_flush_telemetry_on_success(_) ->
         ok = ldclient_event_server:flush(Tag),
         _ = collect_payloads(1),
         receive
-            {flush_event, Measurements, #{tag := Tag, outcome := accepted}} ->
+            {flush_event, Measurements, #{tag := Tag, outcome := succeeded}} ->
                 2 = maps:get(count, Measurements),
                 true = (maps:get(size, Measurements) > 0),
                 true = (maps:get(duration, Measurements) >= 0)
         after 1000 ->
-            ct:fail("Expected an accepted [ldclient, events, flush] telemetry event")
+            ct:fail("Expected a succeeded [ldclient, events, flush] telemetry event")
         end
     after
         telemetry:detach(HandlerId)
@@ -656,16 +661,17 @@ flush_returns_without_waiting_for_delivery(_) ->
 
 %% Feature requests are admitted while the event server keeps up, but once the
 %% number of queued casts reaches events_inbox_capacity they are shed too, so
-%% the mailbox is bounded under ingress overload.
+%% the mailbox is bounded under ingress overload. The sheds are reported in one
+%% dropped event with reason inbox at the next flush.
 feature_requests_shed_when_inbox_full(_) ->
     Tag = inbox_bound,
     HandlerId = {?MODULE, feature_requests_shed_when_inbox_full, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
-        [ldclient, events, shed],
+        [ldclient, events, dropped],
         fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {shed, Measurements, Metadata}
+            Self ! {dropped, Measurements, Metadata}
         end,
         undefined
     ),
@@ -681,25 +687,21 @@ feature_requests_shed_when_inbox_full(_) ->
         ok = sys:suspend(ServerName),
         [ok = ldclient_event_server:add_event(Tag, Eval(<<"i", (integer_to_binary(N))/binary>>), #{}) || N <- lists:seq(1, 10)],
         {message_queue_len, Queued} = process_info(whereis(ServerName), message_queue_len),
-        Shed = count_shed(0),
         ok = sys:resume(ServerName),
         %% Five casts were admitted; a flush or housekeeping timer may also be queued.
         true = Queued >= 5,
-        5 = Shed,
         ok = ldclient_event_server:flush(Tag),
+        receive
+            {dropped, #{count := 5}, #{tag := Tag, reason := inbox}} -> ok
+        after 1000 ->
+            ct:fail("Expected the five shed feature requests in one dropped event with reason inbox")
+        end,
         Payloads = collect_payloads(1),
         [Summary|_] = [E || E <- hd(Payloads), maps:get(<<"kind">>, E) =:= <<"summary">>],
         #{<<"features">> := #{<<"abc">> := #{<<"counters">> := [Counter]}}} = Summary,
         5 = maps:get(<<"count">>, Counter)
     after
         telemetry:detach(HandlerId)
-    end.
-
-count_shed(Acc) ->
-    receive
-        {shed, #{count := 1}, #{tag := inbox_bound, kind := feature_request}} -> count_shed(Acc + 1)
-    after 100 ->
-        Acc
     end.
 
 %% With the default batch size a flush is one request, as before the pool.
@@ -909,9 +911,9 @@ gate_is_closed_while_the_pool_starts(_) ->
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
-        [ldclient, events, shed],
+        [ldclient, events, dropped],
         fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {shed, Measurements, Metadata}
+            Self ! {dropped, Measurements, Metadata}
         end,
         undefined
     ),
@@ -924,11 +926,8 @@ gate_is_closed_while_the_pool_starts(_) ->
         {Ref, _Threshold, 50} = wait_for_counters(Key, 300),
         50 = counters:get(Ref, 2),
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"during-init">>), #{}),
-        receive
-            {shed, #{count := 1}, #{tag := Tag, kind := identify}} -> ok
-        after 1000 ->
-            ct:fail("Expected the cast made during init to be shed")
-        end,
+        %% Shed at the caller: counted, not queued.
+        1 = counters:get(Ref, 3),
         receive
             {started, ok} -> ok
         after 5000 ->
@@ -938,6 +937,11 @@ gate_is_closed_while_the_pool_starts(_) ->
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"after-init">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:flush(Tag),
+        receive
+            {dropped, #{count := 1}, #{tag := Tag, reason := inbox}} -> ok
+        after 1000 ->
+            ct:fail("Expected the cast made during init to be reported as dropped (inbox)")
+        end,
         _ = collect_payload_with_key(<<"after-init">>, 3000)
     after
         telemetry:detach(HandlerId),
@@ -975,6 +979,91 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
         ok = ldclient:stop_instance(Tag)
     end,
     undefined = persistent_term:get(Key, undefined).
+
+%% Callers shed against the counters of a crashed incarnation until the next
+%% one publishes its own. Those drops are carried over and reported by the new
+%% incarnation's first flush instead of being lost with the old counters.
+drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
+    Tag = carry_over,
+    Key = {ldclient_event_server_counters, Tag},
+    HandlerId = {?MODULE, drops_counted_during_a_restart_are_reported_by_the_next_incarnation, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    %% What a crashed incarnation leaves behind: its counters, gate closed, with
+    %% the drops counted by callers since its last report.
+    Previous = counters:new(4, [write_concurrency]),
+    counters:put(Previous, 2, 100),
+    counters:add(Previous, 3, 4),
+    counters:add(Previous, 4, 2),
+    persistent_term:put(Key, {Previous, 1000, 100}),
+    register_collector(),
+    try
+        ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100})),
+        {Ref, _, 100} = persistent_term:get(Key),
+        true = Ref =/= Previous,
+        0 = counters:get(Previous, 3),
+        0 = counters:get(Previous, 4),
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {dropped, #{count := 4}, #{tag := Tag, reason := inbox}} -> ok
+        after 1000 ->
+            ct:fail("Expected the inbox drops of the previous incarnation to be reported")
+        end,
+        receive
+            {dropped, #{count := 2}, #{tag := Tag, reason := shed_threshold}} -> ok
+        after 1000 ->
+            ct:fail("Expected the threshold drops of the previous incarnation to be reported")
+        end
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag)),
+        _ = persistent_term:erase(Key)
+    end.
+
+%% A dispatcher that received an HTTP error response reports its status code,
+%% which the send_error and flush telemetry carry so a metrics handler can
+%% attribute failures to it.
+failed_flush_telemetry_carries_the_status_code(_) ->
+    Tag = status_code,
+    HandlerId = {?MODULE, failed_flush_telemetry_carries_the_status_code, self()},
+    Self = self(),
+    ok = telemetry:attach_many(
+        HandlerId,
+        [[ldclient, events, flush], [ldclient, events, send_error]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient:start_instance("sdk-key-events-503", Tag, instance_options(#{})),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"status">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        %% The attempt and its retry both fail with a 503.
+        _ = collect_payloads(2),
+        receive
+            {send_error, #{count := 1}, #{tag := Tag, type := temporary, status_code := 503}} -> ok
+        after 1000 ->
+            ct:fail("Expected a send_error telemetry event with status_code 503")
+        end,
+        receive
+            {flush, #{count := 1}, #{tag := Tag, outcome := failed, status_code := 503}} -> ok
+        after 2000 ->
+            ct:fail("Expected a failed flush telemetry event with status_code 503")
+        end
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag))
+    end.
 
 %% The pool never has more live workers than events_flush_workers, even while
 %% workers are busy with slow requests and holding retries.

@@ -22,6 +22,7 @@
     request_timeout_is_a_temporary_failure/1,
     requests_from_several_workers_run_in_parallel/1,
     stop_releases_the_instance_profile/1,
+    error_responses_carry_the_status_code/1,
     stalled_connections_are_released_after_the_request_timeout/1,
     stalled_tls_connections_are_released_after_the_request_timeout/1
 ]).
@@ -39,6 +40,7 @@ all() ->
         request_timeout_is_a_temporary_failure,
         requests_from_several_workers_run_in_parallel,
         stop_releases_the_instance_profile,
+        error_responses_carry_the_status_code,
         stalled_connections_are_released_after_the_request_timeout,
         stalled_tls_connections_are_released_after_the_request_timeout
     ].
@@ -230,6 +232,16 @@ bump_max(Ref, Current) ->
         false ->
             ok
     end.
+
+%% An HTTP error response is reported with its status code, classified as
+%% recoverable or not; a failure without a response has none.
+error_responses_carry_the_status_code(_) ->
+    State = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([503, #{}, <<>>]),
+    {error, temporary, _, 503} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    bookish_spork:stub_request([401, #{}, <<>>]),
+    {error, permanent, _, 401} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    {error, temporary, _} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), "http://127.0.0.1:1/bulk").
 
 %% An endpoint that accepts the connection and then never reads leaves the
 %% request body queued in the socket. The request times out as a temporary

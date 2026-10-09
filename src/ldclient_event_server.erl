@@ -90,9 +90,13 @@
 %% this (instead of calling into the event server) so that load can be shed
 %% before the server's mailbox grows.
 -define(COUNTERS_KEY, ldclient_event_server_counters).
-%% Counter slots: buffered full-fidelity events, and casts queued in the mailbox.
+%% Counter slots: buffered full-fidelity events, casts queued in the mailbox,
+%% and events the callers discarded (shed) since the last flush, by reason.
 -define(DEPTH, 1).
 -define(INFLIGHT, 2).
+-define(INBOX_DROPS, 3).
+-define(THRESHOLD_DROPS, 4).
+-define(COUNTER_SLOTS, 4).
 
 %%===================================================================
 %% API
@@ -118,7 +122,10 @@
 %%       be dropped at capacity anyway.</li>
 %% </ul>
 %%
-%% Every shed event emits `[ldclient, events, shed]' with the event `kind'.
+%% A shed event is counted in the shared counters (`reason' `inbox' or
+%% `shed_threshold') and reported by the event server with the next flush, as
+%% `[ldclient, events, dropped]', so that nothing but a counter increment runs
+%% on the caller's side while the pipeline is overloaded.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
@@ -129,10 +136,13 @@ add_event(Tag, #{type := Type} = Event, Options) when is_atom(Tag) ->
         {ok, Ref} ->
             counters:add(Ref, ?INFLIGHT, 1),
             cast_event(Tag, Event, Options);
-        shed ->
-            telemetry:execute([ldclient, events, shed], #{count => 1}, #{tag => Tag, kind => Type}),
-            ok
+        {shed, Ref, Reason} ->
+            counters:add(Ref, drop_slot(Reason), 1)
     end.
+
+-spec drop_slot(inbox | shed_threshold) -> ?INBOX_DROPS | ?THRESHOLD_DROPS.
+drop_slot(inbox) -> ?INBOX_DROPS;
+drop_slot(shed_threshold) -> ?THRESHOLD_DROPS.
 
 -spec cast_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) -> ok.
 cast_event(Tag, Event, Options) ->
@@ -186,7 +196,7 @@ init([Tag]) ->
         ldclient_event_process_server:ets_table_name(Tag),
         [set, named_table, public, {read_concurrency, true}]
     ),
-    CountersRef = counters:new(2, [write_concurrency]),
+    CountersRef = counters:new(?COUNTER_SLOTS, [write_concurrency]),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -226,6 +236,7 @@ init([Tag]) ->
     %% start instead of filling the mailbox uncounted. The forced resync below
     %% opens the gate once there is a worker to deliver to.
     ok = close_gate(State),
+    ok = carry_over_drops(Tag, CountersRef),
     persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, InboxCapacity}),
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
@@ -532,21 +543,52 @@ get_local_reg_name(Tag) ->
 %% gate closed (see `terminate/2'), and is erased on a normal stop; the next
 %% incarnation publishes fresh counters.
 %% @end
--spec admit(Tag :: atom(), Type :: atom()) -> {ok, counters:counters_ref() | undefined} | shed.
+-spec admit(Tag :: atom(), Type :: atom()) ->
+    {ok, counters:counters_ref() | undefined} | {shed, counters:counters_ref(), inbox | shed_threshold}.
 admit(Tag, Type) ->
     case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
         undefined ->
             {ok, undefined};
         {Ref, ShedThreshold, InboxCapacity} ->
-            Queued = counters:get(Ref, ?INFLIGHT),
-            Shed = case Type of
-                feature_request -> Queued >= InboxCapacity;
-                _ -> Queued >= InboxCapacity orelse counters:get(Ref, ?DEPTH) >= ShedThreshold
-            end,
-            case Shed of
-                true -> shed;
-                false -> {ok, Ref}
+            case counters:get(Ref, ?INFLIGHT) >= InboxCapacity of
+                true ->
+                    {shed, Ref, inbox};
+                false when Type =/= feature_request ->
+                    case counters:get(Ref, ?DEPTH) >= ShedThreshold of
+                        true -> {shed, Ref, shed_threshold};
+                        false -> {ok, Ref}
+                    end;
+                false ->
+                    {ok, Ref}
             end
+    end.
+
+%% @doc Take the drops the callers counted since the last report, leaving any
+%% that are counted concurrently in place.
+%% @end
+-spec take_drops(counters:counters_ref(), ?INBOX_DROPS | ?THRESHOLD_DROPS) -> non_neg_integer().
+take_drops(Ref, Slot) ->
+    case counters:get(Ref, Slot) of
+        Count when Count > 0 ->
+            counters:sub(Ref, Slot, Count),
+            Count;
+        _ ->
+            0
+    end.
+
+%% @doc Drops counted against a previous incarnation's counters (callers shed
+%% while the server restarted after a crash) would otherwise never be
+%% reported; the new incarnation reports them with its first flush.
+%% @end
+-spec carry_over_drops(Tag :: atom(), counters:counters_ref()) -> ok.
+carry_over_drops(Tag, NewRef) ->
+    case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
+        {OldRef, _, _} ->
+            lists:foreach(
+                fun(Slot) -> counters:add(NewRef, Slot, take_drops(OldRef, Slot)) end,
+                [?INBOX_DROPS, ?THRESHOLD_DROPS]);
+        undefined ->
+            ok
     end.
 
 -spec update_counters(state()) -> state().
@@ -693,18 +735,35 @@ open_window(#{summary_event := SummaryEvent, pending_summaries := Pending, event
         flush_remaining := Count
     }).
 
-%% @doc Report events dropped at capacity since the previous flush: one log line
-%% and one `[ldclient, events, dropped]' telemetry event per window.
+%% @doc Report the events discarded since the previous flush: those dropped
+%% here at `events_capacity' and those the callers shed. One log line and one
+%% `[ldclient, events, dropped]' telemetry event per reason and window.
 %% @end
 -spec report_dropped(state()) -> state().
-report_dropped(#{dropped := 0} = State) ->
-    State;
-report_dropped(#{dropped := Dropped, tag := Tag, capacity := Capacity} = State) ->
-    telemetry:execute([ldclient, events, dropped], #{count => Dropped}, #{tag => Tag, reason => capacity}),
-    error_logger:warning_msg(
-        "Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
-        [Capacity, Tag, Dropped]),
+report_dropped(#{dropped := Dropped, counters_ref := Ref} = State) ->
+    ok = report_dropped(capacity, Dropped, State),
+    ok = report_dropped(inbox, take_drops(Ref, ?INBOX_DROPS), State),
+    ok = report_dropped(shed_threshold, take_drops(Ref, ?THRESHOLD_DROPS), State),
     State#{dropped := 0}.
+
+-spec report_dropped(capacity | inbox | shed_threshold, non_neg_integer(), state()) -> ok.
+report_dropped(_Reason, 0, _State) ->
+    ok;
+report_dropped(Reason, Count, #{tag := Tag} = State) ->
+    telemetry:execute([ldclient, events, dropped], #{count => Count}, #{tag => Tag, reason => Reason}),
+    {Format, Args} = dropped_message(Reason, Count, State),
+    error_logger:warning_msg(Format, Args).
+
+-spec dropped_message(capacity | inbox | shed_threshold, pos_integer(), state()) -> {string(), [term()]}.
+dropped_message(capacity, Count, #{tag := Tag, capacity := Capacity}) ->
+    {"Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
+     [Capacity, Tag, Count]};
+dropped_message(inbox, Count, #{tag := Tag, inbox_capacity := InboxCapacity}) ->
+    {"Exceeded event inbox capacity (~b) for ~p: ~b events were discarded before reaching the buffer since the last flush, and the evaluations among them are missing from the summary. Events are produced faster than the event server processes them.",
+     [InboxCapacity, Tag, Count]};
+dropped_message(shed_threshold, Count, #{tag := Tag, shed_threshold := ShedThreshold}) ->
+    {"Exceeded event shed threshold (~b) for ~p: ~b identify and custom events were discarded since the last flush. Increase events_capacity (and events_shed_threshold, if set) to keep them.",
+     [ShedThreshold, Tag, Count]}.
 
 %% @doc Continue dispatching if a flush window is open or a batch is waiting to
 %% be re-dispatched after its worker exited.

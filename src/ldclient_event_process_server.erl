@@ -341,30 +341,48 @@ attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
         tag := Tag
     } = State,
     Size = byte_size(JsonEvents),
-    case Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri) of
+    case with_status(Dispatcher:send(DispatcherState, JsonEvents, PayloadId, Uri)) of
         {ok, Date} ->
             %% The table is owned by the event server and may already be gone
             %% while the instance is shutting down.
             _ = (catch ets:insert(ets_table_name(Tag), {last_known_server_time, Date})),
             emit_published(Tag, Count),
-            emit_flush(Tag, Count, Size, StartTime, accepted),
+            emit_flush(Tag, Count, Size, StartTime, succeeded, undefined),
             State;
-        {error, temporary, Reason} when Attempt =:= 0 ->
-            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
+        {error, temporary, Reason, StatusCode} when Attempt =:= 0 ->
+            emit_send_error(Tag, temporary, StatusCode),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
             _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime}),
             State;
-        {error, temporary, Reason} ->
-            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => temporary}),
+        {error, temporary, Reason, StatusCode} ->
+            emit_send_error(Tag, temporary, StatusCode),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
-            emit_flush(Tag, Count, Size, StartTime, failed),
+            emit_flush(Tag, Count, Size, StartTime, failed, StatusCode),
             State;
-        {error, permanent, Reason} ->
-            telemetry:execute([ldclient, events, send_error], #{count => 1}, #{tag => Tag, type => permanent}),
+        {error, permanent, Reason, StatusCode} ->
+            emit_send_error(Tag, permanent, StatusCode),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
-            emit_flush(Tag, Count, Size, StartTime, failed),
+            emit_flush(Tag, Count, Size, StartTime, failed, StatusCode),
             State
     end.
+
+%% A dispatcher reports the status code of an HTTP error response; a failure
+%% without a response (a network error or a timeout) has none.
+-spec with_status(ldclient_event_dispatch:send_result()) ->
+    {ok, integer()} | {error, temporary | permanent, string(), pos_integer() | undefined}.
+with_status({error, Type, Reason}) -> {error, Type, Reason, undefined};
+with_status(Result) -> Result.
+
+%% @doc Report one failed delivery attempt, with the HTTP status code when the
+%% endpoint answered.
+%% @end
+-spec emit_send_error(atom(), temporary | permanent, pos_integer() | undefined) -> ok.
+emit_send_error(Tag, Type, StatusCode) ->
+    telemetry:execute([ldclient, events, send_error], #{count => 1}, with_status_code(#{tag => Tag, type => Type}, StatusCode)).
+
+-spec with_status_code(map(), pos_integer() | undefined) -> map().
+with_status_code(Metadata, undefined) -> Metadata;
+with_status_code(Metadata, StatusCode) -> Metadata#{status_code => StatusCode}.
 
 %% @doc Report how many events were delivered in a batch. Emitted once per
 %% successful dispatch (including a successful retry) so it can back a
@@ -383,12 +401,13 @@ emit_published(Tag, Count) ->
 
 %% @doc Report one delivery attempt per batch, including its retry. The
 %% `duration' spans the first attempt through the retry so it can back flush
-%% count, batch size, flush duration, sent and failed metrics.
+%% count, batch size, flush duration, sent and failed metrics. A failed batch
+%% carries the `status_code' of the last response when the endpoint answered.
 %% @end
--spec emit_flush(atom(), non_neg_integer(), non_neg_integer(), integer(), accepted | failed) -> ok.
-emit_flush(_Tag, 0, _Size, _StartTime, _Outcome) ->
+-spec emit_flush(atom(), non_neg_integer(), non_neg_integer(), integer(), succeeded | failed, pos_integer() | undefined) -> ok.
+emit_flush(_Tag, 0, _Size, _StartTime, _Outcome, _StatusCode) ->
     ok;
-emit_flush(Tag, Count, Size, StartTime, Outcome) ->
+emit_flush(Tag, Count, Size, StartTime, Outcome, StatusCode) ->
     telemetry:execute(
         [ldclient, events, flush],
         #{
@@ -396,7 +415,7 @@ emit_flush(Tag, Count, Size, StartTime, Outcome) ->
             size => Size,
             duration => erlang:monotonic_time() - StartTime
         },
-        #{tag => Tag, outcome => Outcome}
+        with_status_code(#{tag => Tag, outcome => Outcome}, StatusCode)
     ).
 
 %% @doc Encode a batch, returning the JSON and the number of events in it.

@@ -23,12 +23,14 @@ init(_Tag, SdkKey) ->
 %%
 %% @end
 -spec send(State :: any(), OutputEvents :: list(), PayloadId :: uuid:uuid(), Uri :: string())
-    -> {error, temporary, string()}.
+    -> ldclient_event_dispatch:send_result().
 send(State, OutputEvents, PayloadId, _Uri) ->
     #{sdk_key := SdkKey} = State,
     Result = case SdkKey of
         "sdk-key-events-fail" ->
             {error, temporary, "Testing event send failure."};
+        "sdk-key-events-503" ->
+            {error, temporary, "Testing event send failure with a status code.", 503};
          _ ->
              {ok, 0}
     end,

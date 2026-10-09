@@ -59,7 +59,7 @@ stop(Tag) ->
 %%
 %% @end
 -spec send(State :: state(), JsonEvents :: binary(), PayloadId :: uuid:uuid(), Uri :: string()) ->
-    {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
+    ldclient_event_dispatch:send_result().
 send(State, JsonEvents, PayloadId, Uri) ->
     #{headers := BaseHeaders, http_options := HttpOptions} = State,
     Headers = [
@@ -141,8 +141,7 @@ socket_options(Inherited) ->
 
 -type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
 
--spec process_request({error, term()} | http_request())
-    -> {ok, integer()} | {error, temporary, string()} | {error, permanent, string()}.
+-spec process_request({error, term()} | http_request()) -> ldclient_event_dispatch:send_result().
 process_request({error, Reason}) ->
     {error, temporary, ldclient_key_redaction:format_httpc_error(Reason)};
 process_request({ok, {{_Version, StatusCode, _ReasonPhrase}, Headers, _Body}}) when StatusCode < 400 ->
@@ -150,7 +149,7 @@ process_request({ok, {{_Version, StatusCode, _ReasonPhrase}, Headers, _Body}}) w
 process_request({ok, {{Version, StatusCode, ReasonPhrase}, _Headers, _Body}}) ->
     Reason = format_response(Version, StatusCode, ReasonPhrase),
     HttpErrorType = ldclient_http:is_http_error_code_recoverable(StatusCode),
-    {error, HttpErrorType, Reason}.
+    {error, HttpErrorType, Reason, StatusCode}.
 
 -spec format_response(Version :: string(), StatusCode :: integer(), ReasonPhrase :: string()) ->
     string().
