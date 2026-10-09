@@ -172,6 +172,13 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% buffer-full drop and may be left out). The `outcome' values are the
 %% specification's.
 %%
+%% == Errors ==
+%%
+%% Returns `{error, already_started, Pid}' when an instance with this tag is
+%% running, and `{error, start_failed, Reason}' when the instance's processes
+%% could not be started (for example because no event reporter worker could
+%% start); nothing of the instance is left behind in that case.
+%%
 %% @end
 -spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->
     ok | {error, atom(), term()}.

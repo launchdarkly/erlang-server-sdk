@@ -85,7 +85,7 @@
 %%
 %% @end
 -spec start(Tag :: atom(), SdkKey :: string(), Options :: options()) ->
-    ok | {error, already_started, term()}.
+    ok | {error, already_started | start_failed, term()}.
 start(Tag, SdkKey, Options) ->
     % Parse options into settings
     Settings = ldclient_config:parse_options(SdkKey, Options),
@@ -112,7 +112,12 @@ start(Tag, SdkKey, Options) ->
             true = ldclient_update_processor_state:create_initialized_state(Tag, false),
             start_updater(UpdateSupName, UpdateWorkerModule, Tag);
         {error, {already_started, Pid}} ->
-            {error, already_started, Pid}
+            {error, already_started, Pid};
+        {error, Reason} ->
+            %% Nothing of the instance exists once its supervisor failed to
+            %% start, except the settings registered above.
+            ok = ldclient_config:unregister(Tag),
+            {error, start_failed, Reason}
     end.
 
 %% @doc Stop a client instance

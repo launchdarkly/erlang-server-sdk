@@ -23,6 +23,7 @@
     requests_from_several_workers_run_in_parallel/1,
     stop_releases_the_instance_profile/1,
     error_responses_carry_the_status_code/1,
+    init_works_without_the_default_httpc_profile/1,
     stalled_connections_are_released_after_the_request_timeout/1,
     stalled_tls_connections_are_released_after_the_request_timeout/1
 ]).
@@ -41,6 +42,7 @@ all() ->
         requests_from_several_workers_run_in_parallel,
         stop_releases_the_instance_profile,
         error_responses_carry_the_status_code,
+        init_works_without_the_default_httpc_profile,
         stalled_connections_are_released_after_the_request_timeout,
         stalled_tls_connections_are_released_after_the_request_timeout
     ].
@@ -242,6 +244,19 @@ error_responses_carry_the_status_code(_) ->
     bookish_spork:stub_request([401, #{}, <<>>]),
     {error, permanent, _, 401} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
     {error, temporary, _} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), "http://127.0.0.1:1/bulk").
+
+%% An application that has stopped inets' default httpc profile gets an event
+%% pipeline that inherits no network options, not one that cannot start.
+init_works_without_the_default_httpc_profile(_) ->
+    ok = inets:stop(httpc, default),
+    try
+        {error, inets_not_started} = httpc:get_options(all),
+        #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+        {ok, [{max_keep_alive_length, 0}]} = httpc:get_options([max_keep_alive_length], Profile)
+    after
+        {ok, _} = inets:start(httpc, [{profile, default}])
+    end,
+    {ok, _} = httpc:get_options(all).
 
 %% An endpoint that accepts the connection and then never reads leaves the
 %% request body queued in the socket. The request times out as a temporary

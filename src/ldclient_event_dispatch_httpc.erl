@@ -106,11 +106,20 @@ ensure_profile(Tag) ->
     Profile.
 
 %% Network-related options an application configured on the default profile
-%% (a proxy, for example) must keep applying to event delivery.
+%% (a proxy, for example) must keep applying to event delivery. An application
+%% that has stopped the default profile gets none of them, with a warning,
+%% rather than an instance whose event pipeline cannot start.
 -spec inherited_options() -> [{atom(), term()}].
 inherited_options() ->
-    {ok, Options} = httpc:get_options(all),
-    [Opt || {Key, Value} = Opt <- Options, lists:member(Key, ?INHERITED_PROFILE_OPTIONS), is_set(Key, Value)].
+    case httpc:get_options(all) of
+        {ok, Options} ->
+            [Opt || {Key, Value} = Opt <- Options, lists:member(Key, ?INHERITED_PROFILE_OPTIONS), is_set(Key, Value)];
+        {error, Reason} ->
+            error_logger:warning_msg(
+                "Could not read the options of the default httpc profile (~p); event delivery inherits none of them",
+                [Reason]),
+            []
+    end.
 
 %% Unset values as reported by `httpc:get_options/1' are not valid inputs to
 %% `httpc:set_options/2'.

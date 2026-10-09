@@ -248,6 +248,7 @@ init([Tag]) ->
             %% accepting events into a pool that cannot deliver them.
             _ = ldclient_event_buffer:delete(Buffer),
             _ = erase_counters(State),
+            _ = stop_dispatcher(Tag),
             {stop, {event_workers_unavailable, Tag}};
         _ ->
             %% Casts that arrived before the counters were published were not

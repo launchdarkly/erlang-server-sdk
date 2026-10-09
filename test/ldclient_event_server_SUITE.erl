@@ -38,6 +38,7 @@
     gate_closes_on_crash_and_counters_are_erased_on_stop/1,
     drops_counted_during_a_restart_are_reported_by_the_next_incarnation/1,
     failed_flush_telemetry_carries_the_status_code/1,
+    start_instance_fails_cleanly_when_no_worker_can_start/1,
     pool_never_exceeds_its_size/1,
     capacity_drops_are_reported_when_the_server_restarts/1,
     published_counts_only_sent_events/1,
@@ -77,6 +78,7 @@ all() ->
         gate_closes_on_crash_and_counters_are_erased_on_stop,
         drops_counted_during_a_restart_are_reported_by_the_next_incarnation,
         failed_flush_telemetry_carries_the_status_code,
+        start_instance_fails_cleanly_when_no_worker_can_start,
         pool_never_exceeds_its_size,
         capacity_drops_are_reported_when_the_server_restarts,
         published_counts_only_sent_events,
@@ -1026,6 +1028,30 @@ drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
         _ = (catch ldclient:stop_instance(Tag)),
         _ = persistent_term:erase(Key)
     end.
+
+%% Without a single reporter worker the event server refuses to start, and the
+%% failure surfaces as an error from start_instance rather than a crash in the
+%% caller; what the attempt set up (the dispatcher's resources, the counters,
+%% the registered settings) is released, and the application keeps running.
+start_instance_fails_cleanly_when_no_worker_can_start(_) ->
+    Tag = no_workers,
+    register_collector(),
+    Children = length(supervisor:which_children(ldclient_sup)),
+    Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_init_fail}),
+    {error, start_failed, _Reason} = ldclient:start_instance("", Tag, Options),
+    receive
+        {dispatcher_stopped, Tag} -> ok
+    after 1000 ->
+        ct:fail("Expected the dispatcher to be stopped when the event server failed to start")
+    end,
+    undefined = persistent_term:get({ldclient_event_server_counters, Tag}, undefined),
+    false = lists:member(Tag, ldclient_config:get_registered_tags()),
+    Children = length(supervisor:which_children(ldclient_sup)),
+    true = lists:keymember(ldclient, 1, application:which_applications()),
+    %% Another instance in the same application is unaffected.
+    ok = ldclient_event_server:add_event(publisher, identify_event(<<"still-up">>), #{}),
+    ok = ldclient_event_server:flush(publisher),
+    _ = collect_payload_with_key(<<"still-up">>, 3000).
 
 %% A dispatcher that received an HTTP error response reports its status code,
 %% which the send_error and flush telemetry carry so a metrics handler can
