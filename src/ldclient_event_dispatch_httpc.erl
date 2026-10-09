@@ -96,7 +96,13 @@ ensure_profile(Tag) ->
         {error, {already_started, _}} -> ok
     end,
     MaxWorkers = ldclient_config:get_value(Tag, events_flush_workers),
-    ok = httpc:set_options(inherited_options() ++ [{max_sessions, MaxWorkers}, {max_keep_alive_length, 0}], Profile),
+    Inherited = inherited_options(),
+    Options = lists:keydelete(socket_opts, 1, Inherited) ++ [
+        {socket_opts, socket_options(proplists:get_value(socket_opts, Inherited, []))},
+        {max_sessions, MaxWorkers},
+        {max_keep_alive_length, 0}
+    ],
+    ok = httpc:set_options(Options, Profile),
     Profile.
 
 %% Network-related options an application configured on the default profile
@@ -116,6 +122,22 @@ is_set(port, default) -> false;
 is_set(unix_socket, undefined) -> false;
 is_set(socket_opts, []) -> false;
 is_set(_, _) -> true.
+
+%% A peer that accepts the connection (and the TLS handshake) but then stops
+%% reading leaves the request body queued in the socket. The request timeout
+%% frees the worker, but a socket closed with output still queued is kept by
+%% the inet driver, holding the payload, until the peer closes its side;
+%% against a stalled endpoint that is two sockets per flush for the length of
+%% the outage. `send_timeout' does not help: a single large send is accepted
+%% into the port queue at once, so the port never becomes busy and the timer
+%% never arms. Zero linger makes a close discard whatever is still queued and
+%% release the port immediately (an abortive close, i.e. a reset instead of a
+%% FIN, also when an idle keep-alive connection is closed; by then its
+%% responses have been read, so nothing is lost). Options an application set
+%% on the default profile are kept, except an explicit linger of its own.
+-spec socket_options(Inherited :: [{atom(), term()}]) -> [{atom(), term()}].
+socket_options(Inherited) ->
+    [Opt || {Key, _} = Opt <- Inherited, Key =/= linger] ++ [{linger, {true, 0}}].
 
 -type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
 

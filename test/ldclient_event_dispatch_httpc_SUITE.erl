@@ -21,7 +21,9 @@
     handle_date_in_headers/1,
     request_timeout_is_a_temporary_failure/1,
     requests_from_several_workers_run_in_parallel/1,
-    stop_releases_the_instance_profile/1
+    stop_releases_the_instance_profile/1,
+    stalled_connections_are_released_after_the_request_timeout/1,
+    stalled_tls_connections_are_released_after_the_request_timeout/1
 ]).
 
 all() ->
@@ -36,7 +38,9 @@ all() ->
         handle_date_in_headers,
         request_timeout_is_a_temporary_failure,
         requests_from_several_workers_run_in_parallel,
-        stop_releases_the_instance_profile
+        stop_releases_the_instance_profile,
+        stalled_connections_are_released_after_the_request_timeout,
+        stalled_tls_connections_are_released_after_the_request_timeout
     ].
 
 init_per_suite(Config) ->
@@ -69,6 +73,13 @@ init_per_testcase(_, Config) ->
     ok = ldclient_config:register(tls, TlsSettings),
     SlowSettings = ldclient_config:parse_options("sdk-key", #{events_request_timeout => 200}),
     ok = ldclient_config:register(slow_endpoint, SlowSettings),
+    NoReadSettings = ldclient_config:parse_options("sdk-key", #{events_request_timeout => 500}),
+    ok = ldclient_config:register(noread, NoReadSettings),
+    NoReadTlsSettings = ldclient_config:parse_options("sdk-key", #{
+        events_request_timeout => 500,
+        http_options => #{tls_options => [{verify, verify_none}]}
+    }),
+    ok = ldclient_config:register(noread_tls, NoReadTlsSettings),
     Config.
 
 end_per_testcase(_, _Config) ->
@@ -217,5 +228,93 @@ bump_max(Ref, Current) ->
                 _ -> bump_max(Ref, Current)
             end;
         false ->
+            ok
+    end.
+
+%% An endpoint that accepts the connection and then never reads leaves the
+%% request body queued in the socket. The request times out as a temporary
+%% failure, and the socket must be released with it instead of living on,
+%% holding the payload, until the peer closes.
+stalled_connections_are_released_after_the_request_timeout(_) ->
+    stalled_connection_is_released(tcp, noread).
+
+stalled_tls_connections_are_released_after_the_request_timeout(_) ->
+    stalled_connection_is_released(tls, noread_tls).
+
+stalled_connection_is_released(Transport, Tag) ->
+    {Port, Stop} = start_non_reading_server(Transport),
+    State = ldclient_event_dispatch_httpc:init(Tag, "sdk-key"),
+    Scheme = case Transport of tcp -> "http"; tls -> "https" end,
+    Uri = Scheme ++ "://127.0.0.1:" ++ integer_to_list(Port) ++ "/bulk",
+    Body = binary:copy(<<"a">>, 8 * 1024 * 1024),
+    try
+        T0 = erlang:monotonic_time(millisecond),
+        {error, temporary, _} = ldclient_event_dispatch_httpc:send(State, Body, uuid:get_v4(), Uri),
+        Elapsed = erlang:monotonic_time(millisecond) - T0,
+        ct:pal("~p request against a non-reading endpoint timed out after ~b ms", [Transport, Elapsed]),
+        true = Elapsed < 2500,
+        %% The socket that still holds the unsent body must go away by itself.
+        ok = wait_until_no_stuck_ports(100)
+    after
+        Stop()
+    end.
+
+%% Client-side TCP ports with output still queued in the port: the signature of
+%% a connection whose peer stopped reading.
+stuck_ports() ->
+    [P || P <- erlang:ports(),
+          {name, "tcp_inet"} =:= erlang:port_info(P, name),
+          {queue_size, Queued} <- [erlang:port_info(P, queue_size)],
+          Queued > 0].
+
+wait_until_no_stuck_ports(0) ->
+    ct:fail("Sockets with unsent output are still open: ~p", [[{P, erlang:port_info(P, queue_size)} || P <- stuck_ports()]]);
+wait_until_no_stuck_ports(Retries) ->
+    case stuck_ports() of
+        [] -> ok;
+        _ -> timer:sleep(50), wait_until_no_stuck_ports(Retries - 1)
+    end.
+
+%% A server with a tiny receive buffer that accepts connections (completing the
+%% TLS handshake for tls) and never reads from them. Returns the port and a fun
+%% that stops it.
+start_non_reading_server(tcp) ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {reuseaddr, true}, {ip, {127, 0, 0, 1}}, {recbuf, 4096}]),
+    {ok, Port} = inet:port(Listen),
+    Acceptor = spawn_link(fun() -> non_reading_accept_loop(tcp, Listen) end),
+    {Port, fun() -> unlink(Acceptor), exit(Acceptor, kill), gen_tcp:close(Listen) end};
+start_non_reading_server(tls) ->
+    #{server_config := ServerConfig} = public_key:pkix_test_data(#{
+        server_chain => #{root => [{key, {rsa, 2048, 17}}], intermediates => [], peer => [{key, {rsa, 2048, 17}}]},
+        client_chain => #{root => [{key, {rsa, 2048, 17}}], intermediates => [], peer => [{key, {rsa, 2048, 17}}]}
+    }),
+    {ok, Listen} = ssl:listen(0, ServerConfig ++ [binary, {active, false}, {reuseaddr, true}, {ip, {127, 0, 0, 1}}, {recbuf, 4096}]),
+    {ok, {_, Port}} = ssl:sockname(Listen),
+    Acceptor = spawn_link(fun() -> non_reading_accept_loop(tls, Listen) end),
+    {Port, fun() -> unlink(Acceptor), exit(Acceptor, kill), ssl:close(Listen) end}.
+
+%% Accepted sockets are handed to processes linked to the acceptor, so that
+%% stopping the server closes them too.
+non_reading_accept_loop(tcp, Listen) ->
+    case gen_tcp:accept(Listen) of
+        {ok, Socket} ->
+            Holder = spawn_link(fun() -> receive stop -> ok end end),
+            ok = gen_tcp:controlling_process(Socket, Holder),
+            non_reading_accept_loop(tcp, Listen);
+        {error, _} ->
+            ok
+    end;
+non_reading_accept_loop(tls, Listen) ->
+    case ssl:transport_accept(Listen) of
+        {ok, Transport} ->
+            case ssl:handshake(Transport, 5000) of
+                {ok, Socket} ->
+                    Holder = spawn_link(fun() -> receive stop -> ok end end),
+                    ok = ssl:controlling_process(Socket, Holder);
+                _ ->
+                    ok
+            end,
+            non_reading_accept_loop(tls, Listen);
+        {error, _} ->
             ok
     end.

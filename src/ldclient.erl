@@ -97,7 +97,9 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       full-fidelity payloads are dropped at `events_capacity'.</li>
 %%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
 %%       waits for the events endpoint to answer; a timeout is a temporary
-%%       failure (retried once), so a stalled endpoint cannot pin a worker.</li>
+%%       failure (retried once), so a stalled endpoint cannot pin a worker. A
+%%       connection whose peer stopped reading is reset and released when the
+%%       request times out, instead of lingering with the unsent body.</li>
 %%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
 %%       workers, i.e. how many requests the pool makes to the events endpoint
 %%       at once, as in the other server-side SDKs.</li>
