@@ -24,6 +24,7 @@
     stop_releases_the_instance_profile/1,
     error_responses_carry_the_status_code/1,
     init_works_without_the_default_httpc_profile/1,
+    inherited_socket_options_are_kept/1,
     stalled_connections_are_released_after_the_request_timeout/1,
     stalled_tls_connections_are_released_after_the_request_timeout/1
 ]).
@@ -43,6 +44,7 @@ all() ->
         stop_releases_the_instance_profile,
         error_responses_carry_the_status_code,
         init_works_without_the_default_httpc_profile,
+        inherited_socket_options_are_kept,
         stalled_connections_are_released_after_the_request_timeout,
         stalled_tls_connections_are_released_after_the_request_timeout
     ].
@@ -252,11 +254,29 @@ init_works_without_the_default_httpc_profile(_) ->
     try
         {error, inets_not_started} = httpc:get_options(all),
         #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
-        {ok, [{max_keep_alive_length, 0}]} = httpc:get_options([max_keep_alive_length], Profile)
+        {ok, [{max_keep_alive_length, 0}]} = httpc:get_options([max_keep_alive_length], Profile),
+        {ok, [{socket_opts, [{linger, {true, 0}}]}]} = httpc:get_options([socket_opts], Profile)
     after
         {ok, _} = inets:start(httpc, [{profile, default}])
     end,
     {ok, _} = httpc:get_options(all).
+
+%% Socket options an application set on the default profile, whatever their
+%% shape, reach the instance profile; only a linger of its own is replaced.
+inherited_socket_options_are_kept(_) ->
+    {ok, [{socket_opts, Before}]} = httpc:get_options([socket_opts]),
+    UserTimeout = {raw, 6, 18, <<7000:32/native>>},
+    ok = httpc:set_options([{socket_opts, [UserTimeout, {nodelay, true}, {linger, {true, 5}}]}]),
+    try
+        #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+        {ok, [{socket_opts, Opts}]} = httpc:get_options([socket_opts], Profile),
+        true = lists:member(UserTimeout, Opts),
+        true = lists:member({nodelay, true}, Opts),
+        true = lists:member({linger, {true, 0}}, Opts),
+        false = lists:member({linger, {true, 5}}, Opts)
+    after
+        ok = httpc:set_options([{socket_opts, Before}])
+    end.
 
 %% An endpoint that accepts the connection and then never reads leaves the
 %% request body queued in the socket. The request times out as a temporary
@@ -280,26 +300,34 @@ stalled_connection_is_released(Transport, Tag) ->
         Elapsed = erlang:monotonic_time(millisecond) - T0,
         ct:pal("~p request against a non-reading endpoint timed out after ~b ms", [Transport, Elapsed]),
         true = Elapsed < 2500,
-        %% The socket that still holds the unsent body must go away by itself.
-        ok = wait_until_no_stuck_ports(100)
+        %% The socket that still holds the unsent body must go away by itself:
+        %% at once over tcp, within ssl's own close timeout (5 s) over tls.
+        ok = wait_until_no_stuck_ports(Port, 200)
     after
         Stop()
     end.
 
-%% Client-side TCP ports with output still queued in the port: the signature of
-%% a connection whose peer stopped reading.
-stuck_ports() ->
+%% Client-side TCP ports to the test server with output still queued in the
+%% port: the signature of a connection whose peer stopped reading.
+stuck_ports(ServerPort) ->
     [P || P <- erlang:ports(),
           {name, "tcp_inet"} =:= erlang:port_info(P, name),
+          connected_to(P, ServerPort),
           {queue_size, Queued} <- [erlang:port_info(P, queue_size)],
           Queued > 0].
 
-wait_until_no_stuck_ports(0) ->
-    ct:fail("Sockets with unsent output are still open: ~p", [[{P, erlang:port_info(P, queue_size)} || P <- stuck_ports()]]);
-wait_until_no_stuck_ports(Retries) ->
-    case stuck_ports() of
+connected_to(Port, ServerPort) ->
+    case catch inet:peername(Port) of
+        {ok, {_, ServerPort}} -> true;
+        _ -> false
+    end.
+
+wait_until_no_stuck_ports(ServerPort, 0) ->
+    ct:fail("Sockets with unsent output are still open: ~p", [[{P, erlang:port_info(P, queue_size)} || P <- stuck_ports(ServerPort)]]);
+wait_until_no_stuck_ports(ServerPort, Retries) ->
+    case stuck_ports(ServerPort) of
         [] -> ok;
-        _ -> timer:sleep(50), wait_until_no_stuck_ports(Retries - 1)
+        _ -> timer:sleep(50), wait_until_no_stuck_ports(ServerPort, Retries - 1)
     end.
 
 %% A server with a tiny receive buffer that accepts connections (completing the

@@ -196,7 +196,7 @@ init([Tag]) ->
         ldclient_event_process_server:ets_table_name(Tag),
         [set, named_table, public, {read_concurrency, true}]
     ),
-    CountersRef = counters:new(?COUNTER_SLOTS, [write_concurrency]),
+    CountersRef = counters_ref(Tag, ShedThreshold, InboxCapacity),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -233,11 +233,8 @@ init([Tag]) ->
     %% The server is registered before `init/1' runs and callers admit without
     %% counting while no counters are published, so publish them first, with
     %% the gate closed: callers shed for the few milliseconds the pool takes to
-    %% start instead of filling the mailbox uncounted. The forced resync below
-    %% opens the gate once there is a worker to deliver to.
-    ok = close_gate(State),
-    ok = carry_over_drops(Tag, CountersRef),
-    persistent_term:put({?COUNTERS_KEY, Tag}, {CountersRef, ShedThreshold, InboxCapacity}),
+    %% start instead of filling the mailbox uncounted (`counters_ref/3'). The
+    %% forced resync below opens the gate once there is a worker to deliver to.
     %% Any workers left over from a previous incarnation are stale.
     ok = ldclient_event_worker_sup:stop_all(Tag),
     InitialState = start_workers(State, PoolSize),
@@ -247,6 +244,9 @@ init([Tag]) ->
             %% (as the previous single-process pipeline did) instead of
             %% accepting events into a pool that cannot deliver them.
             _ = ldclient_event_buffer:delete(Buffer),
+            %% Drops counted while this attempt ran would otherwise vanish with
+            %% the counters.
+            _ = report_dropped(State),
             _ = erase_counters(State),
             _ = stop_dispatcher(Tag),
             {stop, {event_workers_unavailable, Tag}};
@@ -577,20 +577,40 @@ take_drops(Ref, Slot) ->
             0
     end.
 
-%% @doc Drops counted against a previous incarnation's counters (callers shed
-%% while the server restarted after a crash) would otherwise never be
-%% reported; the new incarnation reports them with its first flush.
+%% @doc The counters callers read for admission, published with the gate
+%% closed. A crashed incarnation leaves its counters published and closed (see
+%% `terminate/2'); they are reused, so the drops callers counted while the
+%% server restarted are reported by the new incarnation's first flush without
+%% any hand-over (a hand-over leaves a window in which callers count against
+%% counters nobody reads again), and the `persistent_term' entry is not
+%% replaced (a replacement scans every process heap). Fresh counters are
+%% created otherwise, or when the bounds changed.
 %% @end
--spec carry_over_drops(Tag :: atom(), counters:counters_ref()) -> ok.
-carry_over_drops(Tag, NewRef) ->
+-spec counters_ref(Tag :: atom(), pos_integer(), pos_integer()) -> counters:counters_ref().
+counters_ref(Tag, ShedThreshold, InboxCapacity) ->
     case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
-        {OldRef, _, _} ->
-            lists:foreach(
-                fun(Slot) -> counters:add(NewRef, Slot, take_drops(OldRef, Slot)) end,
-                [?INBOX_DROPS, ?THRESHOLD_DROPS]);
-        undefined ->
-            ok
+        {Ref, ShedThreshold, InboxCapacity} ->
+            counters:put(Ref, ?INFLIGHT, InboxCapacity),
+            counters:put(Ref, ?DEPTH, 0),
+            Ref;
+        Previous ->
+            Ref = counters:new(?COUNTER_SLOTS, [write_concurrency]),
+            counters:put(Ref, ?INFLIGHT, InboxCapacity),
+            persistent_term:put({?COUNTERS_KEY, Tag}, {Ref, ShedThreshold, InboxCapacity}),
+            carry_over_drops(Previous, Ref),
+            Ref
     end.
+
+%% Counters published with other bounds (not expected for one tag, whose
+%% settings are fixed for its lifetime) are drained once the new ones are
+%% published.
+-spec carry_over_drops(undefined | {counters:counters_ref(), pos_integer(), pos_integer()}, counters:counters_ref()) -> ok.
+carry_over_drops(undefined, _NewRef) ->
+    ok;
+carry_over_drops({OldRef, _, _}, NewRef) ->
+    lists:foreach(
+        fun(Slot) -> counters:add(NewRef, Slot, take_drops(OldRef, Slot)) end,
+        [?INBOX_DROPS, ?THRESHOLD_DROPS]).
 
 -spec update_counters(state()) -> state().
 update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
@@ -682,9 +702,17 @@ start_flush(State0, Trigger) ->
             rearm_if_timer(State, Trigger);
         true ->
             State1 = ensure_workers(State),
-            case maps:get(idle_workers, State1) of
-                [] -> defer_flush(rearm_if_timer(State1, Trigger));
-                _ -> open_window(State1, Trigger)
+            case State1 of
+                #{flushing := true} ->
+                    %% A window is still open and `ensure_workers' has just
+                    %% replaced a worker that could not be started earlier while
+                    %% the window's batches wait. Feed the window instead of
+                    %% reopening it, and run this flush when it completes.
+                    defer_flush(rearm_if_timer(maybe_drain(State1), Trigger));
+                #{idle_workers := []} ->
+                    defer_flush(rearm_if_timer(State1, Trigger));
+                _ ->
+                    open_window(State1, Trigger)
             end
     end.
 
@@ -727,8 +755,8 @@ open_window(#{summary_event := SummaryEvent, pending_summaries := Pending, event
         _ -> Pending ++ [SummaryEvent]
     end,
     %% Everything buffered now belongs to this window. A window is only opened
-    %% while a worker is idle, which implies no other window is in progress, so
-    %% at most one summary is ever pending.
+    %% when no other window is in progress (`start_flush/2' feeds an open one
+    %% instead), so at most one summary is ever pending.
     drain(State#{
         summary_event := #{},
         pending_summaries := NewPending,
@@ -760,7 +788,7 @@ dropped_message(capacity, Count, #{tag := Tag, capacity := Capacity}) ->
     {"Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
      [Capacity, Tag, Count]};
 dropped_message(inbox, Count, #{tag := Tag, inbox_capacity := InboxCapacity}) ->
-    {"Exceeded event inbox capacity (~b) for ~p: ~b events were discarded before reaching the buffer since the last flush, and the evaluations among them are missing from the summary. Events are produced faster than the event server processes them.",
+    {"Exceeded event inbox capacity (~b) for ~p: ~b events were discarded before reaching the buffer since the last flush (they arrived faster than the event server processed them, or while it was starting), and the evaluations among them are missing from the summary.",
      [InboxCapacity, Tag, Count]};
 dropped_message(shed_threshold, Count, #{tag := Tag, shed_threshold := ShedThreshold}) ->
     {"Exceeded event shed threshold (~b) for ~p: ~b identify and custom events were discarded since the last flush. Increase events_capacity (and events_shed_threshold, if set) to keep them.",

@@ -129,9 +129,9 @@ handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime}, State) ->
+handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus}, State) ->
     %% The scheduled retry timer has fired; resend the same bytes.
-    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State),
+    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State),
     {noreply, NewState};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -328,12 +328,15 @@ do_send(OutputEvents, PayloadId, StartTime, #{tag := Tag} = State) ->
     %% is dropped and reported exactly once, and the counts reported below
     %% describe what is actually sent.
     case encode(OutputEvents, Tag) of
-        {ok, JsonEvents, Count} -> attempt(JsonEvents, Count, PayloadId, 0, StartTime, State);
+        {ok, JsonEvents, Count} -> attempt(JsonEvents, Count, PayloadId, 0, StartTime, undefined, State);
         empty -> State
     end.
 
--spec attempt(binary(), pos_integer(), uuid:uuid(), non_neg_integer(), integer(), state()) -> state().
-attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
+%% `PreviousStatus' is the status code of the first attempt's response, if it
+%% had one, so that a batch whose retry got no response is still reported with
+%% the status of the last response received.
+-spec attempt(binary(), pos_integer(), uuid:uuid(), non_neg_integer(), integer(), pos_integer() | undefined, state()) -> state().
+attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State) ->
     #{
         dispatcher := Dispatcher,
         events_uri := Uri,
@@ -352,26 +355,39 @@ attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, State) ->
         {error, temporary, Reason, StatusCode} when Attempt =:= 0 ->
             emit_send_error(Tag, temporary, StatusCode),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
-            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime}),
+            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime, StatusCode}),
             State;
         {error, temporary, Reason, StatusCode} ->
             emit_send_error(Tag, temporary, StatusCode),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
-            emit_flush(Tag, Count, Size, StartTime, failed, StatusCode),
+            emit_flush(Tag, Count, Size, StartTime, failed, last_response(StatusCode, PreviousStatus)),
             State;
         {error, permanent, Reason, StatusCode} ->
             emit_send_error(Tag, permanent, StatusCode),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
-            emit_flush(Tag, Count, Size, StartTime, failed, StatusCode),
+            emit_flush(Tag, Count, Size, StartTime, failed, last_response(StatusCode, PreviousStatus)),
             State
     end.
 
 %% A dispatcher reports the status code of an HTTP error response; a failure
-%% without a response (a network error or a timeout) has none.
+%% without a response (a network error or a timeout) has none. Anything that is
+%% not an HTTP status code is ignored rather than handed to telemetry handlers.
 -spec with_status(ldclient_event_dispatch:send_result()) ->
     {ok, integer()} | {error, temporary | permanent, string(), pos_integer() | undefined}.
-with_status({error, Type, Reason}) -> {error, Type, Reason, undefined};
-with_status(Result) -> Result.
+with_status({error, Type, Reason}) ->
+    {error, Type, Reason, undefined};
+with_status({error, Type, Reason, StatusCode}) when is_integer(StatusCode), StatusCode >= 100, StatusCode =< 599 ->
+    {error, Type, Reason, StatusCode};
+with_status({error, Type, Reason, _NotAStatusCode}) ->
+    {error, Type, Reason, undefined};
+with_status(Result) ->
+    Result.
+
+%% The status of the last response received: the retry's if it got one, else
+%% the first attempt's.
+-spec last_response(pos_integer() | undefined, pos_integer() | undefined) -> pos_integer() | undefined.
+last_response(undefined, PreviousStatus) -> PreviousStatus;
+last_response(StatusCode, _PreviousStatus) -> StatusCode.
 
 %% @doc Report one failed delivery attempt, with the HTTP status code when the
 %% endpoint answered.

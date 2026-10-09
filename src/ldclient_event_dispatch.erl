@@ -29,7 +29,8 @@
 -callback init(Tag :: atom(), SdkKey :: string()) -> any().
 
 %% `stop' releases anything `init' set up per instance (for example an httpc
-%% profile). It is called once when the instance's event pipeline stops.
+%% profile). It is called when the instance's event pipeline stops, including
+%% after a failed start, and must tolerate being called more than once.
 -callback stop(Tag :: atom()) -> ok.
 
 -optional_callbacks([stop/1]).

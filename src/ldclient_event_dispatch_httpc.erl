@@ -96,7 +96,7 @@ ensure_profile(Tag) ->
         {error, {already_started, _}} -> ok
     end,
     MaxWorkers = ldclient_config:get_value(Tag, events_flush_workers),
-    Inherited = inherited_options(),
+    Inherited = inherited_options(Tag),
     Options = lists:keydelete(socket_opts, 1, Inherited) ++ [
         {socket_opts, socket_options(proplists:get_value(socket_opts, Inherited, []))},
         {max_sessions, MaxWorkers},
@@ -109,15 +109,15 @@ ensure_profile(Tag) ->
 %% (a proxy, for example) must keep applying to event delivery. An application
 %% that has stopped the default profile gets none of them, with a warning,
 %% rather than an instance whose event pipeline cannot start.
--spec inherited_options() -> [{atom(), term()}].
-inherited_options() ->
+-spec inherited_options(Tag :: atom()) -> [{atom(), term()}].
+inherited_options(Tag) ->
     case httpc:get_options(all) of
         {ok, Options} ->
             [Opt || {Key, Value} = Opt <- Options, lists:member(Key, ?INHERITED_PROFILE_OPTIONS), is_set(Key, Value)];
         {error, Reason} ->
             error_logger:warning_msg(
-                "Could not read the options of the default httpc profile (~p); event delivery inherits none of them",
-                [Reason]),
+                "Could not read the options of the default httpc profile (~p); event delivery for ~p inherits none of them",
+                [Reason, Tag]),
             []
     end.
 
@@ -142,11 +142,18 @@ is_set(_, _) -> true.
 %% never arms. Zero linger makes a close discard whatever is still queued and
 %% release the port immediately (an abortive close, i.e. a reset instead of a
 %% FIN, also when an idle keep-alive connection is closed; by then its
-%% responses have been read, so nothing is lost). Options an application set
-%% on the default profile are kept, except an explicit linger of its own.
--spec socket_options(Inherited :: [{atom(), term()}]) -> [{atom(), term()}].
+%% responses have been read, so nothing is lost). A request still uploading
+%% its body when the request timeout expires is therefore cut off and retried
+%% once, so `events_request_timeout' must cover the upload of a full payload.
+%% Options an application set on the default profile are kept (whatever their
+%% shape: pairs, `{raw, _, _, _}', atoms), except an explicit linger of its own.
+-spec socket_options(Inherited :: [gen_tcp:option() | term()]) -> [gen_tcp:option() | term()].
 socket_options(Inherited) ->
-    [Opt || {Key, _} = Opt <- Inherited, Key =/= linger] ++ [{linger, {true, 0}}].
+    [Opt || Opt <- Inherited, not is_linger(Opt)] ++ [{linger, {true, 0}}].
+
+-spec is_linger(term()) -> boolean().
+is_linger({linger, _}) -> true;
+is_linger(_) -> false.
 
 -type http_request() :: {ok, {{string(), integer(), string()}, [{string(), string()}], string() | binary()}}.
 

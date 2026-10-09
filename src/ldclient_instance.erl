@@ -113,6 +113,10 @@ start(Tag, SdkKey, Options) ->
             start_updater(UpdateSupName, UpdateWorkerModule, Tag);
         {error, {already_started, Pid}} ->
             {error, already_started, Pid};
+        {error, already_present} ->
+            %% The instance exists but its supervisor is between restart
+            %% attempts; it keeps its settings.
+            {error, already_started, restarting};
         {error, Reason} ->
             %% Nothing of the instance exists once its supervisor failed to
             %% start, except the settings registered above.

@@ -99,7 +99,10 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       waits for the events endpoint to answer; a timeout is a temporary
 %%       failure (retried once), so a stalled endpoint cannot pin a worker. A
 %%       connection whose peer stopped reading is reset and released when the
-%%       request times out, instead of lingering with the unsent body.</li>
+%%       request times out (within about 5 seconds for TLS), instead of
+%%       lingering with the unsent body; a request still uploading its body
+%%       at that point is cut off too, so the timeout must cover the upload
+%%       of a full payload on the slowest expected link.</li>
 %%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
 %%       workers, i.e. how many requests the pool makes to the events endpoint
 %%       at once, as in the other server-side SDKs.</li>
@@ -125,10 +128,11 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       metadata contains the `outcome' (`succeeded' or `failed') and, when
 %%       the last response was an HTTP error, its `status_code'. A `failed'
 %%       batch has been discarded.</li>
-%%   <li>`[ldclient, events, dropped]' - emitted once per flush window (and at
-%%       shutdown) for each `reason' with a non-zero count since the previous
-%%       window; measurement `count' is the number of events discarded before
-%%       delivery. Reasons: `capacity' (full-fidelity events dropped because
+%%   <li>`[ldclient, events, dropped]' - emitted at every flush (including one
+%%       that is deferred or finds nothing to send) and at shutdown, for each
+%%       `reason' with a non-zero count since the previous report; measurement
+%%       `count' is the number of events discarded before delivery. Reasons:
+%%       `capacity' (full-fidelity events dropped because
 %%       the buffer was at `events_capacity'; their evaluations are still in
 %%       the summary), `inbox' (events shed by the caller because the event
 %%       server's queue was at `events_inbox_capacity'; evaluations among them
@@ -162,22 +166,25 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% The `flush' and `dropped' events carry what the LaunchDarkly OpenTelemetry
 %% metrics specification derives from its `eventFlushCompleted' hook, so a
 %% handler can record its instruments without the SDK depending on
-%% OpenTelemetry: `launchdarkly.sdk.events.flushes' (1 per `flush'),
-%% `events.batch.size' (`count'), `events.flush.duration' (`duration' in
-%% seconds), `events.sent' and `events.sent.size' (`count' and `size' of a
-%% `succeeded' flush), `events.failed' (`count' of a `failed' flush, with
-%% `error.type' the `status_code' as a string or `"_OTHER"' and
-%% `http.response.status_code' the `status_code' when present) and
-%% `events.dropped' (`count' of every `dropped' event; `unencodable' is not a
-%% buffer-full drop and may be left out). The `outcome' values are the
-%% specification's.
+%% OpenTelemetry: `launchdarkly.sdk.events.flushes' (1 per `flush', with the
+%% `outcome'), `events.batch.size' (`count'), `events.flush.duration'
+%% (`duration', converted from native units to seconds with
+%% `erlang:convert_time_unit/3'), `events.sent' and `events.sent.size'
+%% (`count' and `size' of a `succeeded' flush), `events.failed' (`count' of a
+%% `failed' flush) and `events.dropped' (`count' of every `dropped' event;
+%% `unencodable' is not a buffer-full drop and may be left out). On a `failed'
+%% flush, `events.failed' and `events.flushes' carry `error.type' (the
+%% `status_code' as a string, or `"_OTHER"' when there is none) and
+%% `http.response.status_code' (the `status_code', when present). The
+%% `outcome' values are the specification's.
 %%
 %% == Errors ==
 %%
 %% Returns `{error, already_started, Pid}' when an instance with this tag is
-%% running, and `{error, start_failed, Reason}' when the instance's processes
-%% could not be started (for example because no event reporter worker could
-%% start); nothing of the instance is left behind in that case.
+%% running (`{error, already_started, restarting}' while its supervisor is
+%% restarting it), and `{error, start_failed, Reason}' when the instance's
+%% processes could not be started (for example because no event reporter
+%% worker could start); nothing of the instance is left behind in that case.
 %%
 %% @end
 -spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->

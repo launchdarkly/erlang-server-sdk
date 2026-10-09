@@ -39,6 +39,11 @@
     drops_counted_during_a_restart_are_reported_by_the_next_incarnation/1,
     failed_flush_telemetry_carries_the_status_code/1,
     start_instance_fails_cleanly_when_no_worker_can_start/1,
+    drops_are_reported_when_the_pool_fails_to_start/1,
+    a_flush_during_an_open_window_feeds_it_instead_of_reopening/1,
+    failed_flush_telemetry_keeps_the_last_response_status_code/1,
+    non_integer_status_codes_are_not_reported/1,
+    start_instance_during_a_restart_keeps_the_instance/1,
     pool_never_exceeds_its_size/1,
     capacity_drops_are_reported_when_the_server_restarts/1,
     published_counts_only_sent_events/1,
@@ -79,6 +84,11 @@ all() ->
         drops_counted_during_a_restart_are_reported_by_the_next_incarnation,
         failed_flush_telemetry_carries_the_status_code,
         start_instance_fails_cleanly_when_no_worker_can_start,
+        drops_are_reported_when_the_pool_fails_to_start,
+        a_flush_during_an_open_window_feeds_it_instead_of_reopening,
+        failed_flush_telemetry_keeps_the_last_response_status_code,
+        non_integer_status_codes_are_not_reported,
+        start_instance_during_a_restart_keeps_the_instance,
         pool_never_exceeds_its_size,
         capacity_drops_are_reported_when_the_server_restarts,
         published_counts_only_sent_events,
@@ -962,17 +972,16 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
         %% An event without a context crashes the handler.
         ok = gen_server:cast(ServerName, {add_event, #{type => identify}, Tag, #{}}),
         _Pid2 = wait_new_pid(ServerName, Pid1, 300),
-        %% The crashed incarnation left its gate closed, so callers holding the
-        %% old counters shed; the new incarnation published fresh, open ones.
-        100 = counters:get(Ref1, 2),
-        {Ref2, _, 100} = persistent_term:get(Key),
-        true = Ref1 =/= Ref2,
-        true = counters:get(Ref2, 2) < 100,
+        %% The crashed incarnation left its counters published with the gate
+        %% closed, so callers shed meanwhile; the new incarnation reuses them
+        %% and reopens the gate once it has a worker.
+        {Ref1, _, 100} = persistent_term:get(Key),
+        true = counters:get(Ref1, 2) < 100,
         %% Reservations leaked by callers that died between their add and their
         %% cast are clamped back to the real mailbox length on the next tick.
-        counters:add(Ref2, 2, 7),
+        counters:add(Ref1, 2, 7),
         timer:sleep(200),
-        true = counters:get(Ref2, 2) =< 1,
+        true = counters:get(Ref1, 2) =< 1,
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"gate-user">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:flush(Tag),
@@ -982,9 +991,10 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
     end,
     undefined = persistent_term:get(Key, undefined).
 
-%% Callers shed against the counters of a crashed incarnation until the next
-%% one publishes its own. Those drops are carried over and reported by the new
-%% incarnation's first flush instead of being lost with the old counters.
+%% Callers shed against the counters a crashed incarnation left published. The
+%% next incarnation reuses them, so every drop counted meanwhile (including by
+%% a caller that read the counters just before the restart) is reported by its
+%% first flush, and nothing is lost in a hand-over.
 drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
     Tag = carry_over,
     Key = {ldclient_event_server_counters, Tag},
@@ -1008,13 +1018,12 @@ drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
     register_collector(),
     try
         ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100})),
-        {Ref, _, 100} = persistent_term:get(Key),
-        true = Ref =/= Previous,
-        0 = counters:get(Previous, 3),
-        0 = counters:get(Previous, 4),
+        {Previous, 1000, 100} = persistent_term:get(Key),
+        %% A caller that still holds the previous counters counts into the same place.
+        counters:add(Previous, 3, 1),
         ok = ldclient_event_server:flush(Tag),
         receive
-            {dropped, #{count := 4}, #{tag := Tag, reason := inbox}} -> ok
+            {dropped, #{count := 5}, #{tag := Tag, reason := inbox}} -> ok
         after 1000 ->
             ct:fail("Expected the inbox drops of the previous incarnation to be reported")
         end,
@@ -1037,8 +1046,11 @@ start_instance_fails_cleanly_when_no_worker_can_start(_) ->
     Tag = no_workers,
     register_collector(),
     Children = length(supervisor:which_children(ldclient_sup)),
-    Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_init_fail}),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
+    ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, true),
+    Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_controlled}),
     {error, start_failed, _Reason} = ldclient:start_instance("", Tag, Options),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
     receive
         {dispatcher_stopped, Tag} -> ok
     after 1000 ->
@@ -1052,6 +1064,231 @@ start_instance_fails_cleanly_when_no_worker_can_start(_) ->
     ok = ldclient_event_server:add_event(publisher, identify_event(<<"still-up">>), #{}),
     ok = ldclient_event_server:flush(publisher),
     _ = collect_payload_with_key(<<"still-up">>, 3000).
+
+%% Drops counted while a restart attempt runs are reported even when that
+%% attempt fails, instead of vanishing with the counters it erases.
+drops_are_reported_when_the_pool_fails_to_start(_) ->
+    Tag = no_workers_drops,
+    Key = {ldclient_event_server_counters, Tag},
+    HandlerId = {?MODULE, drops_are_reported_when_the_pool_fails_to_start, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, dropped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {dropped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    Previous = counters:new(4, [write_concurrency]),
+    counters:put(Previous, 2, 100),
+    counters:add(Previous, 3, 4),
+    persistent_term:put(Key, {Previous, 1000, 100}),
+    register_collector(),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
+    ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, true),
+    try
+        Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_controlled, events_inbox_capacity => 100}),
+        {error, start_failed, _} = ldclient:start_instance("", Tag, Options),
+        receive
+            {dropped, #{count := 4}, #{tag := Tag, reason := inbox}} -> ok
+        after 1000 ->
+            ct:fail("Expected the drops counted before the failed start to be reported")
+        end,
+        undefined = persistent_term:get(Key, undefined)
+    after
+        telemetry:detach(HandlerId),
+        ok = ldclient_event_dispatch_controlled:reset(Tag),
+        _ = persistent_term:erase(Key)
+    end.
+
+%% While a window is open with batches waiting for a worker, a flush that
+%% manages to start a replacement for a worker lost earlier hands the waiting
+%% batches to it and defers itself, instead of reopening the window.
+a_flush_during_an_open_window_feeds_it_instead_of_reopening(_) ->
+    Tag = reopen,
+    HandlerId = {?MODULE, a_flush_during_an_open_window_feeds_it_instead_of_reopening, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, flush_skipped],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {flush_skipped, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
+    ok = ldclient_event_dispatch_controlled:set(Tag, send_delay_ms, 400),
+    WorkerSup = ldclient_event_worker_sup:get_sup_name(Tag),
+    Keys = [<<"w1">>, <<"w2">>, <<"w3">>, <<"w4">>, <<"w5">>],
+    try
+        ok = ldclient:start_instance("", Tag, instance_options(#{
+            events_dispatcher => ldclient_event_dispatch_controlled,
+            events_flush_workers => 2,
+            events_batch_size => 1
+        })),
+        %% Lose a worker while its replacement cannot start: the pool is one short.
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, true),
+        [Victim | _] = worker_pids(WorkerSup),
+        exit(Victim, kill),
+        wait_until(fun() -> length(worker_pids(WorkerSup)) =:= 1 end, 200),
+        [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- lists:sublist(Keys, 3)],
+        wait_for_event_count(Tag, 3),
+        %% The window opens; the one worker takes w1 and w2, w3 wait for it.
+        ok = ldclient_event_server:flush(Tag),
+        wait_for_event_count(Tag, 2),
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, false),
+        [ok = ldclient_event_server:add_event(Tag, identify_event(K), #{}) || K <- lists:nthtail(3, Keys)],
+        wait_for_event_count(Tag, 4),
+        %% This flush starts the replacement. It must feed the open window and defer.
+        ok = ldclient_event_server:flush(Tag),
+        receive
+            {flush_skipped, #{count := 1}, #{tag := Tag}} -> ok
+        after 1000 ->
+            ct:fail("Expected the flush against an open window to be deferred")
+        end,
+        Payloads = collect_payloads(5),
+        Delivered = lists:sort([event_context_key(E) || P <- Payloads, E <- P]),
+        Delivered = lists:sort(Keys),
+        receive
+            {flush_skipped, _, #{tag := Tag}} -> ct:fail("The deferred flush was skipped again")
+        after 200 ->
+            ok
+        end,
+        2 = length(worker_pids(WorkerSup))
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag)),
+        ok = ldclient_event_dispatch_controlled:reset(Tag)
+    end.
+
+%% When the retry gets no response, the failed flush reports the status code
+%% of the last response received, the first attempt's.
+failed_flush_telemetry_keeps_the_last_response_status_code(_) ->
+    Tag = status_then_network,
+    HandlerId = {?MODULE, failed_flush_telemetry_keeps_the_last_response_status_code, self()},
+    Self = self(),
+    ok = telemetry:attach_many(
+        HandlerId,
+        [[ldclient, events, flush], [ldclient, events, send_error]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient:start_instance("sdk-key-events-503-then-network", Tag, instance_options(#{})),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"status-kept">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payloads(2),
+        receive
+            {send_error, _, #{tag := Tag, status_code := 503}} -> ok
+        after 1000 ->
+            ct:fail("Expected the first attempt's send_error to carry 503")
+        end,
+        receive
+            {send_error, _, #{tag := Tag} = Second} -> false = maps:is_key(status_code, Second)
+        after 1000 ->
+            ct:fail("Expected the retry's send_error without a status code")
+        end,
+        receive
+            {flush, #{count := 1}, #{tag := Tag, outcome := failed, status_code := 503}} -> ok
+        after 2000 ->
+            ct:fail("Expected the failed flush to carry the first attempt's 503")
+        end
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag))
+    end.
+
+%% A dispatcher that reports something other than an HTTP status code does not
+%% get it into the telemetry metadata, where handlers expect an integer.
+non_integer_status_codes_are_not_reported(_) ->
+    Tag = bad_status,
+    HandlerId = {?MODULE, non_integer_status_codes_are_not_reported, self()},
+    Self = self(),
+    ok = telemetry:attach_many(
+        HandlerId,
+        [[ldclient, events, flush], [ldclient, events, send_error]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    register_collector(),
+    try
+        ok = ldclient:start_instance("sdk-key-events-bad-status", Tag, instance_options(#{})),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"bad-status">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payloads(2),
+        receive
+            {send_error, _, #{tag := Tag, type := temporary} = Meta} -> false = maps:is_key(status_code, Meta)
+        after 1000 ->
+            ct:fail("Expected a send_error telemetry event")
+        end,
+        receive
+            {flush, _, #{tag := Tag, outcome := failed} = FlushMeta} -> false = maps:is_key(status_code, FlushMeta)
+        after 2000 ->
+            ct:fail("Expected a failed flush telemetry event")
+        end
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag))
+    end.
+
+%% While ldclient_sup is restarting an instance whose event server cannot
+%% start, start_instance for the same tag reports it as already started and
+%% leaves its settings alone, so the instance recovers once the cause clears.
+%% Kept last: it spends a few of ldclient_sup's restarts.
+start_instance_during_a_restart_keeps_the_instance(_) ->
+    Tag = restarting_instance,
+    SupName = list_to_atom("ldclient_instance_" ++ atom_to_list(Tag)),
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)),
+    register_collector(),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
+    Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_controlled}),
+    ok = ldclient:start_instance("", Tag, Options),
+    try
+        %% Every restart of the event server now fails, slowly. The failure
+        %% escalates through the event and instance supervisors to ldclient_sup,
+        %% which holds the instance as `restarting' while each attempt runs.
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, true),
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_delay_ms, 200),
+        gen_server:cast(ServerName, {add_event, #{type => identify}, Tag, #{}}),
+        wait_until(fun() -> instance_restarting(SupName) end, 1000),
+        Result = ldclient:start_instance("", Tag, Options),
+        %% The cause of the failures is gone.
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, false),
+        ok = ldclient_event_dispatch_controlled:set(Tag, init_delay_ms, 0),
+        {error, already_started, restarting} = Result,
+        true = lists:member(Tag, ldclient_config:get_registered_tags()),
+        %% Recovered: the event server is up and has opened its gate.
+        wait_until(fun() -> is_pid(whereis(ServerName)) andalso gate_open(Tag, 1000) end, 500),
+        true = lists:keymember(ldclient, 1, application:which_applications()),
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"recovered">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        _ = collect_payload_with_key(<<"recovered">>, 3000)
+    after
+        _ = (catch ldclient:stop_instance(Tag)),
+        ok = ldclient_event_dispatch_controlled:reset(Tag)
+    end.
+
+gate_open(Tag, InboxCapacity) ->
+    case persistent_term:get({ldclient_event_server_counters, Tag}, undefined) of
+        {Ref, _, _} -> counters:get(Ref, 2) < InboxCapacity;
+        undefined -> false
+    end.
+
+instance_restarting(SupName) ->
+    [restarting] =:= [Pid || {Id, Pid, _, _} <- supervisor:which_children(ldclient_sup), Id =:= SupName].
+
+worker_pids(WorkerSup) ->
+    [Pid || {_, Pid, _, _} <- supervisor:which_children(WorkerSup), is_pid(Pid)].
 
 %% A dispatcher that received an HTTP error response reports its status code,
 %% which the send_error and flush telemetry carry so a metrics handler can
