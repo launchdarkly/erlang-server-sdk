@@ -2,6 +2,25 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+%% emSign ECC Root CA - G3, one of the roots the SDK does not trust.
+-define(EMSIGN_ECC_ROOT_CA_G3_PEM, <<"
+-----BEGIN CERTIFICATE-----
+MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBrMQswCQYDVQQG
+EwJJTjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNo
+bm9sb2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
+RzMwHhcNMTgwMjE4MTgzMDAwWhcNNDMwMjE4MTgzMDAwWjBrMQswCQYDVQQGEwJJ
+TjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNobm9s
+b2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0gRzMw
+djAQBgcqhkjOPQIBBgUrgQQAIgNiAAQjpQy4LRL1KPOxst3iAhKAnjlfSU2fySU0
+WXTsuwYc58Byr+iuL+FBVIcUqEqy6HyC5ltqtdyzdc6LBtCGI79G1Y4PPwT01xyS
+fvalY8L1X44uT6EYGQIrMgqCZH0Wk9GjQjBAMB0GA1UdDgQWBBR8XQKEE9TMipuB
+zhccLikenEhjQjAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAKBggq
+hkjOPQQDAwNpADBmAjEAvvNhzwIQHWSVB7gYboiFBS+DCBeQyh+KTOgNG3qxrdWB
+CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD
++JbNR6iC8hZVdyR+EhCVBCyj
+-----END CERTIFICATE-----
+">>).
+
 %% ct functions
 -export([all/0]).
 -export([init_per_suite/1]).
@@ -21,6 +40,9 @@
     tls_with_ca_certfile_options/1,
     tls_basic_linux_options/1,
     with_tls_revocation/1,
+    without_distrusted_cas_removes_distrusted_roots/1,
+    without_distrusted_cas_keeps_other_roots/1,
+    tls_basic_certifi_options_excludes_distrusted_roots/1,
     app_info_options/1
 ]).
 
@@ -40,6 +62,9 @@ all() ->
         tls_with_ca_certfile_options,
         tls_basic_linux_options,
         with_tls_revocation,
+        without_distrusted_cas_removes_distrusted_roots,
+        without_distrusted_cas_keeps_other_roots,
+        tls_basic_certifi_options_excludes_distrusted_roots,
         app_info_options
     ].
 
@@ -59,6 +84,15 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+emsign_ecc_root_ca_g3_der() ->
+    [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(?EMSIGN_ECC_ROOT_CA_G3_PEM),
+    Der.
+
+%% A few certifi roots that are not distrusted.
+trusted_roots() ->
+    Distrusted = emsign_ecc_root_ca_g3_der(),
+    lists:sublist([Der || Der <- certifi:cacerts(), Der =/= Distrusted], 5).
 
 %%====================================================================
 %% Tests
@@ -136,7 +170,7 @@ tls_basic_options(_) ->
     case erlang:list_to_integer(erlang:system_info(otp_release)) >= 25 of
     true -> 
         BasicOptions = ldclient_config:tls_basic_options(),
-        CaCerts = public_key:cacerts_get(),
+        CaCerts = ldclient_config:without_distrusted_cas(public_key:cacerts_get()),
         [{cacerts, CaCerts},
         {verify, verify_peer},
         {ciphers, Ciphers},
@@ -198,6 +232,27 @@ with_tls_revocation(_) ->
         },
         {verify, verify_peer}
     ] = ldclient_config:with_tls_revocation([{verify, verify_peer}]).
+
+without_distrusted_cas_removes_distrusted_roots(_) ->
+    Der = emsign_ecc_root_ca_g3_der(),
+    Trusted = trusted_roots(),
+    %% DER-encoded certificates, as certifi:cacerts/0 returns them.
+    Trusted = ldclient_config:without_distrusted_cas([Der | Trusted]),
+    %% Combined certificates, as public_key:cacerts_get/0 returns them on OTP 25 and later.
+    Combined = [{cert, D, public_key:pkix_decode_cert(D, otp)} || D <- Trusted],
+    Combined = ldclient_config:without_distrusted_cas(
+        [{cert, Der, public_key:pkix_decode_cert(Der, otp)} | Combined]).
+
+without_distrusted_cas_keeps_other_roots(_) ->
+    Trusted = trusted_roots(),
+    5 = length(Trusted),
+    Trusted = ldclient_config:without_distrusted_cas(Trusted),
+    [] = ldclient_config:without_distrusted_cas([]).
+
+tls_basic_certifi_options_excludes_distrusted_roots(_) ->
+    {cacerts, CaCerts} = lists:keyfind(cacerts, 1, ldclient_config:tls_basic_certifi_options()),
+    false = lists:member(emsign_ecc_root_ca_g3_der(), CaCerts),
+    true = (length(CaCerts) > 0).
 
 app_info_options(_) ->
     #{application := undefined} = ldclient_config:parse_options("sdk-key", #{}),

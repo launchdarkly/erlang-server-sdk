@@ -21,6 +21,7 @@
 -export([with_tls_revocation/1]).
 -export([tls_basic_certifi_options/0]).
 -export([tls_basic_options/0]).
+-export([without_distrusted_cas/1]).
 -export([get_version/0]).
 
 -type http_options() :: #{
@@ -134,6 +135,20 @@
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
+
+%% SHA-256 fingerprints of root certificates the SDK does not trust. These block the
+%% compromised eMudhra intermediate CAs.
+%% https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
+-define(DISTRUSTED_ROOT_SHA256, [
+    %% emSign ECC Root CA - G3
+    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>,
+    %% emSign Root CA - C1
+    <<16#125609AA301DA0A249B97A8239CB6A34216F44DCAC9F3954B14292F2E8C8608F:256>>,
+    %% emSign ECC Root CA - C3
+    <<16#BC4D809B15189D78DB3E1D8CF4F9726A795DA1643CA5F1358E1DDB0EDC0D7EB3:256>>,
+    %% AAA Certificate Services (Comodo)
+    <<16#D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4:256>>
+]).
 
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
@@ -322,7 +337,7 @@ tls_basic_options() ->
 %% @end
 -spec tls_basic_erlef_options() -> [ssl:tls_client_option()].
 tls_basic_erlef_options() ->
-    CaCerts = public_key:cacerts_get(),
+    CaCerts = without_distrusted_cas(public_key:cacerts_get()),
     [
         {cacerts, CaCerts}
         | tls_base_options()
@@ -371,10 +386,24 @@ with_tls_revocation(Options) ->
 %% @end
 -spec tls_basic_certifi_options() -> [ssl:tls_client_option()].
 tls_basic_certifi_options() ->
-    CaCerts = certifi:cacerts(),
+    CaCerts = without_distrusted_cas(certifi:cacerts()),
     [
         {cacerts, CaCerts}
         | tls_base_options()].
+
+%% @doc Remove the root certificates the SDK does not trust from a list of CA certificates.
+%% The basic TLS options apply this to their certificate stores. Use it when building
+%% custom TLS options from a `cacerts' list, for example
+%% `[{cacerts, ldclient_config:without_distrusted_cas(public_key:cacerts_get())} | Options]'.
+%%
+%% The list may hold DER-encoded certificates, as `certifi:cacerts/0' returns, or the
+%% combined certificates that `public_key:cacerts_get/0' returns.
+%% @end
+-spec without_distrusted_cas(CaCerts :: [public_key:der_encoded() | tuple()]) ->
+    [public_key:der_encoded() | tuple()].
+without_distrusted_cas(CaCerts) ->
+    [Cert || Cert <- CaCerts,
+        not lists:member(crypto:hash(sha256, cert_der(Cert)), ?DISTRUSTED_ROOT_SHA256)].
 
 %%===================================================================
 %% Internal functions
@@ -450,6 +479,12 @@ tls_base_options() ->
         {customize_hostname_check, [
             {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
         ]}].
+
+%% public_key:cacerts_get/0 returns #cert{der, otp} records on OTP 25 and later. The record is
+%% matched as a tuple because public_key.hrl does not define it before OTP 25.
+-spec cert_der(Cert :: public_key:der_encoded() | tuple()) -> public_key:der_encoded().
+cert_der(Der) when is_binary(Der) -> Der;
+cert_der({cert, Der, _OtpCert}) -> Der.
 
 -spec tls_basic_options(CaStoreExists :: boolean()) -> [ssl:tls_client_option()].
 tls_basic_options(true) ->
