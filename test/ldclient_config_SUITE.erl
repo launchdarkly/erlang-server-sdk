@@ -2,7 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
-%% emSign ECC Root CA - G3, one of the roots the SDK does not trust.
+%% emSign ECC Root CA - G3, one of the roots removed from the bundled certifi store.
 -define(EMSIGN_ECC_ROOT_CA_G3_PEM, <<"
 -----BEGIN CERTIFICATE-----
 MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBrMQswCQYDVQQG
@@ -40,8 +40,6 @@ CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD
     tls_with_ca_certfile_options/1,
     tls_basic_linux_options/1,
     with_tls_revocation/1,
-    without_distrusted_cas_removes_distrusted_roots/1,
-    without_distrusted_cas_keeps_other_roots/1,
     tls_basic_certifi_options_excludes_distrusted_roots/1,
     app_info_options/1
 ]).
@@ -62,8 +60,6 @@ all() ->
         tls_with_ca_certfile_options,
         tls_basic_linux_options,
         with_tls_revocation,
-        without_distrusted_cas_removes_distrusted_roots,
-        without_distrusted_cas_keeps_other_roots,
         tls_basic_certifi_options_excludes_distrusted_roots,
         app_info_options
     ].
@@ -88,11 +84,6 @@ end_per_testcase(_, _Config) ->
 emsign_ecc_root_ca_g3_der() ->
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(?EMSIGN_ECC_ROOT_CA_G3_PEM),
     Der.
-
-%% A few certifi roots that are not distrusted.
-trusted_roots() ->
-    Distrusted = emsign_ecc_root_ca_g3_der(),
-    lists:sublist([Der || Der <- certifi:cacerts(), Der =/= Distrusted], 5).
 
 %%====================================================================
 %% Tests
@@ -170,7 +161,7 @@ tls_basic_options(_) ->
     case erlang:list_to_integer(erlang:system_info(otp_release)) >= 25 of
     true -> 
         BasicOptions = ldclient_config:tls_basic_options(),
-        CaCerts = ldclient_config:without_distrusted_cas(public_key:cacerts_get()),
+        CaCerts = public_key:cacerts_get(),
         [{cacerts, CaCerts},
         {verify, verify_peer},
         {ciphers, Ciphers},
@@ -233,26 +224,13 @@ with_tls_revocation(_) ->
         {verify, verify_peer}
     ] = ldclient_config:with_tls_revocation([{verify, verify_peer}]).
 
-without_distrusted_cas_removes_distrusted_roots(_) ->
-    Der = emsign_ecc_root_ca_g3_der(),
-    Trusted = trusted_roots(),
-    %% DER-encoded certificates, as certifi:cacerts/0 returns them.
-    Trusted = ldclient_config:without_distrusted_cas([Der | Trusted]),
-    %% Combined certificates, as public_key:cacerts_get/0 returns them on OTP 25 and later.
-    Combined = [{cert, D, public_key:pkix_decode_cert(D, otp)} || D <- Trusted],
-    Combined = ldclient_config:without_distrusted_cas(
-        [{cert, Der, public_key:pkix_decode_cert(Der, otp)} | Combined]).
-
-without_distrusted_cas_keeps_other_roots(_) ->
-    Trusted = trusted_roots(),
-    5 = length(Trusted),
-    Trusted = ldclient_config:without_distrusted_cas(Trusted),
-    [] = ldclient_config:without_distrusted_cas([]).
-
 tls_basic_certifi_options_excludes_distrusted_roots(_) ->
+    Certifi = certifi:cacerts(),
     {cacerts, CaCerts} = lists:keyfind(cacerts, 1, ldclient_config:tls_basic_certifi_options()),
     false = lists:member(emsign_ecc_root_ca_g3_der(), CaCerts),
-    true = (length(CaCerts) > 0).
+    %% Only the four distrusted roots can be removed; every other certifi root is kept.
+    true = lists:all(fun(Der) -> lists:member(Der, Certifi) end, CaCerts),
+    true = (length(Certifi) - length(CaCerts) =< 4).
 
 app_info_options(_) ->
     #{application := undefined} = ldclient_config:parse_options("sdk-key", #{}),
