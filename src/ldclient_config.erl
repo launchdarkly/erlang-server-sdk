@@ -135,16 +135,12 @@
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
 
-%% SHA-256 fingerprints of root certificates removed from the bundled certifi store. These
-%% block the compromised eMudhra intermediate CAs.
+%% SHA-256 fingerprints of root certificates removed from the bundled certifi store.
+%% Removing emSign ECC Root CA - G3 blocks the compromised eMudhra intermediate CAs.
 %% https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
 -define(DISTRUSTED_ROOT_SHA256, [
     %% emSign ECC Root CA - G3
-    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>,
-    %% emSign Root CA - C1
-    <<16#125609AA301DA0A249B97A8239CB6A34216F44DCAC9F3954B14292F2E8C8608F:256>>,
-    %% emSign ECC Root CA - C3
-    <<16#BC4D809B15189D78DB3E1D8CF4F9726A795DA1643CA5F1358E1DDB0EDC0D7EB3:256>>
+    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>
 ]).
 
 
