@@ -2,6 +2,11 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+%% SHA-256 fingerprints of the roots filtered out of the bundled certifi store.
+-define(DISTRUSTED_ROOT_SHA256, [
+    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>
+]).
+
 %% ct functions
 -export([all/0]).
 -export([init_per_suite/1]).
@@ -21,6 +26,7 @@
     tls_with_ca_certfile_options/1,
     tls_basic_linux_options/1,
     with_tls_revocation/1,
+    tls_basic_certifi_options_excludes_distrusted_roots/1,
     app_info_options/1
 ]).
 
@@ -40,6 +46,7 @@ all() ->
         tls_with_ca_certfile_options,
         tls_basic_linux_options,
         with_tls_revocation,
+        tls_basic_certifi_options_excludes_distrusted_roots,
         app_info_options
     ].
 
@@ -59,6 +66,9 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+is_distrusted(Der) ->
+    lists:member(crypto:hash(sha256, Der), ?DISTRUSTED_ROOT_SHA256).
 
 %%====================================================================
 %% Tests
@@ -198,6 +208,12 @@ with_tls_revocation(_) ->
         },
         {verify, verify_peer}
     ] = ldclient_config:with_tls_revocation([{verify, verify_peer}]).
+
+tls_basic_certifi_options_excludes_distrusted_roots(_) ->
+    Certifi = certifi:cacerts(),
+    {cacerts, CaCerts} = lists:keyfind(cacerts, 1, ldclient_config:tls_basic_certifi_options()),
+    %% Exactly the distrusted roots are filtered out, and every other certifi root is kept.
+    CaCerts = [Der || Der <- Certifi, not is_distrusted(Der)].
 
 app_info_options(_) ->
     #{application := undefined} = ldclient_config:parse_options("sdk-key", #{}),
