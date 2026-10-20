@@ -2,24 +2,13 @@
 
 -include_lib("common_test/include/ct.hrl").
 
-%% emSign ECC Root CA - G3, one of the roots removed from the bundled certifi store.
--define(EMSIGN_ECC_ROOT_CA_G3_PEM, <<"
------BEGIN CERTIFICATE-----
-MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBrMQswCQYDVQQG
-EwJJTjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNo
-bm9sb2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
-RzMwHhcNMTgwMjE4MTgzMDAwWhcNNDMwMjE4MTgzMDAwWjBrMQswCQYDVQQGEwJJ
-TjETMBEGA1UECxMKZW1TaWduIFBLSTElMCMGA1UEChMcZU11ZGhyYSBUZWNobm9s
-b2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0gRzMw
-djAQBgcqhkjOPQIBBgUrgQQAIgNiAAQjpQy4LRL1KPOxst3iAhKAnjlfSU2fySU0
-WXTsuwYc58Byr+iuL+FBVIcUqEqy6HyC5ltqtdyzdc6LBtCGI79G1Y4PPwT01xyS
-fvalY8L1X44uT6EYGQIrMgqCZH0Wk9GjQjBAMB0GA1UdDgQWBBR8XQKEE9TMipuB
-zhccLikenEhjQjAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAKBggq
-hkjOPQQDAwNpADBmAjEAvvNhzwIQHWSVB7gYboiFBS+DCBeQyh+KTOgNG3qxrdWB
-CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD
-+JbNR6iC8hZVdyR+EhCVBCyj
------END CERTIFICATE-----
-">>).
+%% SHA-256 fingerprints of the roots removed from the bundled certifi store.
+-define(DISTRUSTED_ROOT_SHA256, [
+    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>,
+    <<16#125609AA301DA0A249B97A8239CB6A34216F44DCAC9F3954B14292F2E8C8608F:256>>,
+    <<16#BC4D809B15189D78DB3E1D8CF4F9726A795DA1643CA5F1358E1DDB0EDC0D7EB3:256>>,
+    <<16#D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4:256>>
+]).
 
 %% ct functions
 -export([all/0]).
@@ -81,9 +70,8 @@ end_per_testcase(_, _Config) ->
 %% Helpers
 %%====================================================================
 
-emsign_ecc_root_ca_g3_der() ->
-    [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(?EMSIGN_ECC_ROOT_CA_G3_PEM),
-    Der.
+is_distrusted(Der) ->
+    lists:member(crypto:hash(sha256, Der), ?DISTRUSTED_ROOT_SHA256).
 
 %%====================================================================
 %% Tests
@@ -227,10 +215,8 @@ with_tls_revocation(_) ->
 tls_basic_certifi_options_excludes_distrusted_roots(_) ->
     Certifi = certifi:cacerts(),
     {cacerts, CaCerts} = lists:keyfind(cacerts, 1, ldclient_config:tls_basic_certifi_options()),
-    false = lists:member(emsign_ecc_root_ca_g3_der(), CaCerts),
-    %% Only the four distrusted roots can be removed; every other certifi root is kept.
-    true = lists:all(fun(Der) -> lists:member(Der, Certifi) end, CaCerts),
-    true = (length(Certifi) - length(CaCerts) =< 4).
+    %% Exactly the distrusted roots are removed, and every other certifi root is kept.
+    CaCerts = [Der || Der <- Certifi, not is_distrusted(Der)].
 
 app_info_options(_) ->
     #{application := undefined} = ldclient_config:parse_options("sdk-key", #{}),
