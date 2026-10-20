@@ -135,8 +135,8 @@
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
 
-%% SHA-256 fingerprints of root certificates removed from the bundled certifi store.
-%% Removing emSign ECC Root CA - G3 blocks the compromised eMudhra intermediate CAs.
+%% SHA-256 fingerprints of root certificates filtered out of the bundled certifi store.
+%% Filtering out emSign ECC Root CA - G3 blocks the compromised eMudhra intermediate CAs.
 %% https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
 -define(DISTRUSTED_ROOT_SHA256, [
     %% emSign ECC Root CA - G3
@@ -459,7 +459,7 @@ tls_base_options() ->
             {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
         ]}].
 
-%% Remove the distrusted roots from the bundled certifi store.
+%% Filter the distrusted roots out of the bundled certifi store.
 -spec without_distrusted_cas(CaCerts :: [public_key:der_encoded()]) -> [public_key:der_encoded()].
 without_distrusted_cas(CaCerts) ->
     [Der || Der <- CaCerts, not lists:member(crypto:hash(sha256, Der), ?DISTRUSTED_ROOT_SHA256)].
