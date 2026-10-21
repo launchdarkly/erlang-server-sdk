@@ -1,0 +1,4 @@
+@title LaunchDarkly Server-Side SDK for Erlang/Elixir
+@doc LaunchDarkly is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster.
+
+This version of the LaunchDarkly SDK is compatible with Erlang/OTP 21 or higher.
