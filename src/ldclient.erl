@@ -67,6 +67,125 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% @doc Start client with custom name and options
 %%
 %% Specify both custom client name and options when starting the client.
+%%
+%% == Analytics events ==
+%%
+%% Event ingestion is non-blocking: flag evaluations hand events to the SDK
+%% without waiting on the analytics pipeline. Buffered events are dispatched by
+%% a fixed pool of reporter workers. A flush that finds every worker busy is
+%% deferred and runs as soon as a worker is free, with its events kept in the
+%% buffer meanwhile (the one waiting payload of the Go and Java SDKs; Python,
+%% Ruby and .NET skip to the next interval). The following options tune this
+%% pipeline (defaults shown in parentheses):
+%%
+%% <ul>
+%%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
+%%       held in the buffer before new events are dropped.</li>
+%%   <li>`events_flush_interval' (`30000') - how often, in milliseconds,
+%%       buffered events are handed to the reporter pool.</li>
+%%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
+%%       implementing the `ldclient_event_dispatch' behaviour.</li>
+%%   <li>`events_shed_threshold' (`events_capacity') - buffered event count at
+%%       which best-effort events (identify/custom) are shed (dropped) by the
+%%       caller instead of being enqueued, since they would be dropped at
+%%       capacity anyway.</li>
+%%   <li>`events_inbox_capacity' (`events_capacity') - number of events queued
+%%       in the event server's mailbox (accepted but not yet processed) at
+%%       which the caller sheds every event, including feature requests. This
+%%       bounds the event server mailbox and memory under ingress overload. Below
+%%       this bound every evaluation is counted in the summary event even while
+%%       full-fidelity payloads are dropped at `events_capacity'.</li>
+%%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
+%%       waits for the events endpoint to answer; a timeout is a temporary
+%%       failure (retried once), so a stalled endpoint cannot pin a worker. A
+%%       connection whose peer stopped reading is reset and released when the
+%%       request times out (within about 5 seconds for TLS), instead of
+%%       lingering with the unsent body; a request still uploading its body
+%%       at that point is cut off too, so the timeout must cover the upload
+%%       of a full payload on the slowest expected link.</li>
+%%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
+%%       workers, i.e. how many requests the pool makes to the events endpoint
+%%       at once, as in the other server-side SDKs.</li>
+%%   <li>`events_batch_size' (`events_capacity') - maximum number of events a
+%%       worker sends per request. The default sends each flush as a single
+%%       request; lower it to split a flush across several workers.</li>
+%%   <li>`events_housekeeping_interval_ms' (`1000') - how often the event
+%%       server reconciles its queue counter with its mailbox and replaces
+%%       workers that exited.</li>
+%% </ul>
+%%
+%% == Telemetry ==
+%%
+%% The SDK emits `telemetry' events (beam-telemetry) from the analytics
+%% pipeline. The metadata of every event contains the instance `tag'.
+%%
+%% <ul>
+%%   <li>`[ldclient, events, flush]' - emitted once per delivery attempt of a
+%%       batch, after the attempt (including its retry) has completed.
+%%       Measurements `count' (events in the batch, a summary counting as
+%%       one), `size' (bytes of the encoded payload before compression) and
+%%       `duration' (native time units from the first attempt to resolution);
+%%       metadata contains the `outcome' (`succeeded' or `failed') and, when
+%%       the last response was an HTTP error, its `status_code'. A `failed'
+%%       batch has been discarded.</li>
+%%   <li>`[ldclient, events, dropped]' - emitted at every flush (including one
+%%       that is deferred or finds nothing to send) and at shutdown, for each
+%%       `reason' with a non-zero count since the previous report; measurement
+%%       `count' is the number of events discarded before delivery. Reasons:
+%%       `capacity' (full-fidelity events dropped because
+%%       the buffer was at `events_capacity'; their evaluations are still in
+%%       the summary), `inbox' (events shed by the caller because the event
+%%       server's queue was at `events_inbox_capacity'; evaluations among them
+%%       are missing from the summary), `shed_threshold' (identify and custom
+%%       events shed by the caller because the buffer was at
+%%       `events_shed_threshold'), and `unencodable' (events left out of a
+%%       request because they could not be encoded as JSON; emitted by the
+%%       worker while it encodes a batch).</li>
+%%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
+%%       delivered. Measurement `count' (number of events in the batch).</li>
+%%   <li>`[ldclient, events, send_error]' - emitted for every failed delivery
+%%       attempt. Measurement `count' (`1'); metadata contains the failure
+%%       `type' (`temporary', `permanent', or `worker_exit' when a batch was
+%%       lost because its worker exited twice) and, for an HTTP error
+%%       response, its `status_code'.</li>
+%%   <li>`[ldclient, events, pool_size]' - emitted once at startup and
+%%       whenever the number of live workers changes. Measurement `workers' is the
+%%       absolute pool size; metadata contains the `direction' of the change
+%%       (`initial', `up' or `down'). Suitable for a gauge metric.</li>
+%%   <li>`[ldclient, events, flush_skipped]' - emitted when a flush finds every
+%%       reporter worker still busy with a previous request; the flush is
+%%       deferred and runs as soon as a worker is free. Measurement `count' is
+%%       `1'.</li>
+%%   <li>`[ldclient, evaluation, stop]' - emitted after each flag evaluation.
+%%       Measurement `duration' (native time units, the same convention as
+%%       `telemetry:span/3'); metadata contains the evaluated `flag_key' and
+%%       the resulting `variation' index (or `null'). Suitable for a duration
+%%       histogram or for building a trace span.</li>
+%% </ul>
+%%
+%% The `flush' and `dropped' events carry what the LaunchDarkly OpenTelemetry
+%% metrics specification derives from its `eventFlushCompleted' hook, so a
+%% handler can record its instruments without the SDK depending on
+%% OpenTelemetry: `launchdarkly.sdk.events.flushes' (1 per `flush', with the
+%% `outcome'), `events.batch.size' (`count'), `events.flush.duration'
+%% (`duration', converted from native units to seconds with
+%% `erlang:convert_time_unit/3'), `events.sent' and `events.sent.size'
+%% (`count' and `size' of a `succeeded' flush), `events.failed' (`count' of a
+%% `failed' flush) and `events.dropped' (`count' of every `dropped' event;
+%% `unencodable' is not a buffer-full drop and may be left out). On a `failed'
+%% flush, `events.failed' and `events.flushes' carry `error.type' (the
+%% `status_code' as a string, or `"_OTHER"' when there is none) and
+%% `http.response.status_code' (the `status_code', when present). The
+%% `outcome' values are the specification's.
+%%
+%% == Errors ==
+%%
+%% Returns `{error, already_started, Pid}' when an instance with this tag is
+%% running (`{error, already_started, restarting}' while its supervisor is
+%% restarting it), and `{error, start_failed, Reason}' when the instance's
+%% processes could not be started (for example because no event reporter
+%% worker could start); nothing of the instance is left behind in that case.
+%%
 %% @end
 -spec start_instance(SdkKey :: string(), Tag :: atom(), Options :: map()) ->
     ok | {error, atom(), term()}.
@@ -141,7 +260,9 @@ variation(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map(Contex
     ldclient_eval:result_value().
 variation(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {{_Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    Start = erlang:monotonic_time(),
+    {{Index, Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    ok = emit_evaluation_event(Tag, FlagKey, Index, erlang:monotonic_time() - Start),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{}) end,
     lists:foreach(SendEventsFun, Events),
@@ -169,7 +290,9 @@ variation_detail(FlagKey, Context, DefaultValue) when is_binary(FlagKey), is_map
     ldclient_eval:detail().
 variation_detail(FlagKey, Context, DefaultValue, Tag) when is_binary(FlagKey), is_map(Context) ->
     % Get evaluation result detail
-    {Detail, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    Start = erlang:monotonic_time(),
+    {Detail = {Index, _Value, _Reason}, Events} = ldclient_eval:flag_key_for_context(Tag, FlagKey, ensure_context(Context), DefaultValue),
+    ok = emit_evaluation_event(Tag, FlagKey, Index, erlang:monotonic_time() - Start),
     % Send events
     SendEventsFun = fun(Event) -> ldclient_event_server:add_event(Tag, Event, #{include_reasons => true}) end,
     lists:foreach(SendEventsFun, Events),
@@ -297,3 +420,21 @@ when_is_valid_context(Context, AllowEmptyKey, Fun) ->
         true -> Fun();
         false -> ok
     end.
+
+%% @doc Emit the flag evaluation timing event.
+%%
+%% `Duration' is in native time units, the same convention as `telemetry:span/3'.
+%% @private
+%% @end
+-spec emit_evaluation_event(
+    Tag :: atom(),
+    FlagKey :: binary(),
+    VariationIndex :: non_neg_integer() | null,
+    Duration :: integer()
+) -> ok.
+emit_evaluation_event(Tag, FlagKey, VariationIndex, Duration) ->
+    telemetry:execute(
+        [ldclient, evaluation, stop],
+        #{duration => Duration},
+        #{tag => Tag, flag_key => FlagKey, variation => VariationIndex}
+    ).

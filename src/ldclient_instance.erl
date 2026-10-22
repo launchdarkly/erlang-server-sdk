@@ -19,8 +19,35 @@
     feature_store => atom(),
     events_uri => string(),
     events_capacity => pos_integer(),
+    %% Maximum number of full-fidelity events held in the in-memory buffer
+    %% before new events are dropped. Defaults to 10000.
     events_flush_interval => pos_integer(),
+    %% How often, in milliseconds, buffered events are handed to the reporter
+    %% pool. Defaults to 30000.
     events_dispatcher => atom(),
+    %% Module implementing the `ldclient_event_dispatch' behaviour used to
+    %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
+    events_shed_threshold => pos_integer(),
+    %% Buffered event count at which best-effort events (identify/custom) are
+    %% dropped by the caller (load shedding) instead of enqueued. Defaults to
+    %% `events_capacity'.
+    events_inbox_capacity => pos_integer(),
+    %% Number of events queued in the event server mailbox at which the caller
+    %% sheds every event, including feature requests, bounding the mailbox under
+    %% ingress overload. Defaults to `events_capacity'.
+    events_request_timeout => pos_integer(),
+    %% Milliseconds a reporter worker waits for the events endpoint to answer
+    %% before treating the request as a temporary failure. Defaults to 30000.
+    events_flush_workers => pos_integer(),
+    %% Number of reporter workers, i.e. how many requests the pool makes to
+    %% the events endpoint at once. Defaults to 5; at most 1024.
+    events_batch_size => pos_integer(),
+    %% Maximum number of events a single worker sends per request. Defaults to
+    %% `events_capacity', i.e. one request per flush.
+    events_housekeeping_interval_ms => pos_integer(),
+    %% How often, in milliseconds, the event server reconciles its queue
+    %% counter with its mailbox and replaces workers that exited. Defaults to
+    %% 1000.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
@@ -58,7 +85,7 @@
 %%
 %% @end
 -spec start(Tag :: atom(), SdkKey :: string(), Options :: options()) ->
-    ok | {error, already_started, term()}.
+    ok | {error, already_started | start_failed, term()}.
 start(Tag, SdkKey, Options) ->
     % Parse options into settings
     Settings = ldclient_config:parse_options(SdkKey, Options),
@@ -85,7 +112,16 @@ start(Tag, SdkKey, Options) ->
             true = ldclient_update_processor_state:create_initialized_state(Tag, false),
             start_updater(UpdateSupName, UpdateWorkerModule, Tag);
         {error, {already_started, Pid}} ->
-            {error, already_started, Pid}
+            {error, already_started, Pid};
+        {error, already_present} ->
+            %% The instance exists but its supervisor is between restart
+            %% attempts; it keeps its settings.
+            {error, already_started, restarting};
+        {error, Reason} ->
+            %% Nothing of the instance exists once its supervisor failed to
+            %% start, except the settings registered above.
+            ok = ldclient_config:unregister(Tag),
+            {error, start_failed, Reason}
     end.
 
 %% @doc Stop a client instance
