@@ -68,9 +68,59 @@ flag_key_for_context(Tag, FlagKey, Context, DefaultValue) ->
     try
         flag_key_for_context(Tag, FlagKey, Context, DefaultValue, get_state(Tag), get_initialization_state(Tag))
     catch _:_ ->
-        Reason = {error, exception},
-        Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
-        {{null, DefaultValue, Reason}, Events}
+        unknown_flag_result(FlagKey, Context, DefaultValue, {error, exception})
+    end.
+
+%% @doc The result of an evaluation that found no usable flag: the flag is
+%% unknown or deleted, or evaluating it raised.
+%%
+%% Every analytics event is keyed by its context (index-event deduplication,
+%% summary context kinds), so the event recorded here may only be created for a
+%% valid context. For an invalid one the default value is returned with the
+%% standard error reason and nothing is recorded. The known-flag path checks
+%% the context in `flag_for_context_check_valid/5', so a valid context is
+%% validated exactly once per evaluation.
+%% @private
+%% @end
+-spec unknown_flag_result(
+    FlagKey :: ldclient_flag:key(),
+    Context :: ldclient_context:context(),
+    DefaultValue :: result_value(),
+    Reason :: {error, error_type()}
+) -> result().
+unknown_flag_result(FlagKey, Context, DefaultValue, Reason) ->
+    case is_valid_context(Context) of
+        true ->
+            ok = maybe_warn_unknown_flag(FlagKey, Reason),
+            Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
+            {{null, DefaultValue, Reason}, Events};
+        false ->
+            invalid_context_result(FlagKey, DefaultValue)
+    end.
+
+-spec maybe_warn_unknown_flag(FlagKey :: ldclient_flag:key(), Reason :: {error, error_type()}) -> ok.
+maybe_warn_unknown_flag(FlagKey, {error, flag_not_found}) ->
+    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]);
+maybe_warn_unknown_flag(_FlagKey, _Reason) ->
+    ok.
+
+%% @doc The result for an evaluation with an invalid context: the default
+%% value, the `user_not_specified' error reason, a warning, and no event.
+%% @private
+%% @end
+-spec invalid_context_result(FlagKey :: ldclient_flag:key(), DefaultValue :: result_value()) -> result().
+invalid_context_result(FlagKey, DefaultValue) ->
+    error_logger:warning_msg("Flag ~p evaluated with an invalid context; returning default value", [FlagKey]),
+    {{null, DefaultValue, {error, user_not_specified}}, []}.
+
+%% `ldclient_context:is_valid/2' pattern-matches on the shape of the map; a
+%% term that is not a context at all must count as invalid rather than raise.
+-spec is_valid_context(Context :: term()) -> boolean().
+is_valid_context(Context) ->
+    try
+        ldclient_context:is_valid(Context, true)
+    catch _:_ ->
+        false
     end.
 
 -spec flag_key_for_context(
@@ -321,16 +371,10 @@ get_initialization_state(Tag, false) ->
 ) -> result().
 flag_recs_for_context(FlagKey, [], Context, _FeatureStore, _Tag, DefaultValue) ->
     % Flag not found
-    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
-    Reason = {error, flag_not_found},
-    Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
-    {{null, DefaultValue, Reason}, Events};
+    unknown_flag_result(FlagKey, Context, DefaultValue, {error, flag_not_found});
 flag_recs_for_context(FlagKey, [{FlagKey, #{deleted := true}} | _], Context, _FeatureStore, _Tag, DefaultValue) ->
     % Flag found, but it's deleted
-    error_logger:warning_msg("Unknown feature flag ~p; returning default value", [FlagKey]),
-    Reason = {error, flag_not_found},
-    Events = [ldclient_event:new_for_unknown_flag(FlagKey, Context, DefaultValue, Reason)],
-    {{null, DefaultValue, Reason}, Events};
+    unknown_flag_result(FlagKey, Context, DefaultValue, {error, flag_not_found});
 flag_recs_for_context(FlagKey, [{FlagKey, Flag} | _], Context, FeatureStore, Tag, DefaultValue) ->
     % Flag found
     flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue).
@@ -343,9 +387,8 @@ flag_for_context_check_valid(Flag, Context, FeatureStore, Tag, DefaultValue) ->
     end.
 
 -spec flag_for_invalid_context(ldclient_flag:flag(), ldclient_context:context(), result_value()) -> result().
-flag_for_invalid_context(_Flag, _Context, DefaultValue) ->
-    Reason = {error, user_not_specified},
-    {{null, DefaultValue, Reason}, []}.
+flag_for_invalid_context(#{key := FlagKey} = _Flag, _Context, DefaultValue) ->
+    invalid_context_result(FlagKey, DefaultValue).
 
 -spec flag_for_context(ldclient_flag:flag(), ldclient_context:context(), atom(), atom(), result_value()) -> result().
 flag_for_context(Flag, Context, FeatureStore, Tag, DefaultValue) ->

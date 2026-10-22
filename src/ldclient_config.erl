@@ -132,7 +132,7 @@
 -define(DEFAULT_POLLING_UPDATE_REQUESTOR, ldclient_update_requestor_httpc).
 -define(MINIMUM_POLLING_INTERVAL, 30).
 -define(USER_AGENT, "ErlangClient").
--define(VERSION, "3.11.2"). %% x-release-please-version
+-define(VERSION, "3.12.1"). %% x-release-please-version
 -define(EVENT_SCHEMA, "4").
 -define(DEFAULT_OFFLINE, false).
 -define(DEFAULT_REDIS_HOST, "127.0.0.1").
@@ -158,6 +158,14 @@
 -define(HTTP_DEFAULT_CONNECT_TIMEOUT, 2000).
 -define(HTTP_DEFAULT_CUSTOM_HEADERS, undefined).
 -define(HTTP_DEFAULT_LINUX_CASTORE, "/etc/ssl/certs/ca-certificates.crt").
+
+%% SHA-256 fingerprints of root certificates filtered out of the bundled certifi store.
+%% Filtering out emSign ECC Root CA - G3 blocks the compromised eMudhra intermediate CAs.
+%% https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
+-define(DISTRUSTED_ROOT_SHA256, [
+    %% emSign ECC Root CA - G3
+    <<16#86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B:256>>
+]).
 
 
 -define(APPLICATION_DEFAULT_OPTIONS, undefined).
@@ -409,7 +417,7 @@ with_tls_revocation(Options) ->
 %% @end
 -spec tls_basic_certifi_options() -> [ssl:tls_client_option()].
 tls_basic_certifi_options() ->
-    CaCerts = certifi:cacerts(),
+    CaCerts = without_distrusted_cas(certifi:cacerts()),
     [
         {cacerts, CaCerts}
         | tls_base_options()].
@@ -488,6 +496,11 @@ tls_base_options() ->
         {customize_hostname_check, [
             {match_fun, public_key:pkix_verify_hostname_match_fun(https)}
         ]}].
+
+%% Filter the distrusted roots out of the bundled certifi store.
+-spec without_distrusted_cas(CaCerts :: [public_key:der_encoded()]) -> [public_key:der_encoded()].
+without_distrusted_cas(CaCerts) ->
+    [Der || Der <- CaCerts, not lists:member(crypto:hash(sha256, Der), ?DISTRUSTED_ROOT_SHA256)].
 
 -spec tls_basic_options(CaStoreExists :: boolean()) -> [ssl:tls_client_option()].
 tls_basic_options(true) ->

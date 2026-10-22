@@ -2,6 +2,28 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.12.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.0...v3.12.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* Filter emSign ECC Root CA - G3 out of the bundled certifi store ([#206](https://github.com/launchdarkly/erlang-server-sdk/issues/206)) ([6c5980d](https://github.com/launchdarkly/erlang-server-sdk/commit/6c5980d69b1b15ff6a944ef5bc96d4bb2070e1d3))
+* return the default value for an invalid context without creating analytics events ([#204](https://github.com/launchdarkly/erlang-server-sdk/issues/204)) ([0bc26ea](https://github.com/launchdarkly/erlang-server-sdk/commit/0bc26ea532db89365aa0932bd64002eb400c9b73))
+
+## [3.12.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.3...v3.12.0) (2026-10-06)
+
+
+### Features
+
+* add a read timeout to the streaming data source ([#200](https://github.com/launchdarkly/erlang-server-sdk/issues/200)) ([563ae28](https://github.com/launchdarkly/erlang-server-sdk/commit/563ae28422744f5446ee4a7dffc6f8a4dec4cb99))
+
+## [3.11.3](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.2...v3.11.3) (2026-09-23)
+
+
+### Bug Fixes
+
+* Log the cached-data evaluation warning only once per client ([#197](https://github.com/launchdarkly/erlang-server-sdk/issues/197)) ([555a2eb](https://github.com/launchdarkly/erlang-server-sdk/commit/555a2eb94b124a3037e7eab8ec524b12f2989a9d))
+
 ## [3.11.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.11.1...v3.11.2) (2026-07-31)
 
 

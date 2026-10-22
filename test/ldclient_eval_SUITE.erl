@@ -72,7 +72,10 @@
     malformed_rollout/1,
     malformed_segment_rollout/1,
     detects_circular_reference/1,
-    no_events_for_invalid_context/1
+    no_events_for_invalid_context/1,
+    unknown_flag_with_invalid_context/1,
+    invalid_context_does_not_crash_the_event_server/1,
+    exception_with_invalid_context_sends_no_event/1
 ]).
 
 %%====================================================================
@@ -142,7 +145,10 @@ all() ->
         malformed_rollout,
         malformed_segment_rollout,
         detects_circular_reference,
-        no_events_for_invalid_context
+        no_events_for_invalid_context,
+        unknown_flag_with_invalid_context,
+        invalid_context_does_not_crash_the_event_server,
+        exception_with_invalid_context_sends_no_event
     ].
 
 init_per_suite(Config) ->
@@ -1301,3 +1307,65 @@ detects_circular_reference(_) ->
 no_events_for_invalid_context(_) ->
     {{null,"foo",{error,user_not_specified}}, []} =
         ldclient_eval:flag_key_for_context(default, <<"keep-it-off">>, #{}, "foo").
+
+unknown_flag_with_invalid_context(_) ->
+    %% The unknown-flag and deleted-flag paths used to create an event carrying
+    %% the invalid context. The event server derives a key from every context
+    %% it sees and crashed on these, taking the buffered events and the summary
+    %% with it.
+    InvalidContexts = [
+        #{kind => <<"org">>},                              % no key
+        #{kind => 123, key => <<"a">>},                    % kind not a binary
+        #{kind => <<"org">>, key => 42},                   % key not a binary
+        #{kind => <<"multi">>, <<"org">> => 42},           % part not a map
+        #{}
+    ],
+    lists:foreach(fun(Context) ->
+        lists:foreach(fun(FlagKey) ->
+            {{null, "foo", {error, user_not_specified}}, []} =
+                ldclient_eval:flag_key_for_context(default, FlagKey, Context, "foo")
+        end, [<<"flag-that-does-not-exist">>, <<"keep-it-deleted">>, <<"keep-it-off">>])
+    end, InvalidContexts).
+
+exception_with_invalid_context_sends_no_event(_) ->
+    %% An exception while evaluating (here: the feature store failing, as it
+    %% does after the store has been lost) is reported as an unknown-flag event.
+    %% That event must not be created for an invalid context either.
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(default)),
+    Pid = whereis(ServerName),
+    meck:new(ldclient_storage_ets, [passthrough]),
+    try
+        meck:expect(ldclient_storage_ets, get, fun
+            (default, features, <<"boom">>) -> error(simulated_store_failure);
+            (Tag, Bucket, Key) -> meck:passthrough([Tag, Bucket, Key])
+        end),
+        %% A valid context keeps the existing behaviour: default value, the
+        %% exception reason, and an event describing the failed evaluation.
+        {{null, "foo", {error, exception}}, [#{type := feature_request}]} =
+            ldclient_eval:flag_key_for_context(default, <<"boom">>, #{kind => <<"user">>, key => <<"ok">>}, "foo"),
+        {{null, "foo", {error, user_not_specified}}, []} =
+            ldclient_eval:flag_key_for_context(default, <<"boom">>, #{kind => <<"org">>, key => 42}, "foo"),
+        "foo" = ldclient:variation(<<"boom">>, #{kind => <<"org">>}, "foo"),
+        _ = sys:get_state(Pid),
+        Pid = whereis(ServerName),
+        true = is_process_alive(Pid)
+    after
+        meck:unload(ldclient_storage_ets)
+    end.
+
+invalid_context_does_not_crash_the_event_server(_) ->
+    ServerName = list_to_atom("ldclient_event_server_" ++ atom_to_list(default)),
+    Pid = whereis(ServerName),
+    true = is_pid(Pid),
+    "foo" = ldclient:variation(<<"flag-that-does-not-exist">>, #{kind => <<"org">>, key => 42}, "foo"),
+    "foo" = ldclient:variation(<<"flag-that-does-not-exist">>, #{kind => <<"org">>}, "foo"),
+    {null, "foo", {error, user_not_specified}} =
+        ldclient:variation_detail(<<"keep-it-off">>, #{kind => 123, key => <<"a">>}, "foo"),
+    %% A synchronous call drains anything the evaluations may have sent.
+    _ = sys:get_state(Pid),
+    Pid = whereis(ServerName),
+    true = is_process_alive(Pid),
+    %% The pipeline still works for a valid context afterwards.
+    false = ldclient:variation(<<"keep-it-off">>, #{kind => <<"user">>, key => <<"still-fine">>}, true),
+    _ = sys:get_state(Pid),
+    Pid = whereis(ServerName).

@@ -22,7 +22,8 @@
     stream_uri := string(),
     %% Try to use a proper type with Gun 2.0
     gun_options := any(),
-    headers := map()
+    headers := map(),
+    read_timeout_ms := pos_integer()
 }.
 
 -ifdef(TEST).
@@ -38,6 +39,10 @@
 %% TCP socket would stay open for the full default timeout after the client is
 %% closed.
 -define(STREAM_CLOSING_TIMEOUT_MS, 100).
+
+%% Close and reconnect the stream when no bytes (heartbeats included) arrive for this
+%% long. Five minutes, as in the Java and Go SDKs; the stream heartbeats at least every three.
+-define(STREAM_READ_TIMEOUT_MS, 300000).
 
 %%===================================================================
 %% Supervision
@@ -60,6 +65,7 @@ init([Tag]) ->
     FeatureStore = ldclient_config:get_value(Tag, feature_store),
     HttpOptions = ldclient_config:get_value(Tag, http_options),
     InitialRetryDelay = ldclient_config:get_value(Tag, stream_initial_retry_delay_ms),
+    ReadTimeoutMs = read_timeout_ms(),
     Backoff = ldclient_backoff:init(InitialRetryDelay, ?MAX_BACKOFF_DELAY, self(), listen),
     GunOptions = ldclient_http_options:gun_parse_http_options(HttpOptions),
     Headers = ldclient_http_options:gun_append_custom_headers(
@@ -73,7 +79,8 @@ init([Tag]) ->
         storage_tag => Tag,
         stream_uri => StreamUri,
         gun_options => GunOptions,
-        headers => Headers
+        headers => Headers,
+        read_timeout_ms => ReadTimeoutMs
     },
     self() ! {listen},
     {ok, State}.
@@ -133,16 +140,17 @@ do_listen(#{
     stream_uri := Uri,
     backoff := Backoff,
     gun_options := GunOptions,
-    headers := Headers
+    headers := Headers,
+    read_timeout_ms := ReadTimeoutMs
     } = State
 ) ->
-    try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers) of
+    try do_listen(Uri, FeatureStore, Tag, GunOptions, Headers, ReadTimeoutMs) of
         {error, temporary, Reason} ->
             NewBackoff = do_listen_fail_backoff(Backoff, temporary, Reason),
             State#{backoff := NewBackoff};
         {error, permanent, Reason} ->
             % Reason here is already safe: either a sanitized string from format_shotgun_error
-            % or an integer status code from the do_listen/5 method.
+            % or an integer status code from the do_listen/6 method.
             error_logger:error_msg("Stream encountered permanent error ~p, giving up~n", [Reason]),
             State;
         {ok, Pid} ->
@@ -169,8 +177,8 @@ do_listen_fail_backoff(Backoff, Code, Reason) ->
 %% @private
 %%
 %% @end
--spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}]) -> {ok, pid()} | {error, atom(), term()}.
-do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
+-spec do_listen(string(), atom(), atom(), GunOpts :: any(), Headers :: [{string(), string()}], ReadTimeoutMs :: pos_integer()) -> {ok, pid()} | {error, atom(), term()}.
+do_listen(Uri, FeatureStore, Tag, GunOpts, Headers, ReadTimeoutMs) ->
     {ok, {Scheme, Host, Port, Path, Query}} = ldclient_http:uri_parse(Uri),
     HttpOpts = maps:get(http_opts, GunOpts, #{}),
     StreamGunOpts = GunOpts#{http_opts => HttpOpts#{closing_timeout => ?STREAM_CLOSING_TIMEOUT_MS}},
@@ -196,7 +204,14 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     error_logger:warning_msg("Streaming connection ended"),
                     shotgun:close(Pid)
                 end,
-            Options = #{async => true, async_mode => sse, handle_event => F, allow_reconnect => false},
+            % On a read timeout shotgun exits with {shutdown, read_timeout}; the DOWN handler reconnects
+            Options = #{
+                async => true,
+                async_mode => sse,
+                handle_event => F,
+                allow_reconnect => false,
+                read_timeout => ReadTimeoutMs
+            },
             case shotgun:get(Pid, Path ++ Query, Headers, Options) of
                 {error, Reason} ->
                     shotgun:close(Pid),
@@ -212,6 +227,14 @@ do_listen(Uri, FeatureStore, Tag, GunOpts, Headers) ->
                     {ok, Pid}
             end
     end.
+
+-spec read_timeout_ms() -> pos_integer().
+-ifdef(TEST).
+%% Tests shorten the timeout through the application env; it is not an SDK option.
+read_timeout_ms() -> application:get_env(ldclient, stream_read_timeout_ms, ?STREAM_READ_TIMEOUT_MS).
+-else.
+read_timeout_ms() -> ?STREAM_READ_TIMEOUT_MS.
+-endif.
 
 %% @doc Processes server-sent event received from shotgun
 %% @private
