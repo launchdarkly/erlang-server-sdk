@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.12.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.1...v3.12.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* Remove the emSign ECC Root CA - G3 filter from the bundled certifi store, because certifi 2.18.0 no longer includes that root ([787bc28](https://github.com/launchdarkly/erlang-server-sdk/commit/787bc28560bf33c1a296516d124d44e87a424f3d))
+* Require certifi 2.18.0 or later ([787bc28](https://github.com/launchdarkly/erlang-server-sdk/commit/787bc28560bf33c1a296516d124d44e87a424f3d))
+
 ## [3.12.1](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.0...v3.12.1) (2026-10-20)
 
 
