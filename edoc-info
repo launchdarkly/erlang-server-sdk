@@ -1,0 +1,4 @@
+%% encoding: UTF-8
+{application,ldclient}.
+{modules,[ldclient,ldclient_config,ldclient_context,ldclient_flagbuilder,
+          ldclient_testdata,ldclient_user]}.
