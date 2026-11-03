@@ -21,7 +21,14 @@
     polling => sdk_config_polling_params(),
     events => sdk_config_event_params(),
     tags => sdk_config_tags_params(),
-    tls => sdk_config_tls_params() | undefined
+    tls => sdk_config_tls_params() | undefined,
+    service_endpoints => sdk_config_service_endpoints_params()
+}.
+
+-type sdk_config_service_endpoints_params() :: #{
+    streaming => binary() | undefined,
+    polling => binary() | undefined,
+    events => binary() | undefined
 }.
 
 -type sdk_config_streaming_params() :: #{
@@ -35,6 +42,7 @@
 }.
 
 -type sdk_config_event_params() :: #{
+    enabled => boolean(),
     base_uri => binary() | undefined,
     capacity => pos_integer() | undefined,
     enable_diagnostics => true | false | undefined, %% Not supported
@@ -58,6 +66,7 @@
 -export_type([sdk_config_event_params/0]).
 -export_type([sdk_config_tags_params/0]).
 -export_type([sdk_config_tls_params/0]).
+-export_type([sdk_config_service_endpoints_params/0]).
 
 -spec null_to_undefined(Item :: any()) -> any().
 null_to_undefined(null) -> undefined;
@@ -76,6 +85,7 @@ parse_config_params(Params) ->
     Events = parse_config_events_params(Params),
     Tags = parse_config_tag_params(Params),
     Tls = parse_config_tls_params(Params),
+    ServiceEndpoints = parse_config_service_endpoints_params(Params),
     #{
         credential => Credential,
         start_wait_time_ms => StartWaitTimeMS,
@@ -84,8 +94,19 @@ parse_config_params(Params) ->
         events => Events,
         tags => Tags,
         polling => Polling,
-        tls => Tls
+        tls => Tls,
+        service_endpoints => ServiceEndpoints
     }.
+
+-spec parse_config_service_endpoints_params(Params :: map()) -> sdk_config_service_endpoints_params().
+parse_config_service_endpoints_params(#{<<"serviceEndpoints">> := Endpoints} = _Params) when is_map(Endpoints) ->
+    #{
+        streaming => map_get_null_default(<<"streaming">>, Endpoints, undefined),
+        polling => map_get_null_default(<<"polling">>, Endpoints, undefined),
+        events => map_get_null_default(<<"events">>, Endpoints, undefined)
+    };
+parse_config_service_endpoints_params(_Params) ->
+    #{streaming => undefined, polling => undefined, events => undefined}.
 
 -spec parse_config_tag_params(Params :: map()) -> sdk_config_tags_params().
 parse_config_tag_params(#{<<"tags">> := Tags} = _Params) when is_map(Tags) ->
@@ -127,6 +148,7 @@ parse_config_events_params(#{<<"events">> := EventParams} = _Params) when EventP
     GlobalPrivateAttributes = map_get_null_default(<<"globalPrivateAttributes">>, EventParams, undefined),
     FlushIntervalMS = map_get_null_default(<<"flushIntervalMs">>, EventParams, undefined),
     #{
+        enabled => true,
         base_uri => BaseUri,
         capacity => Capacity,
         enable_diagnostics => EnableDiagnostics,
@@ -134,8 +156,10 @@ parse_config_events_params(#{<<"events">> := EventParams} = _Params) when EventP
         global_private_attributes => GlobalPrivateAttributes,
         flush_interval_ms => FlushIntervalMS
     };
+%% Events are disabled when the events configuration is omitted or null.
 parse_config_events_params(_Params) ->
     #{
+        enabled => false,
         base_uri => undefined,
         capacity => undefined,
         enable_diagnostics => undefined,
@@ -156,7 +180,9 @@ parse_config_tls_params(_Params) ->
 
 -spec to_ldclient_options(Configuration :: sdk_config_params()) -> map().
 to_ldclient_options(Configuration) ->
-    WithEventsUri = add_events_uri(Configuration, #{}),
+    WithServiceEndpoints = add_service_endpoints(Configuration, #{}),
+    WithSendEvents = add_send_events(Configuration, WithServiceEndpoints),
+    WithEventsUri = add_events_uri(Configuration, WithSendEvents),
     WithStreamUri = add_stream_uri(Configuration, WithEventsUri),
     WithEventsCapacity = add_events_capacity(Configuration, WithStreamUri),
     WithPrivateAttributes = add_private_attributes(Configuration, WithEventsCapacity),
@@ -167,6 +193,23 @@ to_ldclient_options(Configuration) ->
     WithPollingInterval = add_poll_interval(Configuration, WithPollingUri),
     WithTlsConfig = add_tls_config(Configuration, WithPollingInterval),
     WithTlsConfig.
+
+%% The service endpoints only set the base URIs. The per-component base URIs, which are
+%% added after these, take precedence.
+-spec add_service_endpoints(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_service_endpoints(#{service_endpoints := Endpoints} = _Configuration, Options) ->
+    lists:foldl(fun({Key, Option}, Acc) ->
+        case maps:get(Key, Endpoints, undefined) of
+            Uri when is_binary(Uri) -> Acc#{Option => binary_to_list(Uri)};
+            _ -> Acc
+        end
+    end, Options, [{streaming, stream_uri}, {polling, base_uri}, {events, events_uri}]);
+add_service_endpoints(_Configuration, Options) -> Options.
+
+-spec add_send_events(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_send_events(#{events := #{enabled := false}} = _Configuration, Options) ->
+    Options#{send_events => false};
+add_send_events(_Configuration, Options) -> Options.
 
 -spec add_stream_retry_delay(Configuration :: sdk_config_params(), Options:: map()) -> map().
 add_stream_retry_delay(#{streaming := #{

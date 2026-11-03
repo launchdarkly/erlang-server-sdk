@@ -81,7 +81,8 @@ get_service_detail(Req, State) ->
       <<"tls:verify-peer">>,
       <<"client-prereq-events">>,
       <<"all-flags-client-side-only">>,
-      <<"instance-id">>
+      <<"instance-id">>,
+      <<"service-endpoints">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),
