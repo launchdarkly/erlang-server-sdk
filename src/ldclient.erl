@@ -85,10 +85,6 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       buffered events are handed to the reporter pool.</li>
 %%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
 %%       implementing the `ldclient_event_dispatch' behaviour.</li>
-%%   <li>`events_shed_threshold' (`events_capacity') - buffered event count at
-%%       which best-effort events (identify/custom) are shed (dropped) by the
-%%       caller instead of being enqueued, since they would be dropped at
-%%       capacity anyway.</li>
 %%   <li>`events_inbox_capacity' (`events_capacity') - number of events queued
 %%       in the event server's mailbox (accepted but not yet processed) at
 %%       which the caller sheds every event, including feature requests. This
@@ -136,9 +132,7 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       the buffer was at `events_capacity'; their evaluations are still in
 %%       the summary), `inbox' (events shed by the caller because the event
 %%       server's queue was at `events_inbox_capacity'; evaluations among them
-%%       are missing from the summary), `shed_threshold' (identify and custom
-%%       events shed by the caller because the buffer was at
-%%       `events_shed_threshold'), and `unencodable' (events left out of a
+%%       are missing from the summary), and `unencodable' (events left out of a
 %%       request because they could not be encoded as JSON; emitted by the
 %%       worker while it encodes a batch).</li>
 %%   <li>`[ldclient, events, published]' - emitted when a batch is successfully

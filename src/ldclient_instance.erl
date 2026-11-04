@@ -27,10 +27,6 @@
     events_dispatcher => atom(),
     %% Module implementing the `ldclient_event_dispatch' behaviour used to
     %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
-    events_shed_threshold => pos_integer(),
-    %% Buffered event count at which best-effort events (identify/custom) are
-    %% dropped by the caller (load shedding) instead of enqueued. Defaults to
-    %% `events_capacity'.
     events_inbox_capacity => pos_integer(),
     %% Number of events queued in the event server mailbox at which the caller
     %% sheds every event, including feature requests, bounding the mailbox under

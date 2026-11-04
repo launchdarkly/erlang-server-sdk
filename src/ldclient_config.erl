@@ -59,8 +59,6 @@
     events_capacity => pos_integer(),
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
-    events_shed_threshold => pos_integer(),
-    %% Buffered event count at which callers shed new best-effort events instead of enqueueing them.
     events_inbox_capacity => pos_integer(),
     %% Number of queued (not yet processed) casts at which callers shed every
     %% event, including feature requests. Bounds the event server mailbox.
@@ -199,7 +197,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsCapacity = pos_integer_option(events_capacity, Options, ?DEFAULT_EVENTS_CAPACITY),
     EventsFlushInterval = interval_option(events_flush_interval, Options, ?DEFAULT_EVENTS_FLUSH_INTERVAL),
     EventsDispatcher = maps:get(events_dispatcher, Options, ?DEFAULT_EVENTS_DISPATCHER),
-    EventsShedThreshold = pos_integer_option(events_shed_threshold, Options, EventsCapacity),
     EventsInboxCapacity = pos_integer_option(events_inbox_capacity, Options, EventsCapacity),
     EventsFlushWorkers = bounded_integer_option(events_flush_workers, Options, ?DEFAULT_EVENTS_FLUSH_WORKERS, ?MAX_EVENTS_FLUSH_WORKERS),
     EventsRequestTimeout = interval_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
@@ -253,7 +250,6 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
         events_capacity => EventsCapacity,
         events_flush_interval => EventsFlushInterval,
         events_dispatcher => EventsDispatcher,
-        events_shed_threshold => EventsShedThreshold,
         events_inbox_capacity => EventsInboxCapacity,
         events_request_timeout => EventsRequestTimeout,
         events_flush_workers => EventsFlushWorkers,

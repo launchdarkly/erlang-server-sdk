@@ -12,7 +12,7 @@
 %% Tests
 -export([
     add_event_is_cast/1,
-    sheds_when_buffer_at_threshold/1,
+    identify_and_custom_at_capacity_are_dropped_by_the_server/1,
     pool_uses_multiple_workers/1,
     flush_while_every_worker_is_busy_is_deferred/1,
     retries_transient_failures_once/1,
@@ -57,7 +57,7 @@
 all() ->
     [
         add_event_is_cast,
-        sheds_when_buffer_at_threshold,
+        identify_and_custom_at_capacity_are_dropped_by_the_server,
         pool_uses_multiple_workers,
         flush_while_every_worker_is_busy_is_deferred,
         retries_transient_failures_once,
@@ -101,8 +101,8 @@ init_per_suite(Config) ->
         stream => false,
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
-        events_capacity => 100,
-        events_shed_threshold => 1,
+        events_capacity => 1,
+        events_inbox_capacity => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", shedder, Options),
@@ -111,7 +111,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_flush_workers => 3,
         events_batch_size => 1
@@ -122,7 +121,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_slow,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_flush_workers => 1,
         events_batch_size => 1
@@ -133,7 +131,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_flush_workers => 1
     },
@@ -143,7 +140,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", publisher, PublisherOptions),
@@ -153,7 +149,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", offline_events, OfflineOptions),
@@ -162,7 +157,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 1,
-        events_shed_threshold => 1,
         events_inbox_capacity => 1000,
         events_flush_interval => 60000
     },
@@ -172,7 +166,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_permanent,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", permanent_failing, PermanentOptions),
@@ -181,7 +174,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_flush_workers => 1
     },
@@ -191,7 +183,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_slow,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_batch_size => 1,
         events_flush_workers => 1
@@ -202,7 +193,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_slow,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_batch_size => 2,
         events_flush_workers => 1
@@ -213,7 +203,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_inbox_capacity => 5,
         events_flush_interval => 60000,
         %% keep the housekeeping tick (which also resyncs the queue counter) out
@@ -226,7 +215,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 500,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", single_payload, SinglePayloadOptions),
@@ -235,7 +223,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_crash_once,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000,
         events_housekeeping_interval_ms => 50,
         events_flush_workers => 1
@@ -249,7 +236,6 @@ init_per_suite(Config) ->
         events_flush_interval => 1 bsl 52,
         events_flush_workers => 100000,
         events_batch_size => 0,
-        events_shed_threshold => 0,
         events_inbox_capacity => foo,
         events_housekeeping_interval_ms => 0,
         events_request_timeout => 1 bsl 50,
@@ -261,7 +247,6 @@ init_per_suite(Config) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_flush_interval => 60000
     },
     ldclient:start_instance("", defaults, DefaultsOptions),
@@ -287,12 +272,13 @@ add_event_is_cast(_) ->
     Event = identify_event(<<"no-server">>),
     ok = ldclient_event_server:add_event(no_such_tag, Event, #{}).
 
-%% Once the buffered event count reaches the shed threshold, further best-effort
-%% events are dropped at the caller instead of being enqueued. The drop is
-%% counted at the caller and reported, with its reason, by the next flush.
-sheds_when_buffer_at_threshold(_) ->
+%% Below the inbox bound no kind of event is shed at the caller: identify and
+%% custom events that arrive at a full buffer reach the event server and are
+%% dropped there, as capacity drops, like the full-fidelity events of an
+%% evaluation.
+identify_and_custom_at_capacity_are_dropped_by_the_server(_) ->
     Tag = shedder,
-    HandlerId = {?MODULE, sheds_when_buffer_at_threshold, self()},
+    HandlerId = {?MODULE, identify_and_custom_at_capacity_are_dropped_by_the_server, self()},
     Self = self(),
     ok = telemetry:attach(
         HandlerId,
@@ -307,11 +293,19 @@ sheds_when_buffer_at_threshold(_) ->
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"first">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"second">>), #{}),
+        %% The context was noticed by the first identify, so no index event.
+        Custom = ldclient_event:new_custom(<<"metric">>, ldclient_context:new_from_user(#{key => <<"first">>}), undefined),
+        ok = ldclient_event_server:add_event(Tag, Custom, #{}),
         ok = ldclient_event_server:flush(Tag),
         receive
-            {dropped, #{count := 1}, #{tag := Tag, reason := shed_threshold}} -> ok
+            {dropped, #{count := 2}, #{tag := Tag, reason := capacity}} -> ok
         after 1000 ->
-            ct:fail("Expected a dropped telemetry event with reason shed_threshold")
+            ct:fail("Expected the identify and custom events to be dropped at capacity")
+        end,
+        receive
+            {dropped, _, #{tag := Tag, reason := inbox}} -> ct:fail("Nothing should have been shed at the caller")
+        after 100 ->
+            ok
         end,
         {ActualEvents, _PayloadId} = receive_events(),
         %% Only the first event made it into the buffer.
@@ -757,7 +751,6 @@ invalid_options_fall_back_to_defaults(_) ->
     30000 = ldclient_config:get_value(Tag, events_flush_interval),
     5 = ldclient_config:get_value(Tag, events_flush_workers),
     10000 = ldclient_config:get_value(Tag, events_batch_size),
-    10000 = ldclient_config:get_value(Tag, events_shed_threshold),
     10000 = ldclient_config:get_value(Tag, events_inbox_capacity),
     1000 = ldclient_config:get_value(Tag, events_housekeeping_interval_ms),
     30000 = ldclient_config:get_value(Tag, events_request_timeout),
@@ -935,17 +928,17 @@ gate_is_closed_while_the_pool_starts(_) ->
         Self ! {started, ldclient:start_instance("", Tag, Options)}
     end),
     try
-        {Ref, _Threshold, 50} = wait_for_counters(Key, 300),
-        50 = counters:get(Ref, 2),
+        {Ref, 50} = wait_for_counters(Key, 300),
+        50 = counters:get(Ref, 1),
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"during-init">>), #{}),
         %% Shed at the caller: counted, not queued.
-        1 = counters:get(Ref, 3),
+        1 = counters:get(Ref, 2),
         receive
             {started, ok} -> ok
         after 5000 ->
             ct:fail("start_instance did not complete")
         end,
-        true = counters:get(Ref, 2) < 50,
+        true = counters:get(Ref, 1) < 50,
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"after-init">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:flush(Tag),
@@ -967,7 +960,7 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
     ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100, events_housekeeping_interval_ms => 50})),
     register_collector(),
     try
-        {Ref1, _, 100} = persistent_term:get(Key),
+        {Ref1, 100} = persistent_term:get(Key),
         Pid1 = whereis(ServerName),
         %% An event without a context crashes the handler.
         ok = gen_server:cast(ServerName, {add_event, #{type => identify}, Tag, #{}}),
@@ -975,13 +968,13 @@ gate_closes_on_crash_and_counters_are_erased_on_stop(_) ->
         %% The crashed incarnation left its counters published with the gate
         %% closed, so callers shed meanwhile; the new incarnation reuses them
         %% and reopens the gate once it has a worker.
-        {Ref1, _, 100} = persistent_term:get(Key),
-        true = counters:get(Ref1, 2) < 100,
+        {Ref1, 100} = persistent_term:get(Key),
+        true = counters:get(Ref1, 1) < 100,
         %% Reservations leaked by callers that died between their add and their
         %% cast are clamped back to the real mailbox length on the next tick.
-        counters:add(Ref1, 2, 7),
+        counters:add(Ref1, 1, 7),
         timer:sleep(200),
-        true = counters:get(Ref1, 2) =< 1,
+        true = counters:get(Ref1, 1) =< 1,
         ok = ldclient_event_server:add_event(Tag, identify_event(<<"gate-user">>), #{}),
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:flush(Tag),
@@ -1010,27 +1003,21 @@ drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
     ),
     %% What a crashed incarnation leaves behind: its counters, gate closed, with
     %% the drops counted by callers since its last report.
-    Previous = counters:new(4, [write_concurrency]),
-    counters:put(Previous, 2, 100),
-    counters:add(Previous, 3, 4),
-    counters:add(Previous, 4, 2),
-    persistent_term:put(Key, {Previous, 1000, 100}),
+    Previous = counters:new(2, [write_concurrency]),
+    counters:put(Previous, 1, 100),
+    counters:add(Previous, 2, 4),
+    persistent_term:put(Key, {Previous, 100}),
     register_collector(),
     try
         ok = ldclient:start_instance("", Tag, instance_options(#{events_inbox_capacity => 100})),
-        {Previous, 1000, 100} = persistent_term:get(Key),
+        {Previous, 100} = persistent_term:get(Key),
         %% A caller that still holds the previous counters counts into the same place.
-        counters:add(Previous, 3, 1),
+        counters:add(Previous, 2, 1),
         ok = ldclient_event_server:flush(Tag),
         receive
             {dropped, #{count := 5}, #{tag := Tag, reason := inbox}} -> ok
         after 1000 ->
             ct:fail("Expected the inbox drops of the previous incarnation to be reported")
-        end,
-        receive
-            {dropped, #{count := 2}, #{tag := Tag, reason := shed_threshold}} -> ok
-        after 1000 ->
-            ct:fail("Expected the threshold drops of the previous incarnation to be reported")
         end
     after
         telemetry:detach(HandlerId),
@@ -1080,10 +1067,10 @@ drops_are_reported_when_the_pool_fails_to_start(_) ->
         end,
         undefined
     ),
-    Previous = counters:new(4, [write_concurrency]),
-    counters:put(Previous, 2, 100),
-    counters:add(Previous, 3, 4),
-    persistent_term:put(Key, {Previous, 1000, 100}),
+    Previous = counters:new(2, [write_concurrency]),
+    counters:put(Previous, 1, 100),
+    counters:add(Previous, 2, 4),
+    persistent_term:put(Key, {Previous, 100}),
     register_collector(),
     ok = ldclient_event_dispatch_controlled:reset(Tag),
     ok = ldclient_event_dispatch_controlled:set(Tag, init_fail, true),
@@ -1280,7 +1267,7 @@ start_instance_during_a_restart_keeps_the_instance(_) ->
 
 gate_open(Tag, InboxCapacity) ->
     case persistent_term:get({ldclient_event_server_counters, Tag}, undefined) of
-        {Ref, _, _} -> counters:get(Ref, 2) < InboxCapacity;
+        {Ref, _} -> counters:get(Ref, 1) < InboxCapacity;
         undefined -> false
     end.
 
@@ -1635,7 +1622,6 @@ instance_options(Extra) ->
         events_dispatcher => ldclient_event_dispatch_test,
         polling_update_requestor => ldclient_update_requestor_test,
         events_capacity => 100,
-        events_shed_threshold => 1000,
         events_inbox_capacity => 1000,
         events_flush_interval => 60000,
         events_flush_workers => 1

@@ -24,7 +24,6 @@
     summary_event := summary_event(),
     pending_summaries := [summary_event()],
     capacity := pos_integer(),
-    shed_threshold := pos_integer(),
     inbox_capacity := pos_integer(),
     batch_size := pos_integer(),
     flush_interval := pos_integer(),
@@ -86,17 +85,15 @@
 -export_type([counter_key/0]).
 -export_type([counter_value/0]).
 
-%% Key used to publish the caller-side depth counter for a tag. Callers read
-%% this (instead of calling into the event server) so that load can be shed
-%% before the server's mailbox grows.
+%% Key used to publish the caller-side admission counters for a tag. Callers
+%% read them (instead of calling into the event server) so that load can be
+%% shed before the server's mailbox grows.
 -define(COUNTERS_KEY, ldclient_event_server_counters).
-%% Counter slots: buffered full-fidelity events, casts queued in the mailbox,
-%% and events the callers discarded (shed) since the last flush, by reason.
--define(DEPTH, 1).
--define(INFLIGHT, 2).
--define(INBOX_DROPS, 3).
--define(THRESHOLD_DROPS, 4).
--define(COUNTER_SLOTS, 4).
+%% Counter slots: casts queued in the mailbox, and events the callers discarded
+%% (shed) because the mailbox was full, since the last report.
+-define(INFLIGHT, 1).
+-define(INBOX_DROPS, 2).
+-define(COUNTER_SLOTS, 2).
 
 %%===================================================================
 %% API
@@ -108,41 +105,31 @@
 %% size and flushed at configured interval.
 %%
 %% This call never blocks the caller: the event is cast to the event server.
-%% Admission is decided from two shared counters published by the event server:
-%% the number of buffered full-fidelity events and the number of casts still
-%% queued in its mailbox.
+%% Admission is decided from a shared counter published by the event server,
+%% the number of casts still queued in its mailbox. Every kind of event is shed
+%% once the queued casts reach `events_inbox_capacity', i.e. the event server
+%% is already a full buffer behind; this bounds its mailbox, as the input queue
+%% of the other SDKs does. Below that bound every event reaches the event
+%% server, so every evaluation is counted in the summary even while
+%% full-fidelity events are dropped at `events_capacity'.
 %%
-%% <ul>
-%%   <li>Every event is shed once the queued casts reach
-%%       `events_inbox_capacity', i.e. the event server is already a full
-%%       buffer behind. Below that bound every evaluation reaches the summary,
-%%       even while full-fidelity payloads are dropped at `events_capacity'.</li>
-%%   <li>Best-effort events (identify/custom) are additionally shed once the
-%%       buffered event count reaches `events_shed_threshold', since they would
-%%       be dropped at capacity anyway.</li>
-%% </ul>
-%%
-%% A shed event is counted in the shared counters (`reason' `inbox' or
-%% `shed_threshold') and reported by the event server with the next flush, as
-%% `[ldclient, events, dropped]', so that nothing but a counter increment runs
-%% on the caller's side while the pipeline is overloaded.
+%% A shed event is counted in the shared counters and reported by the event
+%% server with the next flush, as `[ldclient, events, dropped]' with `reason'
+%% `inbox', so that nothing but a counter increment runs on the caller's side
+%% while the pipeline is overloaded.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
-add_event(Tag, #{type := Type} = Event, Options) when is_atom(Tag) ->
-    case admit(Tag, Type) of
+add_event(Tag, #{type := _} = Event, Options) when is_atom(Tag) ->
+    case admit(Tag) of
         {ok, undefined} ->
             cast_event(Tag, Event, Options);
         {ok, Ref} ->
             counters:add(Ref, ?INFLIGHT, 1),
             cast_event(Tag, Event, Options);
-        {shed, Ref, Reason} ->
-            counters:add(Ref, drop_slot(Reason), 1)
+        {shed, Ref} ->
+            counters:add(Ref, ?INBOX_DROPS, 1)
     end.
-
--spec drop_slot(inbox | shed_threshold) -> ?INBOX_DROPS | ?THRESHOLD_DROPS.
-drop_slot(inbox) -> ?INBOX_DROPS;
-drop_slot(shed_threshold) -> ?THRESHOLD_DROPS.
 
 -spec cast_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) -> ok.
 cast_event(Tag, Event, Options) ->
@@ -183,7 +170,6 @@ start_link(Tag) ->
 init([Tag]) ->
     FlushInterval = ldclient_config:get_value(Tag, events_flush_interval),
     Capacity = ldclient_config:get_value(Tag, events_capacity),
-    ShedThreshold = ldclient_config:get_value(Tag, events_shed_threshold),
     InboxCapacity = ldclient_config:get_value(Tag, events_inbox_capacity),
     BatchSize = ldclient_config:get_value(Tag, events_batch_size),
     PoolSize = ldclient_config:get_value(Tag, events_flush_workers),
@@ -196,7 +182,7 @@ init([Tag]) ->
         ldclient_event_process_server:ets_table_name(Tag),
         [set, named_table, public, {read_concurrency, true}]
     ),
-    CountersRef = counters_ref(Tag, ShedThreshold, InboxCapacity),
+    CountersRef = counters_ref(Tag, InboxCapacity),
     % Need to trap exit so supervisor:terminate_child calls terminate callback
     process_flag(trap_exit, true),
     State = #{
@@ -207,7 +193,6 @@ init([Tag]) ->
         summary_event => #{},
         pending_summaries => [],
         capacity => Capacity,
-        shed_threshold => ShedThreshold,
         inbox_capacity => InboxCapacity,
         batch_size => BatchSize,
         flush_interval => FlushInterval,
@@ -290,7 +275,7 @@ handle_add_event(_Msg, #{send_events := false} = State) ->
 handle_add_event({add_event, Event, Tag, Options}, #{buffer := Buffer, event_count := Count, summary_event := SummaryEvent, capacity := Capacity, dropped := Dropped, context_cache := Cache, context_keys_capacity := KeysCapacity} = State) ->
     {Added, NewSummaryEvent, NewCount, NewDropped, NewCache} = add_event(Tag, Event, Options, SummaryEvent, Count, Capacity, Dropped, Cache, KeysCapacity),
     lists:foreach(fun(E) -> ok = ldclient_event_buffer:insert(Buffer, E) end, lists:reverse(Added)),
-    {noreply, set_count(State#{summary_event := NewSummaryEvent, dropped := NewDropped, context_cache := NewCache}, NewCount)}.
+    {noreply, State#{event_count := NewCount, summary_event := NewSummaryEvent, dropped := NewDropped, context_cache := NewCache}}.
 
 handle_info({flush, _Tag}, State) ->
     {noreply, start_flush(State, timer)};
@@ -534,40 +519,31 @@ get_local_reg_name(Tag) ->
     list_to_atom("ldclient_event_server_" ++ atom_to_list(Tag)).
 
 %% @doc Decide whether an incoming event may be cast to the event server, using
-%% the counters the server publishes: buffered full-fidelity events and casts
-%% still queued in its mailbox. Every kind is shed once the queued casts reach
-%% `events_inbox_capacity' (a bounded input queue, as the reference SDKs have);
-%% best-effort events are also shed once the buffer itself is at
-%% `events_shed_threshold', because they would be dropped at capacity anyway.
+%% the counter of casts still queued in its mailbox. Every kind of event is
+%% shed once the queued casts reach `events_inbox_capacity' (a bounded input
+%% queue, as the reference SDKs have).
 %%
 %% The persistent_term entry outlives an abnormal exit of the server with its
-%% gate closed (see `terminate/2'), and is erased on a normal stop; the next
-%% incarnation publishes fresh counters.
+%% gate closed (see `terminate/2'), and the next incarnation reuses it (see
+%% `counters_ref/2'); it is erased on a normal stop.
 %% @end
--spec admit(Tag :: atom(), Type :: atom()) ->
-    {ok, counters:counters_ref() | undefined} | {shed, counters:counters_ref(), inbox | shed_threshold}.
-admit(Tag, Type) ->
+-spec admit(Tag :: atom()) ->
+    {ok, counters:counters_ref() | undefined} | {shed, counters:counters_ref()}.
+admit(Tag) ->
     case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
         undefined ->
             {ok, undefined};
-        {Ref, ShedThreshold, InboxCapacity} ->
+        {Ref, InboxCapacity} ->
             case counters:get(Ref, ?INFLIGHT) >= InboxCapacity of
-                true ->
-                    {shed, Ref, inbox};
-                false when Type =/= feature_request ->
-                    case counters:get(Ref, ?DEPTH) >= ShedThreshold of
-                        true -> {shed, Ref, shed_threshold};
-                        false -> {ok, Ref}
-                    end;
-                false ->
-                    {ok, Ref}
+                true -> {shed, Ref};
+                false -> {ok, Ref}
             end
     end.
 
 %% @doc Take the drops the callers counted since the last report, leaving any
 %% that are counted concurrently in place.
 %% @end
--spec take_drops(counters:counters_ref(), ?INBOX_DROPS | ?THRESHOLD_DROPS) -> non_neg_integer().
+-spec take_drops(counters:counters_ref(), pos_integer()) -> non_neg_integer().
 take_drops(Ref, Slot) ->
     case counters:get(Ref, Slot) of
         Count when Count > 0 ->
@@ -584,38 +560,30 @@ take_drops(Ref, Slot) ->
 %% any hand-over (a hand-over leaves a window in which callers count against
 %% counters nobody reads again), and the `persistent_term' entry is not
 %% replaced (a replacement scans every process heap). Fresh counters are
-%% created otherwise, or when the bounds changed.
+%% created otherwise, or when the bound changed.
 %% @end
--spec counters_ref(Tag :: atom(), pos_integer(), pos_integer()) -> counters:counters_ref().
-counters_ref(Tag, ShedThreshold, InboxCapacity) ->
+-spec counters_ref(Tag :: atom(), pos_integer()) -> counters:counters_ref().
+counters_ref(Tag, InboxCapacity) ->
     case persistent_term:get({?COUNTERS_KEY, Tag}, undefined) of
-        {Ref, ShedThreshold, InboxCapacity} ->
+        {Ref, InboxCapacity} ->
             counters:put(Ref, ?INFLIGHT, InboxCapacity),
-            counters:put(Ref, ?DEPTH, 0),
             Ref;
         Previous ->
             Ref = counters:new(?COUNTER_SLOTS, [write_concurrency]),
             counters:put(Ref, ?INFLIGHT, InboxCapacity),
-            persistent_term:put({?COUNTERS_KEY, Tag}, {Ref, ShedThreshold, InboxCapacity}),
+            persistent_term:put({?COUNTERS_KEY, Tag}, {Ref, InboxCapacity}),
             carry_over_drops(Previous, Ref),
             Ref
     end.
 
-%% Counters published with other bounds (not expected for one tag, whose
+%% Counters published with another bound (not expected for one tag, whose
 %% settings are fixed for its lifetime) are drained once the new ones are
 %% published.
--spec carry_over_drops(undefined | {counters:counters_ref(), pos_integer(), pos_integer()}, counters:counters_ref()) -> ok.
+-spec carry_over_drops(undefined | {counters:counters_ref(), pos_integer()}, counters:counters_ref()) -> ok.
 carry_over_drops(undefined, _NewRef) ->
     ok;
-carry_over_drops({OldRef, _, _}, NewRef) ->
-    lists:foreach(
-        fun(Slot) -> counters:add(NewRef, Slot, take_drops(OldRef, Slot)) end,
-        [?INBOX_DROPS, ?THRESHOLD_DROPS]).
-
--spec update_counters(state()) -> state().
-update_counters(#{counters_ref := Ref, event_count := Count} = State) ->
-    counters:put(Ref, ?DEPTH, Count),
-    State.
+carry_over_drops({OldRef, _}, NewRef) ->
+    counters:add(NewRef, ?INBOX_DROPS, take_drops(OldRef, ?INBOX_DROPS)).
 
 %% @doc Account for one cast leaving the mailbox. Callers increment the slot
 %% before casting; drift (casts to a dead server, counts from a previous
@@ -666,10 +634,6 @@ stop_dispatcher(Tag) ->
 close_gate(#{counters_ref := Ref, inbox_capacity := InboxCapacity}) ->
     counters:put(Ref, ?INFLIGHT, InboxCapacity),
     ok.
-
--spec set_count(state(), non_neg_integer()) -> state().
-set_count(State, Count) ->
-    update_counters(State#{event_count := Count}).
 
 -spec erase_counters(state()) -> boolean().
 erase_counters(#{tag := Tag}) ->
@@ -772,10 +736,9 @@ open_window(#{summary_event := SummaryEvent, pending_summaries := Pending, event
 report_dropped(#{dropped := Dropped, counters_ref := Ref} = State) ->
     ok = report_dropped(capacity, Dropped, State),
     ok = report_dropped(inbox, take_drops(Ref, ?INBOX_DROPS), State),
-    ok = report_dropped(shed_threshold, take_drops(Ref, ?THRESHOLD_DROPS), State),
     State#{dropped := 0}.
 
--spec report_dropped(capacity | inbox | shed_threshold, non_neg_integer(), state()) -> ok.
+-spec report_dropped(capacity | inbox, non_neg_integer(), state()) -> ok.
 report_dropped(_Reason, 0, _State) ->
     ok;
 report_dropped(Reason, Count, #{tag := Tag} = State) ->
@@ -783,16 +746,13 @@ report_dropped(Reason, Count, #{tag := Tag} = State) ->
     {Format, Args} = dropped_message(Reason, Count, State),
     error_logger:warning_msg(Format, Args).
 
--spec dropped_message(capacity | inbox | shed_threshold, pos_integer(), state()) -> {string(), [term()]}.
+-spec dropped_message(capacity | inbox, pos_integer(), state()) -> {string(), [term()]}.
 dropped_message(capacity, Count, #{tag := Tag, capacity := Capacity}) ->
     {"Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
      [Capacity, Tag, Count]};
 dropped_message(inbox, Count, #{tag := Tag, inbox_capacity := InboxCapacity}) ->
     {"Exceeded event inbox capacity (~b) for ~p: ~b events were discarded before reaching the buffer since the last flush (they arrived faster than the event server processed them, or while it was starting), and the evaluations among them are missing from the summary.",
-     [InboxCapacity, Tag, Count]};
-dropped_message(shed_threshold, Count, #{tag := Tag, shed_threshold := ShedThreshold}) ->
-    {"Exceeded event shed threshold (~b) for ~p: ~b identify and custom events were discarded since the last flush. Increase events_capacity (and events_shed_threshold, if set) to keep them.",
-     [ShedThreshold, Tag, Count]}.
+     [InboxCapacity, Tag, Count]}.
 
 %% @doc Continue dispatching if a flush window is open or a batch is waiting to
 %% be re-dispatched after its worker exited.
@@ -840,7 +800,7 @@ pop_batch(#{buffer := Buffer, batch_size := BatchSize, event_count := Count, flu
     %% must be left for the next window.
     Take = min(BatchSize, Remaining),
     Batch = ldclient_event_buffer:pop_batch(Buffer, Take),
-    {Batch, set_count(State#{flush_remaining := max(0, Remaining - length(Batch))}, Count - length(Batch))}.
+    {Batch, State#{event_count := Count - length(Batch), flush_remaining := max(0, Remaining - length(Batch))}}.
 
 -spec dispatch(pid(), [ldclient_event:event()], summary_event() | undefined, 0 | 1, uuid:uuid(), state()) -> state().
 dispatch(Worker, Batch, Summary, Attempt, PayloadId, #{busy_workers := Busy} = State) ->
