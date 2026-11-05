@@ -33,10 +33,6 @@
     events_flush_workers => pos_integer(),
     %% Number of reporter workers, i.e. how many requests the pool makes to
     %% the events endpoint at once. Defaults to 5; at most 1024.
-    events_housekeeping_interval_ms => pos_integer(),
-    %% How often, in milliseconds, the event server reconciles its queue
-    %% counter with its mailbox and replaces workers that exited. Defaults to
-    %% 1000.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),

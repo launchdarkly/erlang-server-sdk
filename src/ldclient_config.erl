@@ -78,8 +78,10 @@
     %% as in the other SDKs; read from the options only so that tests can
     %% split a flush across workers.
     events_housekeeping_interval_ms => pos_integer(),
-    %% How often the event server clamps its queue counter and replaces crashed
-    %% workers.
+    %% Internal, not a public option: how often, in milliseconds, the event
+    %% server clamps its queue counter to its mailbox length and retries worker
+    %% starts that failed. Fixed at 1000; read from the options only so that
+    %% tests can shorten or suppress the tick.
     context_keys_capacity => pos_integer(),
     private_attributes => private_attributes(),
     stream => boolean(),
