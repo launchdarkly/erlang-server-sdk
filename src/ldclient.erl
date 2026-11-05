@@ -101,9 +101,6 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
 %%       workers, i.e. how many requests the pool makes to the events endpoint
 %%       at once, as in the other server-side SDKs.</li>
-%%   <li>`events_batch_size' (`events_capacity') - maximum number of events a
-%%       worker sends per request. The default sends each flush as a single
-%%       request; lower it to split a flush across several workers.</li>
 %%   <li>`events_housekeeping_interval_ms' (`1000') - how often the event
 %%       server reconciles its queue counter with its mailbox and replaces
 %%       workers that exited.</li>

@@ -33,9 +33,6 @@
     events_flush_workers => pos_integer(),
     %% Number of reporter workers, i.e. how many requests the pool makes to
     %% the events endpoint at once. Defaults to 5; at most 1024.
-    events_batch_size => pos_integer(),
-    %% Maximum number of events a single worker sends per request. Defaults to
-    %% `events_capacity', i.e. one request per flush.
     events_housekeeping_interval_ms => pos_integer(),
     %% How often, in milliseconds, the event server reconciles its queue
     %% counter with its mailbox and replaces workers that exited. Defaults to

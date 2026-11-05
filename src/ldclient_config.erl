@@ -73,7 +73,10 @@
     %% to the events endpoint. A flush that finds every worker busy is skipped
     %% and its events go out with the next one.
     events_batch_size => pos_integer(),
-    %% Maximum number of events dispatched per worker request.
+    %% Internal, not a public option: maximum number of events dispatched per
+    %% worker request. Tied to `events_capacity', so a flush is one request,
+    %% as in the other SDKs; read from the options only so that tests can
+    %% split a flush across workers.
     events_housekeeping_interval_ms => pos_integer(),
     %% How often the event server clamps its queue counter and replaces crashed
     %% workers.
