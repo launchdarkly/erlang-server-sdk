@@ -27,10 +27,6 @@
     events_dispatcher => atom(),
     %% Module implementing the `ldclient_event_dispatch' behaviour used to
     %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
-    events_inbox_capacity => pos_integer(),
-    %% Number of events queued in the event server mailbox at which the caller
-    %% sheds every event, including feature requests, bounding the mailbox under
-    %% ingress overload. Defaults to `events_capacity'.
     events_request_timeout => pos_integer(),
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure. Defaults to 30000.

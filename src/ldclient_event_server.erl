@@ -89,10 +89,10 @@
 %% read them (instead of calling into the event server) so that load can be
 %% shed before the server's mailbox grows.
 -define(COUNTERS_KEY, ldclient_event_server_counters).
-%% Counter slots: casts queued in the mailbox, and events the callers discarded
-%% (shed) because the mailbox was full, since the last report.
+%% Counter slots: casts queued in the mailbox, and events the callers shed
+%% (discarded without casting them) since the last report.
 -define(INFLIGHT, 1).
--define(INBOX_DROPS, 2).
+-define(SHED, 2).
 -define(COUNTER_SLOTS, 2).
 
 %%===================================================================
@@ -107,16 +107,16 @@
 %% This call never blocks the caller: the event is cast to the event server.
 %% Admission is decided from a shared counter published by the event server,
 %% the number of casts still queued in its mailbox. Every kind of event is shed
-%% once the queued casts reach `events_inbox_capacity', i.e. the event server
-%% is already a full buffer behind; this bounds its mailbox, as the input queue
-%% of the other SDKs does. Below that bound every event reaches the event
-%% server, so every evaluation is counted in the summary even while
+%% once the queued casts reach the inbox bound (`events_capacity'), i.e. the
+%% event server is already a full buffer behind; this bounds its mailbox, as
+%% the input queue of the other SDKs does. Below that bound every event reaches
+%% the event server, so every evaluation is counted in the summary even while
 %% full-fidelity events are dropped at `events_capacity'.
 %%
 %% A shed event is counted in the shared counters and reported by the event
-%% server with the next flush, as `[ldclient, events, dropped]' with `reason'
-%% `inbox', so that nothing but a counter increment runs on the caller's side
-%% while the pipeline is overloaded.
+%% server with the next flush, as `[ldclient, events, shed]', so that nothing
+%% but a counter increment runs on the caller's side while the pipeline is
+%% overloaded.
 %% @end
 -spec add_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) ->
     ok.
@@ -128,7 +128,7 @@ add_event(Tag, #{type := _} = Event, Options) when is_atom(Tag) ->
             counters:add(Ref, ?INFLIGHT, 1),
             cast_event(Tag, Event, Options);
         {shed, Ref} ->
-            counters:add(Ref, ?INBOX_DROPS, 1)
+            counters:add(Ref, ?SHED, 1)
     end.
 
 -spec cast_event(Tag :: atom(), Event :: ldclient_event:event(), Options :: options()) -> ok.
@@ -520,8 +520,8 @@ get_local_reg_name(Tag) ->
 
 %% @doc Decide whether an incoming event may be cast to the event server, using
 %% the counter of casts still queued in its mailbox. Every kind of event is
-%% shed once the queued casts reach `events_inbox_capacity' (a bounded input
-%% queue, as the reference SDKs have).
+%% shed once the queued casts reach the inbox bound (`events_capacity', a
+%% bounded input queue as in the reference SDKs).
 %%
 %% The persistent_term entry outlives an abnormal exit of the server with its
 %% gate closed (see `terminate/2'), and the next incarnation reuses it (see
@@ -583,7 +583,7 @@ counters_ref(Tag, InboxCapacity) ->
 carry_over_drops(undefined, _NewRef) ->
     ok;
 carry_over_drops({OldRef, _}, NewRef) ->
-    counters:add(NewRef, ?INBOX_DROPS, take_drops(OldRef, ?INBOX_DROPS)).
+    counters:add(NewRef, ?SHED, take_drops(OldRef, ?SHED)).
 
 %% @doc Account for one cast leaving the mailbox. Callers increment the slot
 %% before casting; drift (casts to a dead server, counts from a previous
@@ -728,31 +728,36 @@ open_window(#{summary_event := SummaryEvent, pending_summaries := Pending, event
         flush_remaining := Count
     }).
 
-%% @doc Report the events discarded since the previous flush: those dropped
-%% here at `events_capacity' and those the callers shed. One log line and one
-%% `[ldclient, events, dropped]' telemetry event per reason and window.
+%% @doc Report what was discarded since the previous report: the events dropped
+%% here because the buffer was at `events_capacity', as
+%% `[ldclient, events, dropped]' with reason `capacity', and the events the
+%% callers shed because this server's queue was full, as
+%% `[ldclient, events, shed]'. Shed events are not counted as dropped. One log
+%% line and one telemetry event each, per window.
 %% @end
 -spec report_dropped(state()) -> state().
 report_dropped(#{dropped := Dropped, counters_ref := Ref} = State) ->
-    ok = report_dropped(capacity, Dropped, State),
-    ok = report_dropped(inbox, take_drops(Ref, ?INBOX_DROPS), State),
+    ok = report_capacity_drops(Dropped, State),
+    ok = report_shed(take_drops(Ref, ?SHED), State),
     State#{dropped := 0}.
 
--spec report_dropped(capacity | inbox, non_neg_integer(), state()) -> ok.
-report_dropped(_Reason, 0, _State) ->
+-spec report_capacity_drops(non_neg_integer(), state()) -> ok.
+report_capacity_drops(0, _State) ->
     ok;
-report_dropped(Reason, Count, #{tag := Tag} = State) ->
-    telemetry:execute([ldclient, events, dropped], #{count => Count}, #{tag => Tag, reason => Reason}),
-    {Format, Args} = dropped_message(Reason, Count, State),
-    error_logger:warning_msg(Format, Args).
+report_capacity_drops(Count, #{tag := Tag, capacity := Capacity}) ->
+    telemetry:execute([ldclient, events, dropped], #{count => Count}, #{tag => Tag, reason => capacity}),
+    error_logger:warning_msg(
+        "Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
+        [Capacity, Tag, Count]).
 
--spec dropped_message(capacity | inbox, pos_integer(), state()) -> {string(), [term()]}.
-dropped_message(capacity, Count, #{tag := Tag, capacity := Capacity}) ->
-    {"Exceeded event queue capacity (~b) for ~p: dropped ~b events since the last flush. Increase events_capacity to avoid dropping events.",
-     [Capacity, Tag, Count]};
-dropped_message(inbox, Count, #{tag := Tag, inbox_capacity := InboxCapacity}) ->
-    {"Exceeded event inbox capacity (~b) for ~p: ~b events were discarded before reaching the buffer since the last flush (they arrived faster than the event server processed them, or while it was starting), and the evaluations among them are missing from the summary.",
-     [InboxCapacity, Tag, Count]}.
+-spec report_shed(non_neg_integer(), state()) -> ok.
+report_shed(0, _State) ->
+    ok;
+report_shed(Count, #{tag := Tag, inbox_capacity := InboxCapacity}) ->
+    telemetry:execute([ldclient, events, shed], #{count => Count}, #{tag => Tag}),
+    error_logger:warning_msg(
+        "Events for ~p are being produced faster than the event server can process them: ~b events were discarded before reaching it since the last flush (its queue was full at ~b events, or it was starting or restarting), and the evaluations among them are missing from the summary.",
+        [Tag, Count, InboxCapacity]).
 
 %% @doc Continue dispatching if a flush window is open or a batch is waiting to
 %% be re-dispatched after its worker exited.

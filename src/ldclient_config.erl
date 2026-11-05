@@ -60,8 +60,11 @@
     events_flush_interval => pos_integer(),
     events_dispatcher => atom(),
     events_inbox_capacity => pos_integer(),
-    %% Number of queued (not yet processed) casts at which callers shed every
-    %% event, including feature requests. Bounds the event server mailbox.
+    %% Internal, not a public option: number of queued (not yet processed)
+    %% casts at which callers shed every event, including feature requests.
+    %% Bounds the event server mailbox. Tied to `events_capacity', as the input
+    %% queue of the other SDKs is; read from the options only so that tests
+    %% can set it.
     events_request_timeout => pos_integer(),
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure.

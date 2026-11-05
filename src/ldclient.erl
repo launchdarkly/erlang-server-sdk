@@ -80,17 +80,16 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%
 %% <ul>
 %%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
-%%       held in the buffer before new events are dropped.</li>
+%%       held in the buffer before new events are dropped. It also bounds the
+%%       number of events waiting for the event server to process them: once
+%%       that many are queued, callers shed new events of every kind (see
+%%       `[ldclient, events, shed]'), as the input queue of the other SDKs
+%%       does. Below that bound every evaluation is counted in the summary
+%%       event even while full-fidelity events are dropped.</li>
 %%   <li>`events_flush_interval' (`30000') - how often, in milliseconds,
 %%       buffered events are handed to the reporter pool.</li>
 %%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
 %%       implementing the `ldclient_event_dispatch' behaviour.</li>
-%%   <li>`events_inbox_capacity' (`events_capacity') - number of events queued
-%%       in the event server's mailbox (accepted but not yet processed) at
-%%       which the caller sheds every event, including feature requests. This
-%%       bounds the event server mailbox and memory under ingress overload. Below
-%%       this bound every evaluation is counted in the summary event even while
-%%       full-fidelity payloads are dropped at `events_capacity'.</li>
 %%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
 %%       waits for the events endpoint to answer; a timeout is a temporary
 %%       failure (retried once), so a stalled endpoint cannot pin a worker. A
@@ -130,11 +129,16 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       `count' is the number of events discarded before delivery. Reasons:
 %%       `capacity' (full-fidelity events dropped because
 %%       the buffer was at `events_capacity'; their evaluations are still in
-%%       the summary), `inbox' (events shed by the caller because the event
-%%       server's queue was at `events_inbox_capacity'; evaluations among them
-%%       are missing from the summary), and `unencodable' (events left out of a
+%%       the summary) and `unencodable' (events left out of a
 %%       request because they could not be encoded as JSON; emitted by the
-%%       worker while it encodes a batch).</li>
+%%       worker while it encodes a batch). Shed events are not included.</li>
+%%   <li>`[ldclient, events, shed]' - emitted at every flush and at shutdown
+%%       when callers shed events since the previous report; measurement
+%%       `count' is the number of events the callers discarded without sending
+%%       them to the event server, because it already had `events_capacity'
+%%       events waiting (events are produced faster than it can process them)
+%%       or because it was starting or restarting. Evaluations among them are
+%%       missing from the summary. They are not counted in `dropped'.</li>
 %%   <li>`[ldclient, events, published]' - emitted when a batch is successfully
 %%       delivered. Measurement `count' (number of events in the batch).</li>
 %%   <li>`[ldclient, events, send_error]' - emitted for every failed delivery
@@ -166,7 +170,8 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% `erlang:convert_time_unit/3'), `events.sent' and `events.sent.size'
 %% (`count' and `size' of a `succeeded' flush), `events.failed' (`count' of a
 %% `failed' flush) and `events.dropped' (`count' of every `dropped' event;
-%% `unencodable' is not a buffer-full drop and may be left out). On a `failed'
+%% `unencodable' is not a buffer-full drop and may be left out). The
+%% specification has no instrument for `shed'. On a `failed'
 %% flush, `events.failed' and `events.flushes' carry `error.type' (the
 %% `status_code' as a string, or `"_OTHER"' when there is none) and
 %% `http.response.status_code' (the `status_code', when present). The

@@ -280,11 +280,11 @@ identify_and_custom_at_capacity_are_dropped_by_the_server(_) ->
     Tag = shedder,
     HandlerId = {?MODULE, identify_and_custom_at_capacity_are_dropped_by_the_server, self()},
     Self = self(),
-    ok = telemetry:attach(
+    ok = telemetry:attach_many(
         HandlerId,
-        [ldclient, events, dropped],
-        fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {dropped, Measurements, Metadata}
+        [[ldclient, events, dropped], [ldclient, events, shed]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
         end,
         undefined
     ),
@@ -303,7 +303,7 @@ identify_and_custom_at_capacity_are_dropped_by_the_server(_) ->
             ct:fail("Expected the identify and custom events to be dropped at capacity")
         end,
         receive
-            {dropped, _, #{tag := Tag, reason := inbox}} -> ct:fail("Nothing should have been shed at the caller")
+            {shed, _, #{tag := Tag}} -> ct:fail("Nothing should have been shed at the caller")
         after 100 ->
             ok
         end,
@@ -666,18 +666,18 @@ flush_returns_without_waiting_for_delivery(_) ->
     ok.
 
 %% Feature requests are admitted while the event server keeps up, but once the
-%% number of queued casts reaches events_inbox_capacity they are shed too, so
-%% the mailbox is bounded under ingress overload. The sheds are reported in one
-%% dropped event with reason inbox at the next flush.
+%% number of queued casts reaches the inbox bound they are shed too, so the
+%% mailbox is bounded under ingress overload. The sheds are reported in one
+%% shed event at the next flush, and not as dropped.
 feature_requests_shed_when_inbox_full(_) ->
     Tag = inbox_bound,
     HandlerId = {?MODULE, feature_requests_shed_when_inbox_full, self()},
     Self = self(),
-    ok = telemetry:attach(
+    ok = telemetry:attach_many(
         HandlerId,
-        [ldclient, events, dropped],
-        fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {dropped, Measurements, Metadata}
+        [[ldclient, events, dropped], [ldclient, events, shed]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
         end,
         undefined
     ),
@@ -698,9 +698,15 @@ feature_requests_shed_when_inbox_full(_) ->
         true = Queued >= 5,
         ok = ldclient_event_server:flush(Tag),
         receive
-            {dropped, #{count := 5}, #{tag := Tag, reason := inbox}} -> ok
+            {shed, #{count := 5}, #{tag := Tag}} -> ok
         after 1000 ->
-            ct:fail("Expected the five shed feature requests in one dropped event with reason inbox")
+            ct:fail("Expected the five shed feature requests in one shed event")
+        end,
+        %% Shed events are not counted as dropped (nothing reached capacity).
+        receive
+            {dropped, _, #{tag := Tag}} = Dropped -> ct:fail("Unexpected ~p", [Dropped])
+        after 100 ->
+            ok
         end,
         Payloads = collect_payloads(1),
         [Summary|_] = [E || E <- hd(Payloads), maps:get(<<"kind">>, E) =:= <<"summary">>],
@@ -914,11 +920,11 @@ gate_is_closed_while_the_pool_starts(_) ->
     Key = {ldclient_event_server_counters, Tag},
     HandlerId = {?MODULE, gate_is_closed_while_the_pool_starts, self()},
     Self = self(),
-    ok = telemetry:attach(
+    ok = telemetry:attach_many(
         HandlerId,
-        [ldclient, events, dropped],
-        fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {dropped, Measurements, Metadata}
+        [[ldclient, events, dropped], [ldclient, events, shed]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
         end,
         undefined
     ),
@@ -943,9 +949,9 @@ gate_is_closed_while_the_pool_starts(_) ->
         wait_for_event_count(Tag, 1),
         ok = ldclient_event_server:flush(Tag),
         receive
-            {dropped, #{count := 1}, #{tag := Tag, reason := inbox}} -> ok
+            {shed, #{count := 1}, #{tag := Tag}} -> ok
         after 1000 ->
-            ct:fail("Expected the cast made during init to be reported as dropped (inbox)")
+            ct:fail("Expected the cast made during init to be reported as shed")
         end,
         _ = collect_payload_with_key(<<"after-init">>, 3000)
     after
@@ -993,11 +999,11 @@ drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
     Key = {ldclient_event_server_counters, Tag},
     HandlerId = {?MODULE, drops_counted_during_a_restart_are_reported_by_the_next_incarnation, self()},
     Self = self(),
-    ok = telemetry:attach(
+    ok = telemetry:attach_many(
         HandlerId,
-        [ldclient, events, dropped],
-        fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {dropped, Measurements, Metadata}
+        [[ldclient, events, dropped], [ldclient, events, shed]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
         end,
         undefined
     ),
@@ -1015,9 +1021,9 @@ drops_counted_during_a_restart_are_reported_by_the_next_incarnation(_) ->
         counters:add(Previous, 2, 1),
         ok = ldclient_event_server:flush(Tag),
         receive
-            {dropped, #{count := 5}, #{tag := Tag, reason := inbox}} -> ok
+            {shed, #{count := 5}, #{tag := Tag}} -> ok
         after 1000 ->
-            ct:fail("Expected the inbox drops of the previous incarnation to be reported")
+            ct:fail("Expected the sheds counted for the previous incarnation to be reported")
         end
     after
         telemetry:detach(HandlerId),
@@ -1059,11 +1065,11 @@ drops_are_reported_when_the_pool_fails_to_start(_) ->
     Key = {ldclient_event_server_counters, Tag},
     HandlerId = {?MODULE, drops_are_reported_when_the_pool_fails_to_start, self()},
     Self = self(),
-    ok = telemetry:attach(
+    ok = telemetry:attach_many(
         HandlerId,
-        [ldclient, events, dropped],
-        fun(_Event, Measurements, Metadata, _Config) ->
-            Self ! {dropped, Measurements, Metadata}
+        [[ldclient, events, dropped], [ldclient, events, shed]],
+        fun([ldclient, events, Name], Measurements, Metadata, _Config) ->
+            Self ! {Name, Measurements, Metadata}
         end,
         undefined
     ),
@@ -1078,7 +1084,7 @@ drops_are_reported_when_the_pool_fails_to_start(_) ->
         Options = instance_options(#{events_dispatcher => ldclient_event_dispatch_controlled, events_inbox_capacity => 100}),
         {error, start_failed, _} = ldclient:start_instance("", Tag, Options),
         receive
-            {dropped, #{count := 4}, #{tag := Tag, reason := inbox}} -> ok
+            {shed, #{count := 4}, #{tag := Tag}} -> ok
         after 1000 ->
             ct:fail("Expected the drops counted before the failed start to be reported")
         end,
