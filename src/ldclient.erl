@@ -72,11 +72,13 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%
 %% Event ingestion is non-blocking: flag evaluations hand events to the SDK
 %% without waiting on the analytics pipeline. Buffered events are dispatched by
-%% a fixed pool of reporter workers. A flush that finds every worker busy is
-%% deferred and runs as soon as a worker is free, with its events kept in the
-%% buffer meanwhile (the one waiting payload of the Go and Java SDKs; Python,
-%% Ruby and .NET skip to the next interval). The following options tune this
-%% pipeline (defaults shown in parentheses):
+%% a fixed pool of five reporter workers, so at most five requests to the
+%% events endpoint are in flight at once, as in the other server-side SDKs. A
+%% flush that finds every worker busy is deferred and runs as soon as a worker
+%% is free, with its events kept in the buffer meanwhile (the one waiting
+%% payload of the Go and Java SDKs; Python, Ruby and .NET skip to the next
+%% interval). The following options tune this pipeline (defaults shown in
+%% parentheses):
 %%
 %% <ul>
 %%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
@@ -98,9 +100,6 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       lingering with the unsent body; a request still uploading its body
 %%       at that point is cut off too, so the timeout must cover the upload
 %%       of a full payload on the slowest expected link.</li>
-%%   <li>`events_flush_workers' (`5', at most `1024') - number of reporter
-%%       workers, i.e. how many requests the pool makes to the events endpoint
-%%       at once, as in the other server-side SDKs.</li>
 %% </ul>
 %%
 %% == Telemetry ==

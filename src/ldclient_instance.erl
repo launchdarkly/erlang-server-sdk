@@ -30,9 +30,6 @@
     events_request_timeout => pos_integer(),
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure. Defaults to 30000.
-    events_flush_workers => pos_integer(),
-    %% Number of reporter workers, i.e. how many requests the pool makes to
-    %% the events endpoint at once. Defaults to 5; at most 1024.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),

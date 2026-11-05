@@ -69,9 +69,11 @@
     %% Milliseconds a reporter worker waits for the events endpoint to answer
     %% before treating the request as a temporary failure.
     events_flush_workers => pos_integer(),
-    %% Number of reporter workers, i.e. the maximum number of concurrent requests
-    %% to the events endpoint. A flush that finds every worker busy is skipped
-    %% and its events go out with the next one.
+    %% Internal, not a public option: number of reporter workers, i.e. the
+    %% maximum number of concurrent requests to the events endpoint. Fixed at
+    %% 5, as in the other SDKs (at most 1024); read from the options only so
+    %% that tests can change the pool size. A flush that finds every worker
+    %% busy is deferred until one is free.
     events_batch_size => pos_integer(),
     %% Internal, not a public option: maximum number of events dispatched per
     %% worker request. Tied to `events_capacity', so a flush is one request,
@@ -208,8 +210,8 @@ parse_options(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
     EventsInboxCapacity = pos_integer_option(events_inbox_capacity, Options, EventsCapacity),
     EventsFlushWorkers = bounded_integer_option(events_flush_workers, Options, ?DEFAULT_EVENTS_FLUSH_WORKERS, ?MAX_EVENTS_FLUSH_WORKERS),
     EventsRequestTimeout = interval_option(events_request_timeout, Options, ?DEFAULT_EVENTS_REQUEST_TIMEOUT),
-    %% One payload per flush by default (the behaviour before the worker pool);
-    %% splitting a flush into smaller requests is opt-in.
+    %% One payload per flush (the behaviour before the worker pool); only tests
+    %% split a flush into smaller requests.
     EventsBatchSize = pos_integer_option(events_batch_size, Options, EventsCapacity),
     EventsHousekeepingInterval = interval_option(events_housekeeping_interval_ms, Options, ?DEFAULT_EVENTS_HOUSEKEEPING_INTERVAL),
     ContextKeysCapacity = pos_integer_option(context_keys_capacity, Options, ?DEFAULT_CONTEXT_KEYS_CAPACITY),
