@@ -278,7 +278,7 @@ variation_for_all(Variation, FlagBuilder) when is_integer(Variation) ->
 %% @end
 -spec value_for_all(Value :: term(), FlagBuilder :: flag_builder()) -> flag_builder().
 value_for_all(Value, FlagBuilder) ->
-    variation_for_all(0, variations([Value], FlagBuilder)).
+    off_variation(0, variation_for_all(0, variations([Value], FlagBuilder))).
 
 %% @doc Sets the flag to return the specified variation for a specific context kind and key when
 %% targeting is on.
