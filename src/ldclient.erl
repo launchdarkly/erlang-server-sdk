@@ -77,8 +77,18 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %% flush that finds every worker busy is deferred and runs as soon as a worker
 %% is free, with its events kept in the buffer meanwhile (the one waiting
 %% payload of the Go and Java SDKs; Python, Ruby and .NET skip to the next
-%% interval). The following options tune this pipeline (defaults shown in
-%% parentheses):
+%% interval).
+%%
+%% Each request to the events endpoint times out after 30 seconds, counting
+%% the upload of the payload and the response; a timeout is a temporary
+%% failure, retried once, so a stalled endpoint cannot pin a worker. A
+%% connection whose peer stopped reading is reset and released when the
+%% request times out (within about 5 seconds for TLS) instead of lingering
+%% with the unsent body, and a request still uploading its body at that point
+%% is cut off too. A full payload at the default capacity is in the order of a
+%% megabyte, so only a very slow link comes near the limit.
+%%
+%% The following options tune this pipeline (defaults shown in parentheses):
 %%
 %% <ul>
 %%   <li>`events_capacity' (`10000') - maximum number of full-fidelity events
@@ -92,14 +102,6 @@ start_instance(SdkKey, Options) when is_list(SdkKey), is_map(Options) ->
 %%       buffered events are handed to the reporter pool.</li>
 %%   <li>`events_dispatcher' (`ldclient_event_dispatch_httpc') - module
 %%       implementing the `ldclient_event_dispatch' behaviour.</li>
-%%   <li>`events_request_timeout' (`30000') - milliseconds a reporter worker
-%%       waits for the events endpoint to answer; a timeout is a temporary
-%%       failure (retried once), so a stalled endpoint cannot pin a worker. A
-%%       connection whose peer stopped reading is reset and released when the
-%%       request times out (within about 5 seconds for TLS), instead of
-%%       lingering with the unsent body; a request still uploading its body
-%%       at that point is cut off too, so the timeout must cover the upload
-%%       of a full payload on the slowest expected link.</li>
 %% </ul>
 %%
 %% == Telemetry ==

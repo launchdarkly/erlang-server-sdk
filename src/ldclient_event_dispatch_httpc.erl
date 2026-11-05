@@ -144,7 +144,8 @@ is_set(_, _) -> true.
 %% FIN, also when an idle keep-alive connection is closed; by then its
 %% responses have been read, so nothing is lost). A request still uploading
 %% its body when the request timeout expires is therefore cut off and retried
-%% once, so `events_request_timeout' must cover the upload of a full payload.
+%% once, so the request timeout (`events_request_timeout', 30 s) must cover
+%% the upload of a full payload.
 %% Options an application set on the default profile are kept (whatever their
 %% shape: pairs, `{raw, _, _, _}', atoms), except an explicit linger of its own.
 -spec socket_options(Inherited :: [gen_tcp:option() | term()]) -> [gen_tcp:option() | term()].

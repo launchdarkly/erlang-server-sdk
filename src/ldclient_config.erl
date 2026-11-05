@@ -66,8 +66,10 @@
     %% queue of the other SDKs is; read from the options only so that tests
     %% can set it.
     events_request_timeout => pos_integer(),
-    %% Milliseconds a reporter worker waits for the events endpoint to answer
-    %% before treating the request as a temporary failure.
+    %% Internal, not a public option: milliseconds a reporter worker allows
+    %% for a request to the events endpoint (upload and response) before
+    %% treating it as a temporary failure. Fixed at 30000, like the stream read
+    %% timeout; read from the options only so that tests can shorten it.
     events_flush_workers => pos_integer(),
     %% Internal, not a public option: number of reporter workers, i.e. the
     %% maximum number of concurrent requests to the events endpoint. Fixed at

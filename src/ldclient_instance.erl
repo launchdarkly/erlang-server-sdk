@@ -27,9 +27,6 @@
     events_dispatcher => atom(),
     %% Module implementing the `ldclient_event_dispatch' behaviour used to
     %% deliver event batches. Defaults to `ldclient_event_dispatch_httpc'.
-    events_request_timeout => pos_integer(),
-    %% Milliseconds a reporter worker waits for the events endpoint to answer
-    %% before treating the request as a temporary failure. Defaults to 30000.
     context_keys_capacity => pos_integer(),
     private_attributes => ldclient_config:private_attributes(),
     stream => boolean(),
