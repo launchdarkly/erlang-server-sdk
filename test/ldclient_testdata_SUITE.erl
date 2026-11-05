@@ -15,6 +15,7 @@ all() ->
         test_rules,
         test_multiple_clients,
         test_value_for_all,
+        test_value_for_all_targeting_off,
         test_multiple_testdata_sources,
         test_targeting_non_users
     ].
@@ -139,6 +140,13 @@ test_value_for_all(_) ->
     ldclient_testdata:update(ldclient_flagbuilder:value_for_all(<<"6 multiplied by 9">>, Flag)),
     <<"6 multiplied by 9">> = ldclient:variation(<<"flag1">>, Ben, null),
     <<"6 multiplied by 9">> = ldclient:variation(<<"flag1">>, Greg, null).
+
+test_value_for_all_targeting_off(_) ->
+    {ok, Flag} = ldclient_testdata:flag(<<"flag1">>),
+    ldclient_testdata:update(ldclient_flagbuilder:on(false,
+        ldclient_flagbuilder:value_for_all(<<"value">>, Flag))),
+    User = ldclient_user:new(<<"user">>),
+    <<"value">> = ldclient:variation(<<"flag1">>, User, <<"default">>).
 
 test_multiple_testdata_sources(_) ->
     ldclient:start_instance("", second_client, #{
