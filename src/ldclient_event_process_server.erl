@@ -44,8 +44,10 @@
 
 %% @doc Ask a reporter worker to format and dispatch a batch of events.
 %%
-%% `Owner' is notified with `{worker_done, self()}' once the batch has been
-%% handed to the dispatcher (or scheduled for retry). `SummaryEvent' is either
+%% `Owner' is notified with `{worker_done, self()}' once the batch is resolved:
+%% delivered, or dropped after its retry or a permanent failure. Until then the
+%% owner keeps the batch, so it can send it again if this worker exits, also
+%% while a retry is pending. `SummaryEvent' is either
 %% a summary event map or `undefined'. `PayloadId' is chosen by the owner so
 %% that a batch re-dispatched after a worker exit keeps the same id.
 %% @end
@@ -120,19 +122,13 @@ handle_cast({send_batch, Owner, Events, SummaryEvent, PayloadId},
     FormattedEvents = format_events(Events, GlobalPrivateAttributes),
     OutputEvents = combine_events(FormattedEvents, FormattedSummaryEvent),
     StartTime = erlang:monotonic_time(),
-    NewState = do_send(OutputEvents, PayloadId, StartTime, State),
-    %% Report the worker as available as soon as the batch has been attempted, so
-    %% the pool can keep dispatching; a scheduled retry runs in this worker
-    %% alongside any later batch.
-    _ = Owner ! {worker_done, self()},
-    {noreply, NewState};
+    {noreply, do_send(Owner, OutputEvents, PayloadId, StartTime, State)};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({send, JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus}, State) ->
+handle_info({send, Owner, JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus}, State) ->
     %% The scheduled retry timer has fired; resend the same bytes.
-    NewState = attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State),
-    {noreply, NewState};
+    {noreply, attempt(Owner, JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State)};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -322,21 +318,21 @@ combine_events([], OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 ->
 combine_events(OutputEvents, OutputSummaryEvent) when map_size(OutputSummaryEvent) == 0 -> OutputEvents;
 combine_events(OutputEvents, OutputSummaryEvent) -> [OutputSummaryEvent|OutputEvents].
 
--spec do_send(list(), uuid:uuid(), integer(), state()) -> state().
-do_send(OutputEvents, PayloadId, StartTime, #{tag := Tag} = State) ->
+-spec do_send(pid(), list(), uuid:uuid(), integer(), state()) -> state().
+do_send(Owner, OutputEvents, PayloadId, StartTime, #{tag := Tag} = State) ->
     %% Encode once. The retry resends the same bytes, so an unencodable event
     %% is dropped and reported exactly once, and the counts reported below
     %% describe what is actually sent.
     case encode(OutputEvents, Tag) of
-        {ok, JsonEvents, Count} -> attempt(JsonEvents, Count, PayloadId, 0, StartTime, undefined, State);
-        empty -> State
+        {ok, JsonEvents, Count} -> attempt(Owner, JsonEvents, Count, PayloadId, 0, StartTime, undefined, State);
+        empty -> done(Owner, State)
     end.
 
 %% `PreviousStatus' is the status code of the first attempt's response, if it
 %% had one, so that a batch whose retry got no response is still reported with
 %% the status of the last response received.
--spec attempt(binary(), pos_integer(), uuid:uuid(), non_neg_integer(), integer(), pos_integer() | undefined, state()) -> state().
-attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State) ->
+-spec attempt(pid(), binary(), pos_integer(), uuid:uuid(), non_neg_integer(), integer(), pos_integer() | undefined, state()) -> state().
+attempt(Owner, JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State) ->
     #{
         dispatcher := Dispatcher,
         events_uri := Uri,
@@ -351,23 +347,32 @@ attempt(JsonEvents, Count, PayloadId, Attempt, StartTime, PreviousStatus, State)
             _ = (catch ets:insert(ets_table_name(Tag), {last_known_server_time, Date})),
             emit_published(Tag, Count),
             emit_flush(Tag, Count, Size, StartTime, succeeded, undefined),
-            State;
+            done(Owner, State);
         {error, temporary, Reason, StatusCode} when Attempt =:= 0 ->
             emit_send_error(Tag, temporary, StatusCode),
             error_logger:warning_msg("Temporary error sending events (~p); retrying once", [Reason]),
-            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, JsonEvents, Count, PayloadId, 1, StartTime, StatusCode}),
+            %% The batch stays outstanding (no `worker_done') until the retry
+            %% resolves, so the owner can send it again if this worker exits.
+            _ = erlang:send_after(?RETRY_DELAY_MS, self(), {send, Owner, JsonEvents, Count, PayloadId, 1, StartTime, StatusCode}),
             State;
         {error, temporary, Reason, StatusCode} ->
             emit_send_error(Tag, temporary, StatusCode),
             error_logger:error_msg("Temporary error sending events (~p); retry failed, dropping batch", [Reason]),
             emit_flush(Tag, Count, Size, StartTime, failed, last_response(StatusCode, PreviousStatus)),
-            State;
+            done(Owner, State);
         {error, permanent, Reason, StatusCode} ->
             emit_send_error(Tag, permanent, StatusCode),
             error_logger:error_msg("Permanent error sending events (~p); dropping batch", [Reason]),
             emit_flush(Tag, Count, Size, StartTime, failed, last_response(StatusCode, PreviousStatus)),
-            State
+            done(Owner, State)
     end.
+
+%% Tell the owner the batch is resolved, so it stops keeping it and may hand
+%% this worker the next one.
+-spec done(pid(), state()) -> state().
+done(Owner, State) ->
+    _ = Owner ! {worker_done, self()},
+    State.
 
 %% A dispatcher reports the status code of an HTTP error response; a failure
 %% without a response (a network error or a timeout) has none. Anything that is

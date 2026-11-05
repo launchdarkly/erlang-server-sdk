@@ -47,7 +47,8 @@
     pool_never_exceeds_its_size/1,
     capacity_drops_are_reported_when_the_server_restarts/1,
     published_counts_only_sent_events/1,
-    unencodable_drop_reported_once_across_retry/1
+    unencodable_drop_reported_once_across_retry/1,
+    a_worker_lost_before_its_retry_has_its_batch_resent/1
 ]).
 
 %%====================================================================
@@ -92,7 +93,8 @@ all() ->
         pool_never_exceeds_its_size,
         capacity_drops_are_reported_when_the_server_restarts,
         published_counts_only_sent_events,
-        unencodable_drop_reported_once_across_retry
+        unencodable_drop_reported_once_across_retry,
+        a_worker_lost_before_its_retry_has_its_batch_resent
     ].
 
 init_per_suite(Config) ->
@@ -1475,6 +1477,50 @@ count_dropped_reports(Acc) ->
         {dropped, _, #{reason := unencodable}} -> count_dropped_reports(Acc + 1)
     after 0 ->
         Acc
+    end.
+
+%% A worker whose first attempt failed temporarily keeps its batch outstanding
+%% until the retry resolves: if the worker exits while the retry is pending,
+%% the event server still holds the batch and sends it again, with the same
+%% payload id.
+a_worker_lost_before_its_retry_has_its_batch_resent(_) ->
+    Tag = retry_lost,
+    HandlerId = {?MODULE, a_worker_lost_before_its_retry_has_its_batch_resent, self()},
+    Self = self(),
+    ok = telemetry:attach(
+        HandlerId,
+        [ldclient, events, send_error],
+        fun(_Event, Measurements, Metadata, _Config) ->
+            Self ! {send_error, Measurements, Metadata}
+        end,
+        undefined
+    ),
+    ok = ldclient_event_dispatch_controlled:reset(Tag),
+    ok = ldclient_event_dispatch_controlled:set(Tag, send_result, {error, temporary, "simulated outage"}),
+    register_collector(),
+    ok = ldclient:start_instance("", Tag, instance_options(#{events_dispatcher => ldclient_event_dispatch_controlled})),
+    try
+        ok = ldclient_event_server:add_event(Tag, identify_event(<<"retry-lost">>), #{}),
+        wait_for_event_count(Tag, 1),
+        ok = ldclient_event_server:flush(Tag),
+        %% The first attempt fails; the worker schedules its retry a second later.
+        {_, PayloadId} = collect_payload_and_id_with_key(<<"retry-lost">>, 3000),
+        receive
+            {send_error, _, #{tag := Tag, type := temporary}} -> ok
+        after 3000 ->
+            ct:fail("Expected the first attempt to fail temporarily")
+        end,
+        ok = ldclient_event_dispatch_controlled:set(Tag, send_result, {ok, 0}),
+        [Worker] = worker_pids(ldclient_event_worker_sup:get_sup_name(Tag)),
+        %% Let the worker finish handling the failed attempt, then lose it while
+        %% its retry is pending.
+        _ = sys:get_state(Worker),
+        exit(Worker, kill),
+        {_, PayloadId} = collect_payload_and_id_with_key(<<"retry-lost">>, 3000)
+    after
+        telemetry:detach(HandlerId),
+        _ = (catch ldclient:stop_instance(Tag)),
+        ok = ldclient_event_dispatch_controlled:reset(Tag)
     end.
 
 %%====================================================================
