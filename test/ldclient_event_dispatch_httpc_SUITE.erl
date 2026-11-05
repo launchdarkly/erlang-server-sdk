@@ -18,7 +18,15 @@
     handles_incorrect_rfc1123_dates/1,
     handles_incorrect_date_types/1,
     handles_no_date_present/1,
-    handle_date_in_headers/1
+    handle_date_in_headers/1,
+    request_timeout_is_a_temporary_failure/1,
+    requests_from_several_workers_run_in_parallel/1,
+    stop_releases_the_instance_profile/1,
+    error_responses_carry_the_status_code/1,
+    init_works_without_the_default_httpc_profile/1,
+    inherited_socket_options_are_kept/1,
+    stalled_connections_are_released_after_the_request_timeout/1,
+    stalled_tls_connections_are_released_after_the_request_timeout/1
 ]).
 
 all() ->
@@ -30,14 +38,25 @@ all() ->
         handles_incorrect_rfc1123_dates,
         handles_incorrect_date_types,
         handles_no_date_present,
-        handle_date_in_headers
+        handle_date_in_headers,
+        request_timeout_is_a_temporary_failure,
+        requests_from_several_workers_run_in_parallel,
+        stop_releases_the_instance_profile,
+        error_responses_carry_the_status_code,
+        init_works_without_the_default_httpc_profile,
+        inherited_socket_options_are_kept,
+        stalled_connections_are_released_after_the_request_timeout,
+        stalled_tls_connections_are_released_after_the_request_timeout
     ].
 
 init_per_suite(Config) ->
+    %% Config registration needs the application's instance registry; make the
+    %% suite independent of whichever suite ran before it.
+    {ok, _} = application:ensure_all_started(ldclient),
     Config.
 
 end_per_suite(_) ->
-    ok.
+    ok = application:stop(ldclient).
 
 init_per_testcase(_, Config) ->
     {ok, _} = bookish_spork:start_server(),
@@ -58,6 +77,15 @@ init_per_testcase(_, Config) ->
         }
     }),
     ok = ldclient_config:register(tls, TlsSettings),
+    SlowSettings = ldclient_config:parse_options("sdk-key", #{events_request_timeout => 200}),
+    ok = ldclient_config:register(slow_endpoint, SlowSettings),
+    NoReadSettings = ldclient_config:parse_options("sdk-key", #{events_request_timeout => 500}),
+    ok = ldclient_config:register(noread, NoReadSettings),
+    NoReadTlsSettings = ldclient_config:parse_options("sdk-key", #{
+        events_request_timeout => 500,
+        http_options => #{tls_options => [{verify, verify_none}]}
+    }),
+    ok = ldclient_config:register(noread_tls, NoReadTlsSettings),
     Config.
 
 end_per_testcase(_, _Config) ->
@@ -72,6 +100,19 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 %% Tests
 %%====================================================================
+
+%% An endpoint that accepts the request and never answers must not hold the
+%% worker: the configured request timeout turns it into a temporary failure.
+request_timeout_is_a_temporary_failure(_) ->
+    State = ldclient_event_dispatch_httpc:init(slow_endpoint, "sdk-key"),
+    bookish_spork:stub_request(fun(_Request) ->
+        timer:sleep(1500),
+        [200, #{}, <<>>]
+    end),
+    T0 = erlang:monotonic_time(millisecond),
+    {error, temporary, _Reason} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    Elapsed = erlang:monotonic_time(millisecond) - T0,
+    true = Elapsed < 1200.
 
 authorization_header_set_on_request(_) ->
     PayloadId = uuid:get_v4(),
@@ -106,7 +147,7 @@ handle_date_in_headers(_) ->
     PayloadId = uuid:get_v4(),
     State = ldclient_event_dispatch_httpc:init(tls, "sdk-key"),
     meck:new(httpc, [unstick]),
-    meck:expect(httpc, request, fun(_, _, _, _) -> {ok, {{0, 200, ""}, [{"date", "Mon, 07 Nov 2022 18:43:12 GMT"}], ""}} end),
+    meck:expect(httpc, request, fun(_, _, _, _, _) -> {ok, {{0, 200, ""}, [{"date", "Mon, 07 Nov 2022 18:43:12 GMT"}], ""}} end),
     {ok, 1667846592000} = ldclient_event_dispatch_httpc:send(State, <<"">>, PayloadId, "mock-doesn't-care").
 
 handles_correct_rfc1123_dates(_) ->
@@ -125,3 +166,210 @@ handles_incorrect_date_types(_) ->
 handles_no_date_present(_) ->
     0 = ldclient_event_dispatch_httpc:get_server_time([{"whatever", "value"}]),
     0 = ldclient_event_dispatch_httpc:get_server_time([]).
+
+%% On the default httpc profile the manager queues up to five requests behind
+%% the one in flight on a keep-alive connection, so several reporter workers
+%% posting at once were served one after another. The instance profile reuses
+%% a connection only when it is idle.
+requests_from_several_workers_run_in_parallel(_) ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {reuseaddr, true}]),
+    {ok, Port} = inet:port(Listen),
+    Concurrency = atomics:new(2, []),
+    Acceptor = spawn_link(fun() -> slow_accept_loop(Listen, Concurrency) end),
+    State = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    Uri = "http://localhost:" ++ integer_to_list(Port) ++ "/bulk",
+    Self = self(),
+    T0 = erlang:monotonic_time(millisecond),
+    Senders = [spawn_link(fun() ->
+        Self ! {done, self(), ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), Uri)}
+    end) || _ <- lists:seq(1, 4)],
+    lists:foreach(fun(Pid) ->
+        receive {done, Pid, {ok, _}} -> ok after 5000 -> ct:fail("send did not complete") end
+    end, Senders),
+    Elapsed = erlang:monotonic_time(millisecond) - T0,
+    MaxConcurrent = atomics:get(Concurrency, 2),
+    ct:pal("4 requests against a 400 ms endpoint took ~b ms, max concurrent ~b", [Elapsed, MaxConcurrent]),
+    true = MaxConcurrent >= 2,
+    %% Serial delivery would take at least 1 600 ms.
+    true = Elapsed < 1200,
+    unlink(Acceptor),
+    exit(Acceptor, kill),
+    gen_tcp:close(Listen).
+
+stop_releases_the_instance_profile(_) ->
+    #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    ldclient_events_default = Profile,
+    Manager = httpc:profile_name(Profile),
+    true = is_pid(whereis(Manager)),
+    ok = ldclient_event_dispatch_httpc:stop(default),
+    undefined = whereis(Manager),
+    %% Stopping twice is harmless, and the next init starts it again.
+    ok = ldclient_event_dispatch_httpc:stop(default),
+    #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    true = is_pid(whereis(Manager)).
+
+slow_accept_loop(Listen, Concurrency) ->
+    case gen_tcp:accept(Listen) of
+        {ok, Socket} ->
+            spawn(fun() -> handle_slowly(Socket, Concurrency) end),
+            slow_accept_loop(Listen, Concurrency);
+        {error, _} ->
+            ok
+    end.
+
+handle_slowly(Socket, Concurrency) ->
+    bump_max(Concurrency, atomics:add_get(Concurrency, 1, 1)),
+    _ = gen_tcp:recv(Socket, 0, 2000),
+    timer:sleep(400),
+    ok = gen_tcp:send(Socket, <<"HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n">>),
+    atomics:sub(Concurrency, 1, 1),
+    gen_tcp:close(Socket).
+
+bump_max(Ref, Current) ->
+    Max = atomics:get(Ref, 2),
+    case Current > Max of
+        true ->
+            case atomics:compare_exchange(Ref, 2, Max, Current) of
+                ok -> ok;
+                _ -> bump_max(Ref, Current)
+            end;
+        false ->
+            ok
+    end.
+
+%% An HTTP error response is reported with its status code, classified as
+%% recoverable or not; a failure without a response has none.
+error_responses_carry_the_status_code(_) ->
+    State = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([503, #{}, <<>>]),
+    {error, temporary, _, 503} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    bookish_spork:stub_request([401, #{}, <<>>]),
+    {error, permanent, _, 401} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), ?MOCK_URI ++ "/bulk"),
+    {error, temporary, _} = ldclient_event_dispatch_httpc:send(State, <<"[]">>, uuid:get_v4(), "http://127.0.0.1:1/bulk").
+
+%% An application that has stopped inets' default httpc profile gets an event
+%% pipeline that inherits no network options, not one that cannot start.
+init_works_without_the_default_httpc_profile(_) ->
+    ok = inets:stop(httpc, default),
+    try
+        {error, inets_not_started} = httpc:get_options(all),
+        #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+        {ok, [{max_keep_alive_length, 0}]} = httpc:get_options([max_keep_alive_length], Profile),
+        {ok, [{socket_opts, [{linger, {true, 0}}]}]} = httpc:get_options([socket_opts], Profile)
+    after
+        {ok, _} = inets:start(httpc, [{profile, default}])
+    end,
+    {ok, _} = httpc:get_options(all).
+
+%% Socket options an application set on the default profile, whatever their
+%% shape, reach the instance profile; only a linger of its own is replaced.
+inherited_socket_options_are_kept(_) ->
+    {ok, [{socket_opts, Before}]} = httpc:get_options([socket_opts]),
+    UserTimeout = {raw, 6, 18, <<7000:32/native>>},
+    ok = httpc:set_options([{socket_opts, [UserTimeout, {nodelay, true}, {linger, {true, 5}}]}]),
+    try
+        #{profile := Profile} = ldclient_event_dispatch_httpc:init(default, "sdk-key"),
+        {ok, [{socket_opts, Opts}]} = httpc:get_options([socket_opts], Profile),
+        true = lists:member(UserTimeout, Opts),
+        true = lists:member({nodelay, true}, Opts),
+        true = lists:member({linger, {true, 0}}, Opts),
+        false = lists:member({linger, {true, 5}}, Opts)
+    after
+        ok = httpc:set_options([{socket_opts, Before}])
+    end.
+
+%% An endpoint that accepts the connection and then never reads leaves the
+%% request body queued in the socket. The request times out as a temporary
+%% failure, and the socket must be released with it instead of living on,
+%% holding the payload, until the peer closes.
+stalled_connections_are_released_after_the_request_timeout(_) ->
+    stalled_connection_is_released(tcp, noread).
+
+stalled_tls_connections_are_released_after_the_request_timeout(_) ->
+    stalled_connection_is_released(tls, noread_tls).
+
+stalled_connection_is_released(Transport, Tag) ->
+    {Port, Stop} = start_non_reading_server(Transport),
+    State = ldclient_event_dispatch_httpc:init(Tag, "sdk-key"),
+    Scheme = case Transport of tcp -> "http"; tls -> "https" end,
+    Uri = Scheme ++ "://127.0.0.1:" ++ integer_to_list(Port) ++ "/bulk",
+    Body = binary:copy(<<"a">>, 8 * 1024 * 1024),
+    try
+        T0 = erlang:monotonic_time(millisecond),
+        {error, temporary, _} = ldclient_event_dispatch_httpc:send(State, Body, uuid:get_v4(), Uri),
+        Elapsed = erlang:monotonic_time(millisecond) - T0,
+        ct:pal("~p request against a non-reading endpoint timed out after ~b ms", [Transport, Elapsed]),
+        true = Elapsed < 2500,
+        %% The socket that still holds the unsent body must go away by itself:
+        %% at once over tcp, within ssl's own close timeout (5 s) over tls.
+        ok = wait_until_no_stuck_ports(Port, 200)
+    after
+        Stop()
+    end.
+
+%% Client-side TCP ports to the test server with output still queued in the
+%% port: the signature of a connection whose peer stopped reading.
+stuck_ports(ServerPort) ->
+    [P || P <- erlang:ports(),
+          {name, "tcp_inet"} =:= erlang:port_info(P, name),
+          connected_to(P, ServerPort),
+          {queue_size, Queued} <- [erlang:port_info(P, queue_size)],
+          Queued > 0].
+
+connected_to(Port, ServerPort) ->
+    case catch inet:peername(Port) of
+        {ok, {_, ServerPort}} -> true;
+        _ -> false
+    end.
+
+wait_until_no_stuck_ports(ServerPort, 0) ->
+    ct:fail("Sockets with unsent output are still open: ~p", [[{P, erlang:port_info(P, queue_size)} || P <- stuck_ports(ServerPort)]]);
+wait_until_no_stuck_ports(ServerPort, Retries) ->
+    case stuck_ports(ServerPort) of
+        [] -> ok;
+        _ -> timer:sleep(50), wait_until_no_stuck_ports(ServerPort, Retries - 1)
+    end.
+
+%% A server with a tiny receive buffer that accepts connections (completing the
+%% TLS handshake for tls) and never reads from them. Returns the port and a fun
+%% that stops it.
+start_non_reading_server(tcp) ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {reuseaddr, true}, {ip, {127, 0, 0, 1}}, {recbuf, 4096}]),
+    {ok, Port} = inet:port(Listen),
+    Acceptor = spawn_link(fun() -> non_reading_accept_loop(tcp, Listen) end),
+    {Port, fun() -> unlink(Acceptor), exit(Acceptor, kill), gen_tcp:close(Listen) end};
+start_non_reading_server(tls) ->
+    #{server_config := ServerConfig} = public_key:pkix_test_data(#{
+        server_chain => #{root => [{key, {rsa, 2048, 17}}], intermediates => [], peer => [{key, {rsa, 2048, 17}}]},
+        client_chain => #{root => [{key, {rsa, 2048, 17}}], intermediates => [], peer => [{key, {rsa, 2048, 17}}]}
+    }),
+    {ok, Listen} = ssl:listen(0, ServerConfig ++ [binary, {active, false}, {reuseaddr, true}, {ip, {127, 0, 0, 1}}, {recbuf, 4096}]),
+    {ok, {_, Port}} = ssl:sockname(Listen),
+    Acceptor = spawn_link(fun() -> non_reading_accept_loop(tls, Listen) end),
+    {Port, fun() -> unlink(Acceptor), exit(Acceptor, kill), ssl:close(Listen) end}.
+
+%% Accepted sockets are handed to processes linked to the acceptor, so that
+%% stopping the server closes them too.
+non_reading_accept_loop(tcp, Listen) ->
+    case gen_tcp:accept(Listen) of
+        {ok, Socket} ->
+            Holder = spawn_link(fun() -> receive stop -> ok end end),
+            ok = gen_tcp:controlling_process(Socket, Holder),
+            non_reading_accept_loop(tcp, Listen);
+        {error, _} ->
+            ok
+    end;
+non_reading_accept_loop(tls, Listen) ->
+    case ssl:transport_accept(Listen) of
+        {ok, Transport} ->
+            case ssl:handshake(Transport, 5000) of
+                {ok, Socket} ->
+                    Holder = spawn_link(fun() -> receive stop -> ok end end),
+                    ok = ssl:controlling_process(Socket, Holder);
+                _ ->
+                    ok
+            end,
+            non_reading_accept_loop(tls, Listen);
+        {error, _} ->
+            ok
+    end.
