@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.12.3](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.2...v3.12.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* Make TestData value_for_all return its value when targeting is off ([#210](https://github.com/launchdarkly/erlang-server-sdk/issues/210)) ([baf5cbc](https://github.com/launchdarkly/erlang-server-sdk/commit/baf5cbcbcef00a743ec6939f31467ea35432a563))
+
 ## [3.12.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.1...v3.12.2) (2026-11-02)
 
 
