@@ -25,7 +25,12 @@
     error_status_returned/1,
     invalid_uri_test/1,
     no_server_uri_test/1,
-    custom_headers_appended/1
+    custom_headers_appended/1,
+    accept_encoding_gzip_set_on_request/1,
+    gzip_response_decompressed/1,
+    gzip_response_encoding_case_insensitive/1,
+    uncompressed_response_returned/1,
+    corrupt_gzip_response_returns_error/1
 ]).
 
 all() ->
@@ -44,7 +49,12 @@ all() ->
         error_status_returned,
         invalid_uri_test,
         no_server_uri_test,
-        custom_headers_appended
+        custom_headers_appended,
+        accept_encoding_gzip_set_on_request,
+        gzip_response_decompressed,
+        gzip_response_encoding_case_insensitive,
+        uncompressed_response_returned,
+        corrupt_gzip_response_returns_error
     ].
 
 init_per_suite(Config) ->
@@ -206,3 +216,42 @@ instance_id_header_differs_between_instances(_Config) ->
     IdA = bookish_spork_request:header(ReqA, "x-launchdarkly-instance-id"),
     IdB = bookish_spork_request:header(ReqB, "x-launchdarkly-instance-id"),
     true = IdA =/= IdB.
+
+accept_encoding_gzip_set_on_request(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([200, #{}, <<>>]),
+    {{ok, <<>>}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State),
+    {ok, Request} = bookish_spork:capture_request(),
+    "gzip" = bookish_spork_request:header(Request, "accept-encoding").
+
+gzip_response_decompressed(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    bookish_spork:stub_request([200, #{
+        <<"content-encoding">> => <<"gzip">>,
+        <<"etag">> => <<"etagval">>
+    }, zlib:gzip(Payload)]),
+    {{ok, Payload}, #{etag_state := #{?MOCK_URI := "etagval"}}} =
+        ldclient_update_requestor_httpc:all(?MOCK_URI, State).
+
+gzip_response_encoding_case_insensitive(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    bookish_spork:stub_request([200, #{<<"Content-Encoding">> => <<"GZIP">>}, zlib:gzip(Payload)]),
+    {{ok, Payload}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State).
+
+uncompressed_response_returned(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    bookish_spork:stub_request([200, #{}, Payload]),
+    {{ok, Payload}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State).
+
+corrupt_gzip_response_returns_error(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    bookish_spork:stub_request([200, #{
+        <<"content-encoding">> => <<"gzip">>,
+        <<"etag">> => <<"etagval">>
+    }, <<"not gzip data">>]),
+    %% The state does not record the ETag of a response that fails to decode.
+    {{error, {decompress_error, _}}, State} =
+        ldclient_update_requestor_httpc:all(?MOCK_URI, State).

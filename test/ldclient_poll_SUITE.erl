@@ -15,6 +15,7 @@
     response_error_not_found/1,
     response_error_internal/1,
     response_error_network/1,
+    response_error_decompress/1,
     response_flags_segments/1,
     successful_response_override_existing_flags/1
 ]).
@@ -29,6 +30,7 @@ all() ->
         response_error_not_found,
         response_error_internal,
         response_error_network,
+        response_error_decompress,
         response_flags_segments,
         successful_response_override_existing_flags
     ].
@@ -119,6 +121,17 @@ response_error_network(_) ->
     set_storage_simple(),
     trigger_poll(),
     check_storage_simple(),
+    ok = ldclient:stop_instance().
+
+response_error_decompress(_) ->
+    ok = ldclient:start_instance("sdk-key-decompress-error", instance_options()),
+    timer:sleep(500),
+    set_storage_simple(),
+    [{_, Pid, _, _}] = supervisor:which_children(ldclient_instance_stream_default),
+    trigger_poll(),
+    check_storage_simple(),
+    %% The poll server handles the error and does not restart.
+    [{_, Pid, _, _}] = supervisor:which_children(ldclient_instance_stream_default),
     ok = ldclient:stop_instance().
 
 response_flags_segments(_) ->

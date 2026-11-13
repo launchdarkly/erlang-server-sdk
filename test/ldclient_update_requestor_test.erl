@@ -106,6 +106,8 @@ all(_Uri, State) ->
             {error, {bad_status, 500, ""}};
         "sdk-key-network-error" ->
             {error, network_error};
+        "sdk-key-decompress-error" ->
+            {error, {decompress_error, data_error}};
         "sdk-key-flags-segments" ->
             {_, FlagBin, _} = get_simple_flag(),
             {_, SegmentBin, _} = get_simple_segment(),

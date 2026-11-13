@@ -12,6 +12,7 @@
                   | {error, errors()}.
 
 -type errors() :: {bad_status, non_neg_integer(), string()}
+                | {decompress_error, term()}
                 | network_error.
 
 -export_type([response/0, errors/0]).

@@ -28,7 +28,8 @@ init(Tag, _SdkKey) ->
     HttpOptions = ldclient_http_options:httpc_parse_http_options(Options),
     DefaultHeaders = ldclient_headers:get_default_headers(Tag, string_pairs),
     Headers = ldclient_http_options:httpc_append_custom_headers([
-        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()}
+        {"X-LaunchDarkly-Event-Schema", ldclient_config:get_event_schema()},
+        {"Accept-Encoding", "gzip"}
         | DefaultHeaders
     ], Options),
     #{
@@ -55,9 +56,14 @@ all(Uri, State) ->
             if
                 StatusCode =:= 304 -> {{ok, not_modified}, State};
                 StatusCode < 300 ->
-                    case proplists:lookup("etag", [{string:casefold(K), V} || {K, V} <- ResponseHeaders]) of
-                        none -> {{ok, Body}, State};
-                        {_, ETag} -> {{ok, Body}, State#{etag_state => EtagState#{Uri => ETag}}}
+                    FoldedHeaders = [{string:casefold(K), V} || {K, V} <- ResponseHeaders],
+                    case decode_body(FoldedHeaders, Body) of
+                        {error, _} = Error -> {Error, State};
+                        {ok, DecodedBody} ->
+                            case proplists:lookup("etag", FoldedHeaders) of
+                                none -> {{ok, DecodedBody}, State};
+                                {_, ETag} -> {{ok, DecodedBody}, State#{etag_state => EtagState#{Uri => ETag}}}
+                            end
                     end;
                 StatusCode < 400 -> {{ok, Body}, State};
                 true -> {{error, bad_status_error(StatusLine)}, State}
@@ -68,6 +74,30 @@ all(Uri, State) ->
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+%% @doc Decompress the body when the server sends it with gzip encoding.
+%% The headers must have casefolded names.
+%% A body that is not valid gzip gives a decompress error.
+%% @end
+-spec decode_body(FoldedHeaders :: [{string(), string()}], Body :: binary()) ->
+    {ok, binary()} | {error, ldclient_update_requestor:errors()}.
+decode_body(FoldedHeaders, Body) ->
+    case proplists:lookup("content-encoding", FoldedHeaders) of
+        {_, Encoding} ->
+            case string:casefold(Encoding) of
+                "gzip" -> gunzip(Body);
+                _ -> {ok, Body}
+            end;
+        none -> {ok, Body}
+    end.
+
+-spec gunzip(Body :: binary()) -> {ok, binary()} | {error, ldclient_update_requestor:errors()}.
+gunzip(Body) ->
+    try zlib:gunzip(Body) of
+        Decoded -> {ok, Decoded}
+    catch
+        error:Reason -> {error, {decompress_error, Reason}}
+    end.
 
 -spec bad_status_error(StatusLine :: {
     uri_string:uri_string(),
