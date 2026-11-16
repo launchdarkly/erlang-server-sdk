@@ -15,6 +15,7 @@
     server_process_event_put_patch_flag_with_extra_property/1,
     server_process_event_put_patch_old_version/1,
     server_process_event_put_delete/1,
+    server_process_event_delete_with_version_not_integer/1,
     server_process_event_other/1,
     parse_shotgun_event/1,
     parse_shotgun_event_optional_spaces/1
@@ -30,6 +31,7 @@ all() ->
         server_process_event_put_patch_flag_with_extra_property,
         server_process_event_put_patch_old_version,
         server_process_event_put_delete,
+        server_process_event_delete_with_version_not_integer,
         server_process_event_other,
         parse_shotgun_event,
         parse_shotgun_event_optional_spaces
@@ -143,6 +145,25 @@ server_process_event_put_delete(_) ->
     {FlagSimpleKey, _FlagDeleteBin, FlagDeleteMap} = ldclient_test_utils:get_simple_flag_delete(),
     ParsedFlagDeleteMap = ldclient_flag:new(FlagDeleteMap),
     [{FlagSimpleKey, ParsedFlagDeleteMap}] = ldclient_storage_ets:all(default, features),
+    ok.
+
+server_process_event_delete_with_version_not_integer(_) ->
+    {FlagSimpleKey, FlagSimpleBin, FlagSimpleMap} = ldclient_test_utils:get_simple_flag(),
+    PutData = <<"{\"path\":\"/\",",
+        "\"data\":{",
+            "\"flags\":{",
+                FlagSimpleBin/binary,
+            "},",
+            "\"segments\":{}",
+        "}",
+    "}">>,
+    ok = ldclient_update_stream_server:process_event(#{event => <<"put">>, data => PutData}, ldclient_storage_ets, default),
+    ParsedFlagSimpleMap = ldclient_flag:new(FlagSimpleMap),
+    DeleteData = <<"{\"path\": \"/flags/", FlagSimpleKey/binary, "\", \"version\": \"7\"}">>,
+    %% Process a delete whose version is a string.
+    {'EXIT', _} = (catch ldclient_update_stream_server:process_event(#{event => <<"delete">>, data => DeleteData}, ldclient_storage_ets, default)),
+    %% The event fails, and the flag is not deleted.
+    [{FlagSimpleKey, ParsedFlagSimpleMap}] = ldclient_storage_ets:all(default, features),
     ok.
 
 server_process_event_other(_) ->
