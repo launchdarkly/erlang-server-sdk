@@ -83,7 +83,8 @@ get_service_detail(Req, State) ->
       <<"all-flags-client-side-only">>,
       <<"instance-id">>,
       <<"service-endpoints">>,
-      <<"polling-gzip">>
+      <<"polling-gzip">>,
+      <<"persistent-data-store-redis">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),

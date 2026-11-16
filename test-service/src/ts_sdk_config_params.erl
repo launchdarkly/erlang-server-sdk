@@ -22,7 +22,17 @@
     events => sdk_config_event_params(),
     tags => sdk_config_tags_params(),
     tls => sdk_config_tls_params() | undefined,
-    service_endpoints => sdk_config_service_endpoints_params()
+    service_endpoints => sdk_config_service_endpoints_params(),
+    persistent_data_store => sdk_config_persistent_data_store_params() | undefined
+}.
+
+%% The harness sends a persistent store only of the types in the service capabilities.
+%% This service supports only Redis.
+-type sdk_config_persistent_data_store_params() :: #{
+    dsn := binary(),
+    prefix := binary() | undefined,
+    cache_mode := binary(),
+    cache_ttl := non_neg_integer() | undefined
 }.
 
 -type sdk_config_service_endpoints_params() :: #{
@@ -67,6 +77,7 @@
 -export_type([sdk_config_tags_params/0]).
 -export_type([sdk_config_tls_params/0]).
 -export_type([sdk_config_service_endpoints_params/0]).
+-export_type([sdk_config_persistent_data_store_params/0]).
 
 -spec null_to_undefined(Item :: any()) -> any().
 null_to_undefined(null) -> undefined;
@@ -86,6 +97,7 @@ parse_config_params(Params) ->
     Tags = parse_config_tag_params(Params),
     Tls = parse_config_tls_params(Params),
     ServiceEndpoints = parse_config_service_endpoints_params(Params),
+    PersistentDataStore = parse_config_persistent_data_store_params(Params),
     #{
         credential => Credential,
         start_wait_time_ms => StartWaitTimeMS,
@@ -95,8 +107,28 @@ parse_config_params(Params) ->
         tags => Tags,
         polling => Polling,
         tls => Tls,
-        service_endpoints => ServiceEndpoints
+        service_endpoints => ServiceEndpoints,
+        persistent_data_store => PersistentDataStore
     }.
+
+-spec parse_config_persistent_data_store_params(Params :: map()) ->
+    sdk_config_persistent_data_store_params() | undefined.
+parse_config_persistent_data_store_params(#{<<"persistentDataStore">> := #{
+    <<"store">> := #{<<"type">> := <<"redis">>} = Store
+} = StoreParams} = _Params) ->
+    Cache = map_get_null_default(<<"cache">>, StoreParams, #{}),
+    #{
+        dsn => maps:get(<<"dsn">>, Store),
+        prefix => map_get_null_default(<<"prefix">>, Store, undefined),
+        cache_mode => map_get_null_default(<<"mode">>, Cache, undefined),
+        cache_ttl => map_get_null_default(<<"ttl">>, Cache, undefined)
+    };
+parse_config_persistent_data_store_params(#{<<"persistentDataStore">> := #{
+    <<"store">> := #{<<"type">> := Type}
+}} = _Params) ->
+    error({unsupported_persistent_store_type, Type});
+parse_config_persistent_data_store_params(_Params) ->
+    undefined.
 
 -spec parse_config_service_endpoints_params(Params :: map()) -> sdk_config_service_endpoints_params().
 parse_config_service_endpoints_params(#{<<"serviceEndpoints">> := Endpoints} = _Params) when is_map(Endpoints) ->
@@ -192,7 +224,46 @@ to_ldclient_options(Configuration) ->
     WithPollingUri = add_polling_uri(Configuration, WithTags),
     WithPollingInterval = add_poll_interval(Configuration, WithPollingUri),
     WithTlsConfig = add_tls_config(Configuration, WithPollingInterval),
-    WithTlsConfig.
+    WithPersistentStore = add_persistent_data_store(Configuration, WithTlsConfig),
+    WithDaemonMode = add_daemon_mode(Configuration, WithPersistentStore),
+    WithDaemonMode.
+
+%% With a persistent store and no data source, the SDK reads only from the store.
+-spec add_daemon_mode(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_daemon_mode(#{
+    persistent_data_store := #{},
+    streaming := #{base_uri := undefined},
+    polling := #{base_uri := undefined},
+    service_endpoints := #{streaming := undefined, polling := undefined, events := undefined}
+} = _Configuration, Options) ->
+    Options#{use_ldd => true};
+add_daemon_mode(_Configuration, Options) -> Options.
+
+-spec add_persistent_data_store(Configuration :: sdk_config_params(), Options :: map()) -> map().
+add_persistent_data_store(#{persistent_data_store := #{
+    dsn := Dsn,
+    prefix := Prefix,
+    cache_mode := CacheMode,
+    cache_ttl := CacheTtl
+}} = _Configuration, Options) ->
+    #{host := Host, port := Port} = uri_string:parse(Dsn),
+    WithStore = Options#{
+        feature_store => ldclient_storage_redis,
+        redis_host => binary_to_list(Host),
+        redis_port => Port,
+        cache_ttl => to_cache_ttl(CacheMode, CacheTtl)
+    },
+    case Prefix of
+        undefined -> WithStore;
+        _ -> WithStore#{redis_prefix => binary_to_list(Prefix)}
+    end;
+add_persistent_data_store(_Configuration, Options) -> Options.
+
+%% The SDK reads a cache TTL of 0 as no cache, and a negative TTL as a cache that never expires.
+-spec to_cache_ttl(CacheMode :: binary() | undefined, CacheTtl :: non_neg_integer() | undefined) -> integer().
+to_cache_ttl(<<"off">>, _CacheTtl) -> 0;
+to_cache_ttl(<<"infinite">>, _CacheTtl) -> -1;
+to_cache_ttl(<<"ttl">>, CacheTtl) when is_integer(CacheTtl) -> CacheTtl.
 
 %% The service endpoints only set the base URIs. The per-component base URIs, which are
 %% added after these, take precedence.

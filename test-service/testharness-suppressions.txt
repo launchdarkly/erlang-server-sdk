@@ -1,0 +1,6 @@
+persistent data store/redis/uses default prefix
+persistent data store/redis/uses custom prefix
+persistent data store/redis/daemon mode
+persistent data store/redis/read-write/applies updates to store
+persistent data store/redis/read-write/data source updates respect versioning
+persistent data store/redis/read-write/data source deletions respect versioning
