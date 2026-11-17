@@ -749,7 +749,7 @@ missing_some_fields(_) ->
     ExpectedEvents = ActualEvents.
 
 missing_all_fields(_) ->
-    ExpectedReason = {error, malformed_flag},
+    ExpectedReason = off,
     {{null, "foo", ExpectedReason}, Events} =
         ldclient_eval:flag_key_for_context(default, <<"missing-all-fields">>, #{key => <<"context-maf">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
@@ -972,9 +972,7 @@ all_flags_state_with_reason(_) ->
             <<"variation">> := 0,
             <<"version">> := 5},
         <<"missing-all-fields">> :=
-            #{<<"reason">> :=
-            #{errorKind := <<"MALFORMED_FLAG">>,
-                kind := <<"ERROR">>},
+            #{<<"reason">> := #{kind := <<"OFF">>},
                 <<"version">> := 0},
         <<"missing-rollout-for-rule">> :=
             #{<<"reason">> := #{kind := <<"FALLTHROUGH">>},

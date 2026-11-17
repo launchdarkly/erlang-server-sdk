@@ -10,6 +10,7 @@
 -export([new/1]).
 -export([new_simple/2]).
 -export([get_variation/2]).
+-export([without_null_properties/1]).
 
 %% Types
 -type flag() :: #{
@@ -89,7 +90,7 @@ new(RawFlagMap) ->
         <<"deleted">>                => false,
         <<"fallthrough">>            => #{},
         <<"key">>                    => <<>>,
-        <<"offVariation">>           => 0,
+        <<"offVariation">>           => null,
         <<"on">>                     => false,
         <<"prerequisites">>          => [],
         <<"rules">>                  => [],
@@ -105,7 +106,7 @@ new(RawFlagMap) ->
             <<"usingMobileKey">> => false
         }
     },
-    FlagMap = maps:merge(FlagTemplate, RawFlagMap),
+    FlagMap = maps:merge(FlagTemplate, without_null_properties(RawFlagMap)),
     new_from_template(FlagMap).
 
 -spec new_simple(Key :: key(), Value :: variation_value()) -> flag().
@@ -118,6 +119,16 @@ new_simple(Key, Value) ->
             <<"variation">> => 0
         }
     }).
+
+%% @doc Removes the properties whose value is null.
+%%
+%% A null property in flag or segment data is the same as an omitted property.
+%% This applies only to the top level of the map. Values in lists, such as
+%% variations and clause values, do not change.
+%% @end
+-spec without_null_properties(map()) -> map().
+without_null_properties(RawMap) ->
+    maps:filter(fun(_Key, Value) -> Value =/= null end, RawMap).
 
 -spec get_variation(Flag :: flag(), VariationIndex :: non_neg_integer()|null) -> term().
 get_variation(_Flag, null) -> null;
@@ -170,7 +181,8 @@ new_from_template(#{
     }.
 
 -spec parse_client_side_availability(ClientSideAvailability :: map()) -> client_side_availability().
-parse_client_side_availability(ClientSideAvailability) ->
+parse_client_side_availability(RawClientSideAvailability) ->
+    ClientSideAvailability = without_null_properties(RawClientSideAvailability),
     UsingEnvironmentId = maps:get(<<"usingEnvironmentId">>, ClientSideAvailability, false),
     UsingMobileKey = maps:get(<<"usingMobileKey">>, ClientSideAvailability, false),
     #{
@@ -200,7 +212,7 @@ parse_rules(Rules) ->
 parse_targets(Targets) ->
     F = fun(#{<<"values">> := Values, <<"variation">> := Variation} = Target, Acc) ->
             [#{
-                contextKind => maps:get(<<"contextKind">>, Target, <<"user">>),
+                contextKind => maps:get(<<"contextKind">>, without_null_properties(Target), <<"user">>),
                 values => Values,
                 variation => Variation
             }|Acc];

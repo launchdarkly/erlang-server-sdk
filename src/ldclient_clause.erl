@@ -46,7 +46,8 @@
 %%===================================================================
 
 -spec new(map()) -> clause().
-new(RawClauseMap) ->
+new(RawClauseMapWithNulls) ->
+    RawClauseMap = ldclient_flag:without_null_properties(RawClauseMapWithNulls),
     ContextKind = maps:get(<<"contextKind">>, RawClauseMap, undefined),
     ClauseMap = maps:merge(?CLAUSE_TEMPLATE, RawClauseMap),
     %% Clauses with no context kind are legacy.

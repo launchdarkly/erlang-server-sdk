@@ -26,7 +26,10 @@
     parse_client_side_availability_both_false/1,
     parse_client_side_availability_using_environment_id/1,
     parse_client_side_availability_using_mobile_key/1,
-    parse_client_side_availability_both_true/1
+    parse_client_side_availability_both_true/1,
+    parse_flag_null_properties/1,
+    parse_flag_nested_null_properties/1,
+    parse_segment_null_properties/1
 ]).
 
 %%====================================================================
@@ -50,7 +53,10 @@ all() ->
         parse_client_side_availability_both_false,
         parse_client_side_availability_using_environment_id,
         parse_client_side_availability_using_mobile_key,
-        parse_client_side_availability_both_true
+        parse_client_side_availability_both_true,
+        parse_flag_null_properties,
+        parse_flag_nested_null_properties,
+        parse_segment_null_properties
     ].
 
 init_per_suite(Config) ->
@@ -90,7 +96,7 @@ parse_flag_empty(_) ->
             kind => rollout
         },
         key                      => <<>>,
-        offVariation             => 0,
+        offVariation             => null,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
@@ -127,7 +133,7 @@ parse_flag_key_only(_) ->
             kind => rollout
         },
         key                      => <<"flag-key-only">>,
-        offVariation            => 0,
+        offVariation            => null,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
@@ -388,7 +394,7 @@ parse_flag_invalid_fallthrough(_) ->
             kind => rollout
         },
         key                      => <<"flag-invalid-fallthrough">>,
-        offVariation            => 0,
+        offVariation            => null,
         on                       => false,
         prerequisites            => [],
         rules                    => [],
@@ -732,3 +738,90 @@ parse_client_side_availability_both_true(_) ->
             usingMobileKey := true
         }
     } =  ldclient_flag:new(BothTrue).
+
+parse_flag_null_properties(_) ->
+    FlagOmitted = #{
+        <<"key">> => <<"flag-nulls">>,
+        <<"version">> => 1,
+        <<"on">> => true,
+        <<"variations">> => [<<"a">>, <<"b">>],
+        <<"fallthrough">> => #{<<"variation">> => 0}
+    },
+    FlagNulls = FlagOmitted#{
+        <<"clientSideAvailability">> => null,
+        <<"contextTargets">> => null,
+        <<"debugEventsUntilDate">> => null,
+        <<"deleted">> => null,
+        <<"offVariation">> => null,
+        <<"prerequisites">> => null,
+        <<"rules">> => null,
+        <<"salt">> => null,
+        <<"targets">> => null,
+        <<"trackEvents">> => null,
+        <<"trackEventsFallthrough">> => null
+    },
+    %% A null optional property gives the same flag as an omitted one.
+    Expected = ldclient_flag:new(FlagOmitted),
+    Expected = ldclient_flag:new(FlagNulls).
+
+parse_flag_nested_null_properties(_) ->
+    Clause = #{<<"attribute">> => <<"name">>, <<"op">> => <<"in">>, <<"values">> => [<<"a">>]},
+    Rollout = #{<<"variations">> => [#{<<"variation">> => 1, <<"weight">> => 100000}]},
+    FlagOmitted = #{
+        <<"key">> => <<"flag-nested-nulls">>,
+        <<"version">> => 1,
+        <<"on">> => true,
+        <<"variations">> => [<<"a">>, <<"b">>],
+        <<"fallthrough">> => #{<<"rollout">> => Rollout},
+        <<"clientSideAvailability">> => #{},
+        <<"prerequisites">> => [#{<<"key">> => <<"prereq">>, <<"variation">> => 0}],
+        <<"targets">> => [#{<<"values">> => [<<"user-a">>], <<"variation">> => 0}],
+        <<"rules">> => [#{<<"id">> => <<"rule">>, <<"clauses">> => [Clause], <<"rollout">> => Rollout}]
+    },
+    RolloutNulls = Rollout#{
+        <<"bucketBy">> => null,
+        <<"contextKind">> => null,
+        <<"kind">> => null,
+        <<"seed">> => null,
+        <<"variations">> => [#{<<"variation">> => 1, <<"weight">> => 100000, <<"untracked">> => null}]
+    },
+    FlagNulls = FlagOmitted#{
+        <<"fallthrough">> => #{<<"rollout">> => RolloutNulls, <<"variation">> => null},
+        <<"clientSideAvailability">> => #{<<"usingEnvironmentId">> => null, <<"usingMobileKey">> => null},
+        <<"targets">> => [#{<<"values">> => [<<"user-a">>], <<"variation">> => 0, <<"contextKind">> => null}],
+        <<"rules">> => [#{
+            <<"id">> => <<"rule">>,
+            <<"clauses">> => [Clause#{<<"contextKind">> => null, <<"negate">> => null}],
+            <<"rollout">> => RolloutNulls,
+            <<"trackEvents">> => null,
+            <<"variation">> => null
+        }]
+    },
+    %% Null properties in rules, clauses, rollouts and targets give the same flag as omitted ones.
+    Expected = ldclient_flag:new(FlagOmitted),
+    Expected = ldclient_flag:new(FlagNulls).
+
+parse_segment_null_properties(_) ->
+    Clause = #{<<"attribute">> => <<"name">>, <<"op">> => <<"in">>, <<"values">> => [<<"a">>]},
+    SegmentOmitted = #{
+        <<"key">> => <<"segment-nulls">>,
+        <<"version">> => 1,
+        <<"rules">> => [#{<<"clauses">> => [Clause]}]
+    },
+    SegmentNulls = SegmentOmitted#{
+        <<"deleted">> => null,
+        <<"excluded">> => null,
+        <<"excludedContexts">> => null,
+        <<"included">> => null,
+        <<"includedContexts">> => null,
+        <<"salt">> => null,
+        <<"rules">> => [#{
+            <<"clauses">> => [Clause#{<<"contextKind">> => null, <<"negate">> => null}],
+            <<"bucketBy">> => null,
+            <<"rolloutContextKind">> => null,
+            <<"weight">> => null
+        }]
+    },
+    %% A null optional property gives the same segment as an omitted one.
+    Expected = ldclient_segment:new(SegmentOmitted),
+    Expected = ldclient_segment:new(SegmentNulls).

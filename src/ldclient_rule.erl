@@ -33,7 +33,7 @@ new(RawRuleMap) ->
         <<"clauses">> => [],
         <<"trackEvents">> => false
     },
-    RuleMap = maps:merge(RuleTemplate, RawRuleMap),
+    RuleMap = maps:merge(RuleTemplate, ldclient_flag:without_null_properties(RawRuleMap)),
     new_from_template(RuleMap).
 
 %% @doc Match all clauses to context, includes segmentMatch
