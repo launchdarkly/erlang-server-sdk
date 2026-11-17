@@ -10,7 +10,7 @@ jobs:
       id-token: write
       contents: write # Need to publish github pages.
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       
       - name: Install Erlang and rebar3
         uses: ./.github/actions/install-erlang
