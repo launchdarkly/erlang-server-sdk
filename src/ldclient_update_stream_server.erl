@@ -312,10 +312,13 @@ get_patch_item(_Data) ->
     error.
 
 -spec delete_items(map(), atom(), atom()) -> ok.
-delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
+delete_items(#{<<"path">> := <<"/flags/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) when is_integer(Version) ->
     ok = maybe_delete_item(FeatureStore, Tag, features, Key, Version);
-delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) ->
+delete_items(#{<<"path">> := <<"/segments/",Key/binary>>, <<"version">> := Version}, FeatureStore, Tag) when is_integer(Version) ->
     ok = maybe_delete_item(FeatureStore, Tag, segments, Key, Version);
+delete_items(#{<<"version">> := Version}, _FeatureStore, _Tag) when not is_integer(Version) ->
+    %% The stream handler restarts the stream when the event fails.
+    error(delete_version_not_integer);
 delete_items(_Path, _FeatureStore, _Tag) ->
     error_logger:error_msg("Invalid delete path").
 
