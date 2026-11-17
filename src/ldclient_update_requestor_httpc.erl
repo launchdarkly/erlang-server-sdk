@@ -75,8 +75,10 @@ all(Uri, State) ->
 %% Internal functions
 %%===================================================================
 
-%% @doc Decompress the body when the server sends it with gzip encoding.
+%% @doc Decode the body as the Content-Encoding header specifies.
 %% The headers must have casefolded names.
+%% The function ignores identity codings. It decompresses one gzip or x-gzip coding.
+%% Any other coding gives an unsupported encoding error.
 %% A body that is not valid gzip gives a decompress error.
 %% @end
 -spec decode_body(FoldedHeaders :: [{string(), string()}], Body :: binary()) ->
@@ -84,12 +86,22 @@ all(Uri, State) ->
 decode_body(FoldedHeaders, Body) ->
     case proplists:lookup("content-encoding", FoldedHeaders) of
         {_, Encoding} ->
-            case string:casefold(Encoding) of
-                "gzip" -> gunzip(Body);
-                _ -> {ok, Body}
+            case content_codings(Encoding) of
+                [] -> {ok, Body};
+                [Coding] when Coding =:= "gzip"; Coding =:= "x-gzip" -> gunzip(Body);
+                _ -> {error, {unsupported_encoding, Encoding}}
             end;
         none -> {ok, Body}
     end.
+
+%% @doc Get the codings in a Content-Encoding value, without identity codings.
+%% The value is a comma-separated list. Each coding has its whitespace removed and is casefolded.
+%% @end
+-spec content_codings(Encoding :: string()) -> [string()].
+content_codings(Encoding) ->
+    Codings = [string:casefold(string:trim(Coding, both, " \t"))
+               || Coding <- string:split(Encoding, ",", all)],
+    [Coding || Coding <- Codings, Coding =/= "", Coding =/= "identity"].
 
 -spec gunzip(Body :: binary()) -> {ok, binary()} | {error, ldclient_update_requestor:errors()}.
 gunzip(Body) ->

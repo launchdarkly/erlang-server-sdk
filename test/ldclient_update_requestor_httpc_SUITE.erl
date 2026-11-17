@@ -29,6 +29,9 @@
     accept_encoding_gzip_set_on_request/1,
     gzip_response_decompressed/1,
     gzip_response_encoding_case_insensitive/1,
+    gzip_response_encoding_variants_decompressed/1,
+    identity_encoding_response_returned/1,
+    unsupported_encoding_returns_error/1,
     uncompressed_response_returned/1,
     corrupt_gzip_response_returns_error/1
 ]).
@@ -53,6 +56,9 @@ all() ->
         accept_encoding_gzip_set_on_request,
         gzip_response_decompressed,
         gzip_response_encoding_case_insensitive,
+        gzip_response_encoding_variants_decompressed,
+        identity_encoding_response_returned,
+        unsupported_encoding_returns_error,
         uncompressed_response_returned,
         corrupt_gzip_response_returns_error
     ].
@@ -239,6 +245,35 @@ gzip_response_encoding_case_insensitive(_Config) ->
     Payload = <<"{\"flags\":{},\"segments\":{}}">>,
     bookish_spork:stub_request([200, #{<<"Content-Encoding">> => <<"GZIP">>}, zlib:gzip(Payload)]),
     {{ok, Payload}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State).
+
+gzip_response_encoding_variants_decompressed(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    lists:foreach(fun(Encoding) ->
+        bookish_spork:stub_request([200, #{<<"content-encoding">> => Encoding}, zlib:gzip(Payload)]),
+        {{ok, Payload}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State)
+    end, [<<" gzip ">>, <<"\tgzip">>, <<"x-gzip">>, <<"X-Gzip">>, <<"gzip, identity">>, <<"identity,gzip">>]).
+
+identity_encoding_response_returned(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    lists:foreach(fun(Encoding) ->
+        bookish_spork:stub_request([200, #{<<"content-encoding">> => Encoding}, Payload]),
+        {{ok, Payload}, _} = ldclient_update_requestor_httpc:all(?MOCK_URI, State)
+    end, [<<"identity">>, <<"Identity, identity">>]).
+
+unsupported_encoding_returns_error(_Config) ->
+    State = ldclient_update_requestor_httpc:init(default, "sdk-key"),
+    Payload = <<"{\"flags\":{},\"segments\":{}}">>,
+    lists:foreach(fun(Encoding) ->
+        bookish_spork:stub_request([200, #{
+            <<"content-encoding">> => Encoding,
+            <<"etag">> => <<"etagval">>
+        }, zlib:gzip(Payload)]),
+        %% The state does not record the ETag of a response that the SDK cannot decode.
+        {{error, {unsupported_encoding, _}}, State} =
+            ldclient_update_requestor_httpc:all(?MOCK_URI, State)
+    end, [<<"br">>, <<"gzip, br">>, <<"gzip, gzip">>]).
 
 uncompressed_response_returned(_Config) ->
     State = ldclient_update_requestor_httpc:init(default, "sdk-key"),

@@ -147,6 +147,9 @@ process_response({error, network_error}, _, _, Uri) ->
 process_response({error, {decompress_error, Reason}}, _, _, Uri) ->
     error_logger:warning_msg("Failed to decompress the polling response from URL ~p: ~p.", [Uri, Reason]),
     ok;
+process_response({error, {unsupported_encoding, Encoding}}, _, _, Uri) ->
+    error_logger:error_msg("Unsupported content encoding ~p in the polling response from URL ~p.", [Encoding, Uri]),
+    ok;
 process_response({ok, not_modified}, _, _, _) -> ok;
 process_response({ok, ResponseBody}, FeatureStore, Tag, _) ->
     StorageDown = ldclient_update_processor_state:get_storage_initialized_state(Tag),

@@ -108,6 +108,8 @@ all(_Uri, State) ->
             {error, network_error};
         "sdk-key-decompress-error" ->
             {error, {decompress_error, data_error}};
+        "sdk-key-unsupported-encoding" ->
+            {error, {unsupported_encoding, "br"}};
         "sdk-key-flags-segments" ->
             {_, FlagBin, _} = get_simple_flag(),
             {_, SegmentBin, _} = get_simple_segment(),
