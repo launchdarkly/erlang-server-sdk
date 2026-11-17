@@ -21,7 +21,7 @@
     server_process_events_put/1,
     server_process_events_patch/1,
     buckets_precreated_non_daemon_mode/1,
-    buckets_not_precreated_daemon_mode/1
+    buckets_precreated_daemon_mode/1
 ]).
 
 %%====================================================================
@@ -40,7 +40,7 @@ all() ->
         server_process_events_put,
         server_process_events_patch,
         buckets_precreated_non_daemon_mode,
-        buckets_not_precreated_daemon_mode
+        buckets_precreated_daemon_mode
     ].
 
 init_per_suite(Config) ->
@@ -376,7 +376,7 @@ buckets_precreated_non_daemon_mode(_) ->
     % Clean up
     ok = ldclient:stop_instance(Tag).
 
-buckets_not_precreated_daemon_mode(_) ->
+buckets_precreated_daemon_mode(_) ->
     % Start a new instance with use_ldd: true (daemon mode)
     Tag = daemon_test,
     Options = #{
@@ -389,11 +389,20 @@ buckets_not_precreated_daemon_mode(_) ->
     },
     ldclient:start_instance("", Tag, Options),
 
-    % Verify buckets were NOT pre-created by successfully creating them
-    ok = ldclient_storage_redis:create(Tag, features),
-    ok = ldclient_storage_redis:create(Tag, segments),
+    % Verify buckets were pre-created by trying to create them again
+    {error, already_exists, _} = ldclient_storage_redis:create(Tag, features),
+    {error, already_exists, _} = ldclient_storage_redis:create(Tag, segments),
+
+    with_redis(fun(Client) ->
+        % Daemon mode does not write to Redis.
+        {ok, []} = eredis:q(Client, ["KEYS", "daemon_test:*"]),
+        % The SDK reads the data that another process writes.
+        {ok, _} = eredis:q(Client, ["HSET", "daemon_test:features", "flag1", jsx:encode(flag(<<"flag1">>))]),
+        [{<<"flag1">>, #{key := <<"flag1">>}}] = ldclient_storage_redis:get(Tag, features, <<"flag1">>),
+        [{<<"flag1">>, #{key := <<"flag1">>}}] = ldclient_storage_redis:all(Tag, features),
+        [] = ldclient_storage_redis:all(Tag, segments),
+        {ok, _} = eredis:q(Client, ["DEL", "daemon_test:features"])
+    end),
 
     % Clean up
-    ok = ldclient_storage_redis:empty(Tag, features),
-    ok = ldclient_storage_redis:empty(Tag, segments),
     ok = ldclient:stop_instance(Tag).
