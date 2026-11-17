@@ -500,11 +500,17 @@ check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, 
     % Prerequisite flag is deleted, short circuit fail
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
     flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
-check_prerequisite_flag(#{key := PrerequisiteKey, on := false}, _, _, Flag, Context, FeatureStore, Tag,
-    DefaultValue, Events, _VisitedFlags) ->
-    % Prerequisite flag is off, short circuit fail
+check_prerequisite_flag(#{key := PrerequisiteKey, on := false} = PrerequisiteFlag, _, _, #{key := FlagKey} = Flag,
+    Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
+    % Prerequisite flag is off. Record its evaluation at its off variation, then fail.
+    {{ResultVariation, ResultVariationValue, ResultReason}, _} =
+        flag_for_context_valid(PrerequisiteFlag, Context, FeatureStore, Tag, DefaultValue),
+    NewEvents = [
+        ldclient_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey,
+            Context, ResultReason, PrerequisiteFlag) | Events
+    ],
     Result = {fail, {prerequisite_failed, [PrerequisiteKey]}},
-    flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, Events);
+    flag_for_context_prerequisites(Result, Flag, Context, FeatureStore, Tag, DefaultValue, NewEvents);
 check_prerequisite_flag(#{prerequisites := SubPrerequisites} = PrerequisiteFlag, Variation, Prerequisites,
     #{key := FlagKey} = Flag, Context, FeatureStore, Tag, DefaultValue, Events, VisitedFlags) ->
     {{ResultVariation, ResultVariationValue, ResultReason}, ResultEvents} =

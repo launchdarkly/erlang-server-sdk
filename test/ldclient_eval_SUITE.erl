@@ -287,6 +287,7 @@ prerequisite_fail_off(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, 1, false, null, off, <<"prereqs-fail-off">>},
         {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
@@ -296,6 +297,7 @@ prerequisite_fail_off_null(_) ->
     {{null, "foo", {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off-null">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, 1, false, null, off, <<"prereqs-fail-off-null">>},
         {<<"prereqs-fail-off-null">>, feature_request, null, "foo", "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
