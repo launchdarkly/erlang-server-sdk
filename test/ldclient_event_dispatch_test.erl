@@ -29,6 +29,8 @@ send(State, OutputEvents, PayloadId, _Uri) ->
     Result = case SdkKey of
         "sdk-key-events-fail" ->
             {error, temporary, "Testing event send failure."};
+        "sdk-key-events-hang" ->
+            timer:sleep(infinity);
          _ ->
              {ok, 0}
     end,

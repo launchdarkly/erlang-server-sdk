@@ -16,6 +16,10 @@
 %% API
 -export([add_event/3, flush/1]).
 
+%% The supervisor kills this server if it does not stop in 5000 milliseconds.
+%% The wait for the pending events to send is shorter than that limit.
+-define(SEND_PENDING_EVENTS_TIMEOUT, 4000).
+
 -type state() :: #{
     events := [ldclient_event:event()],
     summary_event := summary_event(),
@@ -23,7 +27,8 @@
     flush_interval := pos_integer(),
     timer_ref := reference(),
     offline := boolean(),
-    send_events := boolean()
+    send_events := boolean(),
+    tag := atom()
 }.
 
 -type summary_event() :: #{} | #{
@@ -115,7 +120,8 @@ init([Tag]) ->
         flush_interval => FlushInterval,
         timer_ref => TimerRef,
         offline => OfflineMode,
-        send_events => SendEvents
+        send_events => SendEvents,
+        tag => Tag
     },
     {ok, State}.
 
@@ -151,10 +157,10 @@ handle_info(_Info, State) ->
 
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: state()) -> term().
-terminate(Reason, #{timer_ref := TimerRef} = _State) ->
+terminate(Reason, #{timer_ref := TimerRef, tag := Tag, events := Events, summary_event := SummaryEvent}) ->
     error_logger:info_msg("Terminating event service, reason: ~p", [Reason]),
     _ = erlang:cancel_timer(TimerRef),
-    ok;
+    send_pending_events(Tag, Events, SummaryEvent);
 terminate(_Reason, _State) ->
     ok.
 
@@ -164,6 +170,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%===================================================================
 %% Internal functions
 %%===================================================================
+
+%% @doc Send the pending events and wait a limited time for the send to complete
+%%
+%% If the send does not complete in time, the event server stops and does not wait.
+%% @end
+-spec send_pending_events(Tag :: atom(), Events :: [ldclient_event:event()], SummaryEvent :: summary_event()) -> ok.
+send_pending_events(_Tag, [], SummaryEvent) when map_size(SummaryEvent) == 0 ->
+    ok;
+send_pending_events(Tag, Events, SummaryEvent) ->
+    try
+        ldclient_event_process_server:send_events_and_wait(Tag, Events, SummaryEvent, ?SEND_PENDING_EVENTS_TIMEOUT)
+    catch
+        exit:{ExitReason, _Call} ->
+            error_logger:warning_msg("Could not send pending events before the event server stopped: ~p", [ExitReason])
+    end.
 
 -spec add_event(
     Tag :: atom(),

@@ -26,7 +26,9 @@
     fail_and_retry/1,
     payload_id_differs/1,
     add_flag_eval_events_flush_in_experiment_fallthrough/1,
-    add_flag_eval_events_flush_in_experiment_rule_match/1
+    add_flag_eval_events_flush_in_experiment_rule_match/1,
+    stop_instance_flushes_events/1,
+    stop_instance_limits_wait_for_events/1
 ]).
 
 %%====================================================================
@@ -49,7 +51,9 @@ all() ->
         fail_and_retry,
         payload_id_differs,
         add_flag_eval_events_flush_in_experiment_fallthrough,
-        add_flag_eval_events_flush_in_experiment_rule_match
+        add_flag_eval_events_flush_in_experiment_rule_match,
+        stop_instance_flushes_events,
+        stop_instance_limits_wait_for_events
     ].
 
 init_per_suite(Config) ->
@@ -1064,3 +1068,40 @@ add_flag_eval_events_flush_in_experiment_rule_match(_) ->
             <<"creationDate">> := _
         }
     ] = ActualEvents.
+
+stop_instance_flushes_events(_) ->
+    % The flush interval is long. Only the stop can send the event before the test ends.
+    Options = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_flush_interval => 60000
+    },
+    ok = ldclient:start_instance("", stopper, Options),
+    Event = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"12345">>})),
+    register_event_forwarding_process(),
+    ok = ldclient_event_server:add_event(stopper, Event, #{}),
+    ok = ldclient:stop_instance(stopper),
+    {ActualEvents, _} = receive_events(),
+    [
+        #{
+            <<"kind">> := <<"identify">>,
+            <<"context">> := #{<<"key">> := <<"12345">>, <<"kind">> := <<"user">>},
+            <<"creationDate">> := _
+        }
+    ] = ActualEvents.
+
+stop_instance_limits_wait_for_events(_) ->
+    % The dispatcher for this SDK key never completes a send.
+    Options = #{
+        stream => false,
+        events_dispatcher => ldclient_event_dispatch_test,
+        polling_update_requestor => ldclient_update_requestor_test,
+        events_flush_interval => 60000
+    },
+    ok = ldclient:start_instance("sdk-key-events-hang", hanger, Options),
+    Event = ldclient_event:new_identify(ldclient_context:new_from_user(#{key => <<"12345">>})),
+    ok = ldclient_event_server:add_event(hanger, Event, #{}),
+    {StopMicroseconds, ok} = timer:tc(fun() -> ldclient:stop_instance(hanger) end),
+    % The supervisor kills the event server after 5 seconds. The stop must complete before that.
+    true = StopMicroseconds < 5000000.

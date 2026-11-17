@@ -17,6 +17,7 @@
 %% API
 -export([
     send_events/3,
+    send_events_and_wait/4,
     get_last_server_time/1
 ]).
 
@@ -44,6 +45,16 @@
 send_events(Tag, Events, SummaryEvent) ->
     ServerName = get_local_reg_name(Tag),
     gen_server:cast(ServerName, {send_events, Events, SummaryEvent}).
+
+%% @doc Send events to LaunchDarkly event server and wait for the send to complete
+%%
+%% The call exits if the send does not complete in Timeout milliseconds.
+%% @end
+-spec send_events_and_wait(Tag :: atom(), Events :: [ldclient_event:event()],
+    SummaryEvent :: ldclient_event_server:summary_event(), Timeout :: timeout()) -> ok.
+send_events_and_wait(Tag, Events, SummaryEvent, Timeout) ->
+    ServerName = get_local_reg_name(Tag),
+    gen_server:call(ServerName, {send_events, Events, SummaryEvent}, Timeout).
 
 -spec get_last_server_time(Tag :: atom()) -> integer().
 get_last_server_time(Tag) ->
@@ -100,6 +111,9 @@ init([Tag]) ->
 -spec handle_call(Request :: term(), From :: from(), State :: state()) ->
     {reply, Reply :: term(), NewState :: state()} |
     {stop, normal, {error, atom(), term()}, state()}.
+handle_call({send_events, Events, SummaryEvent}, _From, State) ->
+    {noreply, NewState} = handle_cast({send_events, Events, SummaryEvent}, State),
+    {reply, ok, NewState};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 

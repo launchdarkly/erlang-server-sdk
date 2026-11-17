@@ -40,4 +40,7 @@ children(Tag) ->
     UserCacheWorker = ?CHILD(lru, lru, [{local, UserCacheName}, [{max_objs, ContextKeysCapacity}]], worker),
     EventStorageWorker = ?CHILD(ldclient_event_server, ldclient_event_server, [Tag], worker),
     EventProcessWorker = ?CHILD(ldclient_event_process_server, ldclient_event_process_server, [Tag], worker),
-    [UserCacheWorker, EventStorageWorker, EventProcessWorker].
+    % The supervisor stops the children in the reverse start order.
+    % The event server sends its pending events to the event processor when the event server stops.
+    % Thus the event processor starts before the event server.
+    [UserCacheWorker, EventProcessWorker, EventStorageWorker].
