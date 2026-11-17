@@ -56,7 +56,7 @@ new(RawSegmentMap) ->
         <<"includedContexts">> => [],
         <<"excludedContexts">> => []
     },
-    SegmentMap = maps:merge(SegmentTemplate, RawSegmentMap),
+    SegmentMap = maps:merge(SegmentTemplate, ldclient_flag:without_null_properties(RawSegmentMap)),
     new_from_template(SegmentMap).
 
 -spec match_context(
@@ -112,7 +112,8 @@ parse_rules(SegmentKey, SegmentSalt, Rules) ->
     lists:foldr(F, [], Rules).
 
 -spec parse_rule_optional_attributes(map(), map()) -> rule().
-parse_rule_optional_attributes(Rule, RuleRaw) ->
+parse_rule_optional_attributes(Rule, RuleRawWithNulls) ->
+    RuleRaw = ldclient_flag:without_null_properties(RuleRawWithNulls),
     Weight = maps:get(<<"weight">>, RuleRaw, null),
     RolloutContextKindIsKey = maps:is_key(<<"rolloutContextKind">>, RuleRaw),
     RolloutContextKind = maps:get(<<"rolloutContextKind">>, RuleRaw, <<"user">>),

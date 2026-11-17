@@ -49,7 +49,8 @@
 %%===================================================================
 
 -spec new(map()) -> rollout().
-new(#{<<"variations">> := Variations} = Map) ->
+new(#{<<"variations">> := Variations} = RawMap) ->
+    Map = ldclient_flag:without_null_properties(RawMap),
     #{
         variations => parse_variations(Variations),
         bucketBy => get_bucket_by(Map),
@@ -116,7 +117,8 @@ bucket_context(Seed, Key, Salt, Context, BucketBy, ContextKind) ->
 
 -spec parse_variations([map()]) -> [weighted_variation()].
 parse_variations(Variations) ->
-    F = fun(#{<<"variation">> := Variation} = Map, Acc) ->
+    F = fun(#{<<"variation">> := Variation} = RawMap, Acc) ->
+            Map = ldclient_flag:without_null_properties(RawMap),
             Data = #{
                 variation => Variation,
                 weight => maps:get(<<"weight">>, Map, 0),
