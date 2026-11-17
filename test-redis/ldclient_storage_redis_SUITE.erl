@@ -16,6 +16,8 @@
     server_get_upsert/1,
     server_upsert_clean/1,
     server_all/1,
+    server_writes_no_placeholder_field/1,
+    server_skips_legacy_placeholder_field/1,
     server_process_events_put/1,
     server_process_events_patch/1,
     buckets_precreated_non_daemon_mode/1,
@@ -33,6 +35,8 @@ all() ->
         server_get_upsert,
         server_upsert_clean,
         server_all,
+        server_writes_no_placeholder_field,
+        server_skips_legacy_placeholder_field,
         server_process_events_put,
         server_process_events_patch,
         buckets_precreated_non_daemon_mode,
@@ -75,6 +79,18 @@ end_per_testcase(_, _Config) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+flag(Key) ->
+    #{debugEventsUntilDate => null, deleted => false,
+      fallthrough => #{bucketBy => key, variations => []},
+      key => Key, offVariation => 0, on => true,
+      prerequisites => [], rules => [], salt => <<>>, targets => [],
+      trackEvents => false, trackEventsFallthrough => false,
+      variations => [], version => 1}.
+
+with_redis(Fun) ->
+    {ok, Client} = eredis:start_link(),
+    try Fun(Client) after eredis:stop(Client) end.
 
 %%====================================================================
 %% Tests
@@ -227,6 +243,28 @@ server_all(_) ->
                trackEvents := false,trackEventsFallthrough := false,
                variations := [],version := 0}}
     ] = lists:sort(ldclient_storage_redis:all(another1, features)).
+
+server_writes_no_placeholder_field(_) ->
+    with_redis(fun(Client) ->
+        % Init writes only the items that it receives.
+        ok = ldclient_storage_redis:upsert_clean(default, features, #{<<"flag1">> => flag(<<"flag1">>)}),
+        {ok, [<<"flag1">>]} = eredis:q(Client, ["HKEYS", "default:features"]),
+        {ok, []} = eredis:q(Client, ["HKEYS", "default:segments"]),
+        % An empty bucket has no hash, and reads as empty.
+        ok = ldclient_storage_redis:empty(default, features),
+        {ok, <<"0">>} = eredis:q(Client, ["EXISTS", "default:features"]),
+        [] = ldclient_storage_redis:all(default, features),
+        [] = ldclient_storage_redis:get(default, features, <<"flag1">>)
+    end).
+
+server_skips_legacy_placeholder_field(_) ->
+    with_redis(fun(Client) ->
+        % Earlier SDK versions wrote a field with the key and value "null".
+        {ok, _} = eredis:q(Client, ["HSET", "default:features", "null", "null"]),
+        ok = ldclient_storage_redis:upsert(default, features, #{<<"flag1">> => flag(<<"flag1">>)}),
+        [{<<"flag1">>, #{key := <<"flag1">>}}] = ldclient_storage_redis:all(default, features),
+        [] = ldclient_storage_redis:get(default, features, <<"null">>)
+    end).
 
 server_process_events_put(_) ->
     Event = #{
