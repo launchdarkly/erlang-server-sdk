@@ -82,7 +82,8 @@ get_service_detail(Req, State) ->
       <<"client-prereq-events">>,
       <<"all-flags-client-side-only">>,
       <<"instance-id">>,
-      <<"service-endpoints">>
+      <<"service-endpoints">>,
+      <<"polling-gzip">>
     ],
     <<"clientVersion">> => ldclient_config:get_version()
   }),
