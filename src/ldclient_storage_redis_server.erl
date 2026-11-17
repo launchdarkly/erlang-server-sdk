@@ -206,14 +206,10 @@ bucket_exists(Bucket, Buckets) when is_atom(Bucket) ->
     {ok | {error, already_exists, string()}, NewBuckets :: list()}.
 create_bucket(true, Bucket, _Client, _Prefix, Buckets) ->
     {{error, already_exists, "Redis hash " ++ atom_to_list(Bucket) ++ " already exists."}, Buckets};
-create_bucket(false, Bucket, Client, Prefix, Buckets) ->
-    case eredis:q(Client, ["HSET", bucket_name(Prefix, Bucket), null, null]) of
-        {ok, _} ->
-            {ok, [Bucket | Buckets]};
-        {error, Reason} ->
-            error_logger:error_msg("Redis connection error during create_bucket for ~p: ~p", [Bucket, Reason]),
-            {ok, [Bucket | Buckets]}
-    end.
+create_bucket(false, Bucket, _Client, _Prefix, Buckets) ->
+    %% Redis has no empty hash, so the bucket exists only in the server state.
+    %% Readers treat an absent hash as an empty bucket.
+    {ok, [Bucket | Buckets]}.
 
 %% @doc Empty a bucket
 %% @private
@@ -228,7 +224,6 @@ empty_bucket(false, Bucket, _Client, _Prefix) ->
 empty_bucket(true, Bucket, Client, Prefix) ->
     case eredis:q(Client, ["DEL", bucket_name(Prefix, Bucket)]) of
         {ok, _} ->
-            {ok, _} = create_bucket(false, Bucket, Client, Prefix, []),
             ok;
         {error, Reason} ->
             error_logger:error_msg("Redis connection error during empty_bucket for ~p: ~p", [Bucket, Reason]),
@@ -248,15 +243,16 @@ all_items(false, Bucket, _Client, _Prefix) ->
 all_items(true, Bucket, Client, Prefix) ->
     case eredis:q(Client, ["HGETALL", bucket_name(Prefix, Bucket)]) of
         {ok, Values} ->
-            NullFilter = [<<"null">>],
-            NewValues = lists:filter(fun(Elem) ->
-                not lists:member(Elem, NullFilter) end, Values), %This removes the initial null key and value
-            pairs(NewValues, Bucket);
+            pairs(Values, Bucket);
         {error, Reason} ->
             error_logger:error_msg("Redis error listing all items in bucket ~p: ~s", [Bucket, format_error(Reason)]),
             []
     end.
 
+%% Earlier SDK versions wrote a placeholder field with the key and value "null".
+%% Other SDK instances can still write it, so skip it.
+pairs([<<"null">>, <<"null">> | L], Bucket) ->
+    pairs(L, Bucket);
 pairs([A, B | L], Bucket) ->
     Decoded = jsx:decode(B, [return_maps]),
     if
@@ -284,6 +280,8 @@ lookup_key(true, Key, Bucket, Client, Prefix) ->
         {ok, Value} ->
             if
                 (Value == undefined) -> [];
+                %% Skip the placeholder field that earlier SDK versions wrote.
+                (Value == <<"null">>) -> [];
                 true ->
                     Decoded = jsx:decode(Value, [return_maps]),
                     if
