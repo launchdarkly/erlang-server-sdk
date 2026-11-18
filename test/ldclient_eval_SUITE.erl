@@ -21,6 +21,7 @@
     deleted_flag/1,
     prerequisite_fail_off/1,
     prerequisite_fail_off_null/1,
+    prerequisite_off_null_off_variation/1,
     prerequisite_fail_variation/1,
     prerequisite_success/1,
     target_context/1,
@@ -94,6 +95,7 @@ all() ->
         deleted_flag,
         prerequisite_fail_off,
         prerequisite_fail_off_null,
+        prerequisite_off_null_off_variation,
         prerequisite_fail_variation,
         prerequisite_success,
         target_context,
@@ -287,6 +289,7 @@ prerequisite_fail_off(_) ->
     {{1, false, {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, 1, false, null, off, <<"prereqs-fail-off">>},
         {<<"prereqs-fail-off">>, feature_request, 1, false, "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
@@ -296,7 +299,23 @@ prerequisite_fail_off_null(_) ->
     {{null, "foo", {prerequisite_failed, [<<"keep-it-off">>]}}, Events} =
         ldclient_eval:flag_key_for_context(default, <<"prereqs-fail-off-null">>, #{key => <<"context123">>, kind => <<"user">>}, "foo"),
     ExpectedEvents = lists:sort([
+        {<<"keep-it-off">>, feature_request, 1, false, null, off, <<"prereqs-fail-off-null">>},
         {<<"prereqs-fail-off-null">>, feature_request, null, "foo", "foo", {prerequisite_failed, [<<"keep-it-off">>]}, null}
+    ]),
+    ActualEvents = lists:sort(extract_events(Events)),
+    ExpectedEvents = ActualEvents.
+
+prerequisite_off_null_off_variation(_) ->
+    % Evaluate a flag whose prerequisite is off and has no off variation.
+    {{1, false, {prerequisite_failed, [<<"keep-it-off-null-off-variation">>]}}, Events} =
+        ldclient_eval:flag_key_for_context(another1, <<"prereqs-fail-off-null-off-variation">>,
+            #{key => <<"context123">>, kind => <<"user">>}, "foo"),
+    % The prerequisite event has a null value. It does not contain the default value of the dependent flag.
+    ExpectedEvents = lists:sort([
+        {<<"keep-it-off-null-off-variation">>, feature_request, null, null, null, off,
+            <<"prereqs-fail-off-null-off-variation">>},
+        {<<"prereqs-fail-off-null-off-variation">>, feature_request, 1, false, "foo",
+            {prerequisite_failed, [<<"keep-it-off-null-off-variation">>]}, null}
     ]),
     ActualEvents = lists:sort(extract_events(Events)),
     ExpectedEvents = ActualEvents.
