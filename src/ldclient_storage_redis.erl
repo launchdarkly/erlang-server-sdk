@@ -36,16 +36,8 @@ init(SupRef, Tag, _) ->
     WorkerRegName = get_local_reg_name(worker, Tag),
     StorageSup = ?CHILD(ldclient_storage_redis_sup, ldclient_storage_redis_sup, [SupRegName, WorkerRegName, Tag], supervisor),
     {ok, _} = supervisor:start_child(SupRef, StorageSup),
-    ok = ldclient_storage_cache:init(SupRef, Tag, []),
-    % Pre-create features and segments buckets only if not in daemon mode
-    UseLdd = ldclient_config:get_value(Tag, use_ldd),
-    case UseLdd of
-        false ->
-            ok = create(Tag, features),
-            ok = create(Tag, segments);
-        true ->
-            ok
-    end.
+    % The Redis server and the cache server start with the features and segments buckets.
+    ok = ldclient_storage_cache:init(SupRef, Tag, []).
 
 -spec create(Tag :: atom(), Bucket :: atom()) ->
     ok |

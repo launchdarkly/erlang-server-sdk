@@ -1,3 +1,3 @@
-persistent data store/redis/uses default prefix
-persistent data store/redis/uses custom prefix
-persistent data store/redis/daemon mode
+persistent data store/redis/daemon mode/caches flag for duration/cache hit persists for TTL
+persistent data store/redis/daemon mode/caches flag for duration/cache miss persists for TTL
+persistent data store/redis/daemon mode/caches flag forever
