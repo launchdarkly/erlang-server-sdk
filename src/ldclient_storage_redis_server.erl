@@ -69,7 +69,10 @@ init([Tag]) ->
     State = #{
         client => Client,
         prefix => Prefix,
-        buckets => [],
+        % Redis has no empty hash, so the buckets exist only in this state.
+        % The supervisor can restart this process. Each start must set the buckets again.
+        % Without them, each read returns bucket_not_found. Daemon mode needs them too.
+        buckets => [features, segments],
         tag => Tag
     },
     {ok, State}.

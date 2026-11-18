@@ -40,7 +40,7 @@ start_link(WorkerRegName, Tag) ->
 
 init([Tag]) ->
     CacheTtl = ldclient_config:get_value(Tag, cache_ttl),
-    {ok, #{data => #{}, cache_ttl => CacheTtl}}.
+    {ok, #{data => #{features => #{}, segments => #{}}, cache_ttl => CacheTtl}}.
 
 %%===================================================================
 %% API
