@@ -503,8 +503,10 @@ check_prerequisite_flag(#{key := PrerequisiteKey, deleted := true}, _, _, Flag, 
 check_prerequisite_flag(#{key := PrerequisiteKey, on := false} = PrerequisiteFlag, _, _, #{key := FlagKey} = Flag,
     Context, FeatureStore, Tag, DefaultValue, Events, _VisitedFlags) ->
     % Prerequisite flag is off. Record its evaluation at its off variation, then fail.
+    % The default value belongs to the dependent flag. Use null so that a prerequisite
+    % without an off variation records a null value.
     {{ResultVariation, ResultVariationValue, ResultReason}, _} =
-        flag_for_context_valid(PrerequisiteFlag, Context, FeatureStore, Tag, DefaultValue),
+        flag_for_context_valid(PrerequisiteFlag, Context, FeatureStore, Tag, null),
     NewEvents = [
         ldclient_event:new_prerequisite_eval(ResultVariation, ResultVariationValue, FlagKey,
             Context, ResultReason, PrerequisiteFlag) | Events

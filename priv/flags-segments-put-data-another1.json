@@ -25,6 +25,53 @@
         ],
         "version": 5
       },
+      "keep-it-off-null-off-variation": {
+        "clientSide": false,
+        "deleted": false,
+        "fallthrough": {
+          "variation": 0
+        },
+        "key": "keep-it-off-null-off-variation",
+        "offVariation": null,
+        "on": false,
+        "prerequisites": [],
+        "rules": [],
+        "salt": "d0888ec5921e45c7af5bc10b47b033bb",
+        "targets": [],
+        "trackEvents": true,
+        "trackEventsFallthrough": false,
+        "variations": [
+          true,
+          false
+        ],
+        "version": 5
+      },
+      "prereqs-fail-off-null-off-variation": {
+        "clientSide": false,
+        "deleted": false,
+        "fallthrough": {
+          "variation": 0
+        },
+        "key": "prereqs-fail-off-null-off-variation",
+        "offVariation": 1,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "keep-it-off-null-off-variation",
+            "variation": 0
+          }
+        ],
+        "rules": [],
+        "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+        "targets": [],
+        "trackEvents": true,
+        "trackEventsFallthrough": false,
+        "variations": [
+          true,
+          false
+        ],
+        "version": 3
+      },
       "target-me": {
         "clientSide": false,
         "debugEventsUntilDate": null,
