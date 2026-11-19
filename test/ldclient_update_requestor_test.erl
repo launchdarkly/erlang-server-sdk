@@ -95,6 +95,16 @@ init(_Tag, SdkKey) -> #{
 %%
 %% @end
 -spec all(Uri :: string(), State :: any()) -> {ldclient_update_requestor:response(), any()}.
+all(Uri, #{sdk_key := "sdk-key-flags-segments-then-internal-error"} = State) ->
+    %% The first poll gets flags and segments. All later polls get an HTTP 500 error.
+    Result = case maps:get(polled, State, false) of
+        false ->
+            {FlagsSegments, _} = all(Uri, #{sdk_key => "sdk-key-flags-segments"}),
+            FlagsSegments;
+        true ->
+            {error, {bad_status, 500, ""}}
+    end,
+    {Result, State#{polled => true}};
 all(_Uri, State) ->
     #{sdk_key := SdkKey} = State,
     Result = case SdkKey of
