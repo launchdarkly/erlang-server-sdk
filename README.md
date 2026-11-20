@@ -10,7 +10,7 @@
 
 ## Supported Erlang/OTP versions
 
-This version of the LaunchDarkly SDK is compatible with Erlang/OTP 24 or higher.
+While this version of the LaunchDarkly SDK requires Erlang/OTP 24 or later, you should use the latest patched version of a supported Erlang/OTP release.
 
 ## Getting started
 
