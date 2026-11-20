@@ -14,11 +14,11 @@
     ssl,
     shotgun,
     jsx,
-    lru,
     verl,
     uuid,
     eredis,
-    yamerl
+    yamerl,
+    telemetry
    ]},
   {env,[]},
   {modules, []},
