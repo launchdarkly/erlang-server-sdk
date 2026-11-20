@@ -128,8 +128,18 @@ poll(#{ feature_store := FeatureStore,
         storage_tag := Tag } = State) ->
     {Result, NewRequestorState} = Requestor:all(Uri, RequestorState),
     ok = process_response(Result, FeatureStore, Tag, Uri),
-    true = ldclient_update_processor_state:set_initialized_state(Tag, true),
+    ok = set_initialized_after_success(Result, Tag),
     State#{requestor_state := NewRequestorState}.
+
+%% Set the client to initialized only after a successful poll. A successful
+%% poll gets flag data or a not-modified response. A failed poll does not
+%% change the initialized state.
+-spec set_initialized_after_success(ldclient_update_requestor:response(), atom()) -> ok.
+set_initialized_after_success({ok, _}, Tag) ->
+    true = ldclient_update_processor_state:set_initialized_state(Tag, true),
+    ok;
+set_initialized_after_success({error, _}, _Tag) ->
+    ok.
 
 -spec process_response(ldclient_update_requestor:response(), atom(), atom(), string()) -> ok.
 process_response({error, {bad_status, 401, _Reason}}, _, _, Uri) ->

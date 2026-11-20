@@ -18,7 +18,10 @@
     response_error_decompress/1,
     response_error_unsupported_encoding/1,
     response_flags_segments/1,
-    successful_response_override_existing_flags/1
+    successful_response_override_existing_flags/1,
+    response_error_not_initialized/1,
+    response_flags_segments_initialized/1,
+    response_error_after_success_stays_initialized/1
 ]).
 
 %%====================================================================
@@ -34,7 +37,10 @@ all() ->
         response_error_decompress,
         response_error_unsupported_encoding,
         response_flags_segments,
-        successful_response_override_existing_flags
+        successful_response_override_existing_flags,
+        response_error_not_initialized,
+        response_flags_segments_initialized,
+        response_error_after_success_stays_initialized
     ].
 
 init_per_suite(Config) ->
@@ -70,6 +76,12 @@ trigger_poll() ->
     [{_,Pid,_,_}] = supervisor:which_children(ldclient_instance_stream_default),
     Pid ! {poll},
     timer:sleep(500).
+
+%% Return when the poll server has handled all the messages that it has now,
+%% which include the poll that it does when it starts.
+sync_poll_server() ->
+    [{_, Pid, _, _}] = supervisor:which_children(ldclient_instance_stream_default),
+    ok = gen_server:call(Pid, sync).
 
 check_storage_simple() ->
     {FlagKey, _, FlagMap} = ldclient_update_requestor_test:get_simple_flag(),
@@ -159,4 +171,34 @@ successful_response_override_existing_flags(_) ->
     set_storage_simple(),
     trigger_poll(),
     check_storage_empty(),
+    ok = ldclient:stop_instance().
+
+response_error_not_initialized(_) ->
+    %% Start a client whose first poll gets an HTTP 500 error.
+    ok = ldclient:start_instance("sdk-key-internal-error", instance_options()),
+    sync_poll_server(),
+    %% The client did not get flag data, so it is not initialized.
+    false = ldclient:initialized(default),
+    ok = ldclient:stop_instance().
+
+response_flags_segments_initialized(_) ->
+    %% Start a client whose first poll gets flags and segments.
+    ok = ldclient:start_instance("sdk-key-flags-segments", instance_options()),
+    sync_poll_server(),
+    %% The client got flag data, so it is initialized.
+    true = ldclient:initialized(default),
+    ok = ldclient:stop_instance().
+
+response_error_after_success_stays_initialized(_) ->
+    %% Start a client whose first poll gets flags and segments.
+    ok = ldclient:start_instance("sdk-key-flags-segments-then-internal-error", instance_options()),
+    sync_poll_server(),
+    true = ldclient:initialized(default),
+    %% Do a second poll, which gets an HTTP 500 error.
+    [{_, Pid, _, _}] = supervisor:which_children(ldclient_instance_stream_default),
+    Pid ! {poll},
+    sync_poll_server(),
+    %% The client keeps the flag data from the first poll, so it stays initialized.
+    true = ldclient:initialized(default),
+    check_storage_simple_parsed(),
     ok = ldclient:stop_instance().
