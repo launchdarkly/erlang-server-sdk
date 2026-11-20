@@ -2,6 +2,24 @@
 
 All notable changes to the LaunchDarkly Erlang/Elixir SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [3.13.0](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.2...v3.13.0) (2026-11-20)
+
+
+### Features
+
+* Request and decode gzip-compressed polling responses ([#212](https://github.com/launchdarkly/erlang-server-sdk/issues/212)) ([3d8431c](https://github.com/launchdarkly/erlang-server-sdk/commit/3d8431cc93311f2389f253b7f7f8bbb644eda724))
+
+
+### Bug Fixes
+
+* Ensure daemon mode works correctly with Redis ([#216](https://github.com/launchdarkly/erlang-server-sdk/issues/216)) ([f6eb58d](https://github.com/launchdarkly/erlang-server-sdk/commit/f6eb58d8626197773a351468757371fb29f90483))
+* Make TestData value_for_all return its value when targeting is off ([#210](https://github.com/launchdarkly/erlang-server-sdk/issues/210)) ([baf5cbc](https://github.com/launchdarkly/erlang-server-sdk/commit/baf5cbcbcef00a743ec6939f31467ea35432a563))
+* Record the evaluation of a prerequisite flag that is off ([#218](https://github.com/launchdarkly/erlang-server-sdk/issues/218)) ([b06cd16](https://github.com/launchdarkly/erlang-server-sdk/commit/b06cd16b427e3414f8c07b0395ae3e866fffd3be))
+* Report CLIENT_NOT_READY instead of FLAG_NOT_FOUND before the first successful poll ([#221](https://github.com/launchdarkly/erlang-server-sdk/issues/221)) ([0ca95f6](https://github.com/launchdarkly/erlang-server-sdk/commit/0ca95f671f0aa448b46b227a5a47a0e7bb787999))
+* Restart the stream when a delete event has a version that is not an integer ([#213](https://github.com/launchdarkly/erlang-server-sdk/issues/213)) ([5fbf4e9](https://github.com/launchdarkly/erlang-server-sdk/commit/5fbf4e9f689732cbc701abc5228ca8a91b5a8723))
+* Stop the Redis store from writing a "null" item that other SDKs read as a flag or segment ([#215](https://github.com/launchdarkly/erlang-server-sdk/issues/215)) ([ec6c8ff](https://github.com/launchdarkly/erlang-server-sdk/commit/ec6c8ffd628ffb3c17b3952d44c4f933e811a6ec))
+* Treat null optional properties in flag and segment data as omitted ([#219](https://github.com/launchdarkly/erlang-server-sdk/issues/219)) ([05d8350](https://github.com/launchdarkly/erlang-server-sdk/commit/05d835085d39df31b2ac1452b703dc1bba1d2ff9))
+
 ## [3.12.2](https://github.com/launchdarkly/erlang-server-sdk/compare/v3.12.1...v3.12.2) (2026-11-02)
 
 
