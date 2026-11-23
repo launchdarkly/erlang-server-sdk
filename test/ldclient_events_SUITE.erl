@@ -594,7 +594,7 @@ add_flag_eval_events_flush_no_track(_) ->
     ),
     Events2 = [Event2],
     {ActualEvents2, _} = send_await_events(Events2, #{flush => true}),
-    % No index event this time due to users LRU cache
+    % No index event this time: the context was already noticed by the seen-context cache
     [
         #{
             <<"features">> := #{
